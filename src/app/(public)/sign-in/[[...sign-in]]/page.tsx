@@ -2,7 +2,8 @@
 
 import { SignIn } from '@clerk/nextjs'
 import Image from 'next/image'
-import { useRouter, useSearchParams } from 'next/navigation'; // Fixed import
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 
 const testimonials = [
@@ -11,7 +12,7 @@ const testimonials = [
     text: "Easy to manage my grocery stock with seamless payments integration.",
   },
   {
-    name: "Amaka Nwosu",
+    name: "Amaka Nwosu", 
     text: "Quick delivery, affordable prices, and a user-friendly design.",
   },
   {
@@ -30,11 +31,11 @@ const testimonials = [
 
 export default function Page() {
   const [current, setCurrent] = useState(0)
-  const searchParams = useSearchParams(); // Use useSearchParams instead of useParams
+  const searchParams = useSearchParams()
   
   // Get the redirect_url from search parameters
-  const redirect_url = searchParams.get('redirect_url');
-  const redirectUrl = redirect_url ? decodeURIComponent(redirect_url) : '/';
+  const redirect_url = searchParams.get('redirect_url')
+  const redirectUrl = redirect_url ? decodeURIComponent(redirect_url) : '/'
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -43,12 +44,13 @@ export default function Page() {
           <div className="max-w-md w-full space-y-8">
             <div className="text-center">
               <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-                Create your account
+                Sign in to your account
               </h2>
               <p className="mt-2 text-sm text-gray-600">
-                Join Shop Grocery Online Store today
+                Welcome back to Shop Grocery Online Store
               </p>
             </div>
+            
             <SignIn 
               appearance={{
                 elements: {
@@ -57,21 +59,44 @@ export default function Page() {
                   card: "shadow-lg",
                   headerTitle: "hidden",
                   headerSubtitle: "hidden",
+                  footerAction: "hidden", // Hide default footer to add custom forgot password link
                 },
               }}
               forceRedirectUrl={redirectUrl}
-
               routing="path"
               path="/sign-in"
               signUpUrl="/sign-up"
             />
+            
+            {/* Custom Forgot Password Link */}
+            <div className="text-center">
+              <Link 
+                href="/forgot-password" 
+                className="text-sm text-green-600 hover:text-green-500 font-medium"
+              >
+                Forgot your password?
+              </Link>
+            </div>
+            
+            {/* Sign Up Link */}
+            <div className="text-center">
+              <p className="text-sm text-gray-600">
+                Don't have an account?{' '}
+                <Link 
+                  href="/sign-up" 
+                  className="font-medium text-green-600 hover:text-green-500"
+                >
+                  Sign up here
+                </Link>
+              </p>
+            </div>
           </div>
         </div>
         
         {/* Right side - Full Image with Testimonial Overlay */}
         <div className="hidden lg:block lg:w-1/2 relative">
           <Image 
-            src="/shop-grocery.webp" 
+            src="/shop-grocery.jpg" 
             alt="Sign in" 
             fill
             className="object-cover"

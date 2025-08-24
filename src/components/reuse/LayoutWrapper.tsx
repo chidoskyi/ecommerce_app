@@ -16,7 +16,7 @@ export default function LayoutWrapper({
 }) {
   const pathname = usePathname();
   const isAuthPage =
-    pathname?.startsWith("/sign-in") || pathname?.startsWith("/sign-up")  || pathname?.startsWith("/invoice") || pathname?.startsWith("/checkout/payment-success");
+    pathname?.startsWith("/sign-in") || pathname?.startsWith("/sign-up")  || pathname?.startsWith("/invoice") || pathname?.startsWith("/checkout/payment-success") || pathname?.startsWith("/forgot-password");
   // const isAdminRoute = pathname?.startsWith('/admin') ?? false
 
   return (

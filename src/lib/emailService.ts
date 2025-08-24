@@ -68,55 +68,15 @@ class EmailService {
       throw error;
     }
   }
-  // 1. Contact Form Submission - Send to Admin/Support
-  async sendContactFormNotification(
-    contact: ContactFormData
-  ): Promise<SentMessageInfo> {
-    const content = `
-      <div class="content">
-        <h2>New Contact Form Submission 📧</h2>
-        <p>You have received a new message through your website's contact form.</p>
-        
-        <div class="order-details">
-          <h3>Contact Details</h3>
-          <p><strong>Name:</strong> ${contact.fullName}</p>
-          <p><strong>Email:</strong> ${contact.email}</p>
-          <p><strong>Subject:</strong> ${contact.subject}</p>
-          <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
-        </div>
 
-        <div class="order-details">
-          <h3>Message</h3>
-          <p style="white-space: pre-wrap; line-height: 1.6;">${
-            contact.message
-          }</p>
-        </div>
-
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="mailto:${contact.email}?subject=${encodeURIComponent(
-      "Re: New Contact: " + contact.subject
-    )}" class="button">
-            Reply to ${contact.fullName}
-          </a>
-        </div>
-
-        <p style="font-size: 12px; color: #666; margin-top: 20px;">
-          This email was automatically generated from your website's contact form.
-        </p>
-      </div>
-    `;
-
-    // Send to your support email
-    const supportEmail = process.env.SUPPORT_EMAIL || process.env.EMAIL_USER;
-    return this.sendEmail(
-      supportEmail!,
-      `New Contact: ${contact.subject}`,
-      content,
-      "Contact Form Notification"
-    );
-  }
   // 1. Welcome Email
-  async sendWelcomeEmail(user: User): Promise<SentMessageInfo> {
+  async sendWelcomeEmail(user: { 
+    email: string; 
+    firstName?: string | null; 
+    lastName?: string | null;
+    // Only include properties actually used in the email template
+  }): Promise<SentMessageInfo> {
+    // Your implementation
     const content = `
         <div class="content">
           <h2>Welcome to ${this.companyName}, ${user.firstName} ${user.lastName}! 🎉</h2>
@@ -143,38 +103,45 @@ class EmailService {
     );
   }
 
-  // 2. Email Verification
-  async sendVerificationEmail(
-    user: User,
-    verificationToken: string
-  ): Promise<SentMessageInfo> {
-    const verificationUrl = `${this.frontendUrl}/verify-email?token=${verificationToken}`;
-
-    const content = `
+    // 2. Contact Form Submission - Send to Admin/Support
+    async sendContactFormNotification(
+      contact: ContactFormData
+    ): Promise<SentMessageInfo> {
+      const content = `
         <div class="content">
-          <h2>Verify Your Email Address</h2>
-          <p>Hi ${user.firstName} ${user.lastName},</p>
-          <p>Please click the button below to verify your email address and complete your registration.</p>
-          <div style="text-align: center;">
-            <a href="${verificationUrl}" class="button">Verify Email Address</a>
+          <h2>New Contact Form Submission 📧</h2>
+          <p>You have received a new message through your website's contact form.</p>
+          
+          <div class="order-details">
+            <h3>Contact Details</h3>
+            <p><strong>Name:</strong> ${contact.fullName}</p>
+            <p><strong>Email:</strong> ${contact.email}</p>
+            <p><strong>Subject:</strong> ${contact.subject}</p>
+            <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
           </div>
-          <p>This verification link will expire in 24 hours.</p>
-          <p>If you didn't create an account with us, please ignore this email.</p>
-          <hr style="margin: 20px 0; border: none; border-top: 1px solid #e9ecef;">
-          <p style="font-size: 12px; color: #666;">
-            If the button doesn't work, copy and paste this link into your browser:<br>
-            <a href="${verificationUrl}" style="color: #667eea;">${verificationUrl}</a>
+  
+          <div class="order-details">
+            <h3>Message</h3>
+            <p style="white-space: pre-wrap; line-height: 1.6;">${
+              contact.message
+            }</p>
+          </div>
+  
+          <p style="font-size: 12px; color: #666; margin-top: 20px;">
+            This email was automatically generated from your website's contact form.
           </p>
         </div>
       `;
-
-    return this.sendEmail(
-      user.email,
-      "Verify Your Email Address",
-      content,
-      "Email Verification"
-    );
-  }
+  
+      // Send to your support email
+      const supportEmail = process.env.SUPPORT_EMAIL || process.env.EMAIL_USER;
+      return this.sendEmail(
+        supportEmail!,
+        `New Contact: ${contact.subject}`,
+        content,
+        "Contact Form Notification"
+      );
+    }
 
   // 3. Password Reset
   async sendPasswordResetEmail(

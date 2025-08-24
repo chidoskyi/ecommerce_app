@@ -1,6 +1,17 @@
-// src/lib/users.ts (updated with logging)
+// src/lib/users.ts (updated with proper typing)
 import { User } from "@prisma/client";
 import prisma from "./prisma";
+import EmailService from '@/lib/emailService';
+
+const emailService = new EmailService()
+
+// Define the minimal user interface needed for email sending
+export interface EmailUser {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+}
 
 function log(message: string, data?: any) {
   const timestamp = new Date().toISOString();
@@ -11,13 +22,27 @@ export async function createUser(user: Partial<User>) {
     try {
         log('🏗️ Creating user in database...', user);
         const newUser = await prisma.user.create({
-            data: user as any // Using 'as any' to handle the Partial<User> type
-        })
+            data: user as any
+        });
+        
         log('✅ User created successfully in database:', newUser);
-        return newUser
+        
+        // Send welcome email with only the needed properties
+        try {
+            await emailService.sendWelcomeEmail({
+                email: newUser.email,
+                firstName: newUser.firstName,
+                lastName: newUser.lastName
+            });
+            log('✅ Welcome email sent successfully to:', newUser.email);
+        } catch (emailError) {
+            log('⚠️ Welcome email could not be sent:', emailError);
+        }
+        
+        return newUser;
     } catch (error) {
         log('❌ Error creating user in database:', error);
-        throw new Error(`Error creating user: ${error}`)
+        throw new Error(`Error creating user: ${error}`);
     }
 }
 

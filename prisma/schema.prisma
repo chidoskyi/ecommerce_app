@@ -528,7 +528,7 @@ model Contact {
   fullName    String
   email       String
   subject     String
-  message     String   
+  message     String
   submittedAt DateTime @default(now())
 
   @@map("contact")

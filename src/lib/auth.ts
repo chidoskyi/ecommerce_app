@@ -2,7 +2,7 @@
 import type { User } from "@prisma/client";
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, currentUser } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/prisma';
+import  prisma  from '@/lib/prisma';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
