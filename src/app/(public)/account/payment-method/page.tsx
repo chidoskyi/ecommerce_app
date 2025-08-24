@@ -1,0 +1,61 @@
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PaymentMethod } from "@/lib/types";
+import { Badge, Trash2 } from "lucide-react";
+
+
+
+export function PaymentMethods({ paymentMethods }: { paymentMethods: PaymentMethod[] }) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Payment Methods</CardTitle>
+          <CardDescription>Manage your saved payment methods</CardDescription>
+        </div>
+        <Button>Add Payment Method</Button>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {paymentMethods.map((method) => (
+            <div key={method.id} className="border rounded-lg p-4 flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                <div className="h-10 w-16 bg-muted rounded flex items-center justify-center">
+                  {method.type === "Visa" ? (
+                    <span className="text-blue-600 font-bold">VISA</span>
+                  ) : method.type === "Mastercard" ? (
+                    <span className="text-red-600 font-bold">MC</span>
+                  ) : (
+                    method.type
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium">
+                    {method.type} ending in {method.last4}
+                    {method.default && (
+                      <Badge className="ml-2 bg-green-100 text-green-800 hover:bg-green-200">Default</Badge>
+                    )}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Expires {method.expiry} • {method.name}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {!method.default && (
+                  <Button variant="outline" size="sm">
+                    Set as Default
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Remove
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}

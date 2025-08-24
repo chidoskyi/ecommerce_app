@@ -1,0 +1,209 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Search } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { toast } from "react-toastify"
+
+import { useInvoiceFilters } from "@/hooks/useInvoiceFilters"
+import { useInvoiceSort } from "@/hooks/useInvoiceSort"
+import { invoicesData } from "@/data/invoices"
+import type { DateRange } from "@/lib/types"
+import type { Invoice, InvoiceSortConfig } from "@/types/invoice"
+import { BulkActions } from "./InvoiceAction"
+import { InvoiceFilters } from "./InvoiceFilters"
+import { InvoiceTable } from "./InvoiceTable"
+import { InvoiceDetailsDialog } from "./InvoiceDetailDialog"
+import { InvoiceStatus } from "@prisma/client"
+
+export function InvoiceList() {
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null })
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+  const [isInvoiceDetailsOpen, setIsInvoiceDetailsOpen] = useState(false)
+  const [sortConfig, setSortConfig] = useState<InvoiceSortConfig>({ key: "date", direction: "desc" })
+  const [selectedInvoices, setSelectedInvoices] = useState<string[]>([])
+
+  // Fetch invoices on component mount
+  useEffect(() => {
+    fetchInvoices()
+  }, [])
+
+  const fetchInvoices = async () => {
+    setLoading(true)
+    try {
+      // In a real app, you would fetch from your API
+      // const response = await api.getInvoices()
+      // setInvoices(response.data)
+
+      // Mock data for demonstration
+      setInvoices(invoicesData as Invoice[])
+    } catch (error) {
+      console.error("Error fetching invoices:", error)
+      toast.error("Failed to load invoices")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleStatusChange = async (invoiceId: string, newStatus: InvoiceStatus) => {
+    try {
+      // In a real app, you would call your API
+      // await api.updateInvoiceStatus(invoiceId, newStatus)
+
+      // Mock updating invoice status
+      const updatedInvoices = invoices.map((invoice) =>
+        invoice.id === invoiceId ? { ...invoice, status: newStatus } : invoice,
+      )
+
+      setInvoices(updatedInvoices)
+
+      // Update selected invoice if it's currently open
+      if (selectedInvoice && selectedInvoice.id === invoiceId) {
+        setSelectedInvoice({ ...selectedInvoice, status: newStatus })
+      }
+
+      toast.success(`Invoice status updated to ${newStatus}`)
+    } catch (error) {
+      console.error("Error updating invoice status:", error)
+      toast.error("Failed to update invoice status")
+    }
+  }
+
+  const handleBulkStatusChange = async (newStatus: InvoiceStatus) => {
+    if (selectedInvoices.length === 0) {
+      toast.warning("No invoices selected")
+      return
+    }
+
+    try {
+      // In a real app, you would call your API
+      // await Promise.all(selectedInvoices.map(id => api.updateInvoiceStatus(id, newStatus)))
+
+      // Mock updating invoice status
+      const updatedInvoices = invoices.map((invoice) =>
+        selectedInvoices.includes(invoice.id) ? { ...invoice, status: newStatus } : invoice,
+      )
+
+      setInvoices(updatedInvoices)
+      toast.success(`${selectedInvoices.length} invoices updated to ${newStatus}`)
+      setSelectedInvoices([])
+    } catch (error) {
+      console.error("Error updating invoice status:", error)
+      toast.error("Failed to update invoice status")
+    }
+  }
+
+  const handleSort = (key: keyof Invoice | "customer") => {
+    let direction: "asc" | "desc" = "asc"
+    if (sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc"
+    }
+    setSortConfig({ key, direction })
+  }
+
+  const handleSelectAllInvoices = (checked: boolean) => {
+    if (checked) {
+      setSelectedInvoices(filteredInvoices.map((invoice) => invoice.id))
+    } else {
+      setSelectedInvoices([])
+    }
+  }
+
+  const handleSelectInvoice = (invoiceId: string) => {
+    if (selectedInvoices.includes(invoiceId)) {
+      setSelectedInvoices(selectedInvoices.filter((id) => id !== invoiceId))
+    } else {
+      setSelectedInvoices([...selectedInvoices, invoiceId])
+    }
+  }
+
+  const handleViewDetails = (invoice: Invoice) => {
+    setSelectedInvoice(invoice)
+    setIsInvoiceDetailsOpen(true)
+  }
+
+  // Filter invoices
+  const filteredInvoices = useInvoiceFilters({
+    invoices,
+    searchQuery,
+    statusFilter,
+    dateRange,
+  })
+
+  // Sort invoices
+  const sortedInvoices = useInvoiceSort({
+    invoices: filteredInvoices,
+    sortConfig,
+  })
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">Invoice Management</h1>
+        <p className="text-muted-foreground">View and manage customer invoices</p>
+      </div>
+
+      <div className="flex flex-col space-y-4">
+        <Card className="shawdow-md border-gray-200">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle>Invoices</CardTitle>
+              <div className="flex items-center gap-2">
+                <BulkActions
+                  selectedCount={selectedInvoices.length}
+                  selectedInvoices={selectedInvoices}
+                  invoices={sortedInvoices}
+                  onBulkStatusChange={handleBulkStatusChange}
+                />
+                <InvoiceFilters
+                  statusFilter={statusFilter}
+                  onStatusFilterChange={setStatusFilter}
+                  dateRange={dateRange}
+                  onDateRangeChange={setDateRange}
+                />
+              </div>
+            </div>
+            <CardDescription>View and manage all customer invoices</CardDescription>
+            <div className="pt-4">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search invoices by ID, customer name, or email..."
+                  className="pl-8"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <InvoiceTable
+              invoices={sortedInvoices}
+              loading={loading}
+              selectedInvoices={selectedInvoices}
+              sortConfig={sortConfig}
+              onSort={handleSort}
+              onSelectAll={handleSelectAllInvoices}
+              onSelectInvoice={handleSelectInvoice}
+              onViewDetails={handleViewDetails}
+              onStatusChange={handleStatusChange}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <InvoiceDetailsDialog
+        invoice={selectedInvoice}
+        isOpen={isInvoiceDetailsOpen}
+        onClose={() => setIsInvoiceDetailsOpen(false)}
+        onStatusChange={handleStatusChange}
+      />
+    </div>
+  )
+}

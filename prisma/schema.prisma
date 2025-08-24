@@ -1,0 +1,1048 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum CategoryStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  OUT_OF_STOCK
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  UNPAID
+  CANCELLED
+}
+
+enum AddressType {
+  SHIPPING
+  BILLING
+}
+
+enum PriceType {
+  FIXED
+  VARIABLE
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CheckoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  EXPIRED
+  CANCELLED
+  ABANDONED
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum CouponStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+}
+
+// Types for embedded documents
+type UnitPrice {
+  unit  String
+  price Float
+}
+
+type ShippingAddress {
+  firstName String
+  lastName  String
+  address   String
+  city      String
+  state     String
+  country   String
+  zip       String
+  phone     String?
+}
+
+type BillingAddress {
+  firstName String
+  lastName  String
+  address   String
+  city      String
+  state     String
+  country   String
+  zip       String
+  phone     String?
+}
+
+type CustomerDetails {
+  email     String
+  firstName String?
+  lastName  String?
+  phone     String?
+}
+
+type PaymentSettings {
+  webhookUrl  String?
+  redirectUrl String?
+  cancelUrl   String?
+  environment String?
+  // Add other settings as needed
+}
+
+type PaymentMetadata {
+  orderId             String?
+  customerId          String?
+  source              String?
+  notes               String?
+  orderNumber         String?
+  customerEmail       String?
+  paymentMethod       String?
+  isRetry             Boolean?
+  walletTransactionId String?
+}
+
+// Embedded Types
+type BankDetails {
+  bankName      String
+  accountName   String
+  accountNumber String
+  sortCode      String?
+  routingNumber String?
+  swiftCode     String?
+}
+
+// Enums
+enum InvoiceStatus {
+  DRAFT
+  PENDING
+  SENT
+  VIEWED
+  OVERDUE
+  PAID
+  PARTIALLY_PAID
+  VOID
+  CANCELLED
+}
+
+enum InvoiceType {
+  SALES
+  PROFORMA
+  CREDIT_NOTE
+  DEBIT_NOTE
+}
+
+enum InvoicePaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  FAILED
+  REFUNDED
+}
+
+enum InvoicePaymentType {
+  FULL
+  PARTIAL
+  ADVANCE
+  REFUND
+}
+
+// Additional Enums for Payment System
+enum PaymentMethod {
+  CARD
+  BANK_TRANSFER
+  OPAY
+  PAYSTACK
+  FLUTTERWAVE
+  STRIPE
+  PAYPAL
+  RAZORPAY
+  USSD
+  MOBILE_MONEY
+  CRYPTO
+  WALLET
+  CASH_ON_DELIVERY
+}
+
+enum PaymentType {
+  ORDER_PAYMENT
+  REFUND
+  PARTIAL_REFUND
+  CHARGEBACK
+  SUBSCRIPTION
+  WALLET_TOPUP
+  WITHDRAWAL
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  CANCELLED
+  EXPIRED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  DISPUTED
+}
+
+enum TransactionType {
+  ORDER_PAYMENT
+  WALLET_TOPUP
+  REFUND
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum PaymentProviderStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+// Core Models
+model User {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  clerkId       String     @unique // Clerk user ID
+  email         String     @unique
+  firstName     String?
+  lastName      String?
+  phone         String?
+  avatar        String?
+  status        UserStatus @default(ACTIVE)
+  dateOfBirth   DateTime?
+  role          UserRole   @default(USER)
+  emailVerified Boolean    @default(false)
+  lastLoginAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Relations
+  addresses           Address[]
+  orders              Order[]
+  reviews             Review[]
+  cartItems           CartItem[] // This can now be empty for users without cart items
+  wishlistItems       WishlistItem[]
+  checkouts           Checkout[]
+  payments            Payment[]
+  transactions        Transaction[]
+  refunds             Refund[]
+  wallet              UserWallet?
+  walletTransactions  WalletTransaction[]
+  savedPaymentMethods SavedPaymentMethod[]
+  Invoice             Invoice[]
+  InvoicePayment      InvoicePayment[]
+
+  @@map("users")
+}
+
+model Product {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  slug           String        @unique
+  description    String?
+  hasFixedPrice  Boolean       @default(true)
+  priceType      PriceType     @default(FIXED)
+  fixedPrice     Float
+  unitPrices     UnitPrice[]
+  categoryId     String?       @db.ObjectId
+  sku            String        @unique
+  status         ProductStatus @default(ACTIVE)
+  isFeatured     Boolean       @default(false)
+  isTrending     Boolean       @default(false)
+  isVegetable    Boolean       @default(false)
+  isFruit        Boolean       @default(false)
+  isDealOfTheDay Boolean       @default(false)
+  isNewArrival   Boolean       @default(false)
+  rating         Float?        @default(0.0)
+  images         String[]      @default([])
+  weight         Float? // in kg, optional
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  category      Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  orderItems    OrderItem[]
+  cartItems     CartItem[]
+  wishlistItems WishlistItem[]
+  reviews       Review[]
+  checkoutItems CheckoutItem[]
+  InvoiceItem   InvoiceItem[]
+
+  @@index([status])
+  @@index([categoryId])
+  @@index([createdAt])
+  @@index([isFeatured])
+  @@index([isTrending])
+  @@map("products")
+}
+
+model Category {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  slug        String         @unique
+  description String?
+  image       String?
+  status      CategoryStatus @default(ACTIVE)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  products Product[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("categories")
+}
+
+model CartItem {
+  id           String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String? @db.ObjectId
+  clerkId      String?
+  guestId      String?
+  productId    String  @db.ObjectId
+  quantity     Int     @default(1)
+  // Pricing fields - store the actual prices at time of adding to cart
+  fixedPrice   Float?
+  selectedUnit String?
+  unitPrice    Float?
+
+  // Weight fields
+  weight      Float?
+  totalWeight Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations - Make user relation OPTIONAL with ?
+  user    User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // Updated unique constraints - separate for users and guests
+  @@unique([clerkId, productId, selectedUnit], name: "user_product_unit")
+  @@unique([guestId, productId, selectedUnit], name: "guest_product_unit")
+  @@index([userId])
+  @@index([guestId])
+  @@index([productId])
+  @@map("cart_items")
+}
+
+model Order {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  orderNumber     String          @unique
+  clerkId         String
+  userId          String?         @db.ObjectId
+  email           String
+  phone           String?
+  status          OrderStatus     @default(PENDING)
+  paymentStatus   PaymentStatus   @default(PENDING)
+  subtotalPrice   Float
+  totalTax        Float           @default(0.0)
+  totalShipping   Float           @default(0.0)
+  totalDiscount   Float           @default(0.0)
+  totalPrice      Float
+  paymentData     Json?
+  shippingAddress ShippingAddress // Changed from Json to embedded document
+  paymentMethod   String?
+  paymentId       String?
+  transactionId   String?
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  cancelledAt     DateTime?
+  processedAt     DateTime?
+
+  // Relations
+  user     User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items    OrderItem[]
+  checkout Checkout?
+  payments Payment[]
+  refunds  Refund[]
+  Invoice  Invoice?
+
+  @@index([userId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  orderId   String @db.ObjectId
+  productId String @db.ObjectId
+  quantity  Int
+
+  // Pricing fields (matches cart pattern)
+  fixedPrice   Float? // Final charged price (required)
+  unitPrice    Float? // Price per unit if different
+  selectedUnit String? // Preserve unit selection
+  totalPrice   Float
+
+  // Weight fields
+  weight      Float?
+  totalWeight Float?
+
+  // Additional order-specific fields
+  title String // Product title snapshot
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, productId, selectedUnit], name: "order_product_unit")
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model WishlistItem {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  productId String   @db.ObjectId
+  createdAt DateTime @default(now())
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+  @@map("wishlist_items")
+}
+
+model Address {
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String      @db.ObjectId
+  type      AddressType @default(SHIPPING)
+  firstName String
+  lastName  String
+  address   String
+  state     String
+  city      String
+  country   String
+  zip       String
+  phone     String?
+  isDefault Boolean     @default(false)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@map("addresses")
+}
+
+model Review {
+  id           String       @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String       @db.ObjectId
+  productId    String       @db.ObjectId
+  rating       Float
+  title        String?
+  author       String?
+  content      String?
+  status       ReviewStatus @default(PENDING)
+  isVerified   Boolean      @default(false)
+  images       String[]     @default([])
+  helpfulCount Int          @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([productId])
+  @@index([status])
+  @@index([rating])
+  @@map("reviews")
+}
+
+model Contact {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  fullName    String
+  email       String
+  subject     String
+  message     String   
+  submittedAt DateTime @default(now())
+
+  @@map("contact")
+}
+
+model Checkout {
+  id              String           @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String           @db.ObjectId
+  clerkId         String
+  sessionId       String?          @unique
+  status          CheckoutStatus   @default(PENDING)
+  totalAmount     Float
+  subtotal        Float
+  taxAmount       Float            @default(0.0)
+  shippingAmount  Float            @default(0.0)
+  discountAmount  Float            @default(0.0)
+  currency        String           @default("NGN")
+  shippingAddress ShippingAddress? // Changed from Json to embedded document
+  billingAddress  BillingAddress? // Changed from Json to embedded document
+  shippingMethod  String?
+  paymentMethod   String?
+  paymentStatus   PaymentStatus    @default(UNPAID)
+  isActive        Boolean          @default(false)
+  couponId        String?          @db.ObjectId
+  orderId         String?          @unique @db.ObjectId
+  expiresAt       DateTime?
+  abandonedAt     DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relations
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items    CheckoutItem[]
+  coupon   Coupon?        @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  order    Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  payments Payment[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([createdAt])
+  @@map("checkouts")
+}
+
+model NewsletterSubscription {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  email          String    @unique
+  active         Boolean   @default(true)
+  subscribedAt   DateTime  @default(now())
+  unsubscribedAt DateTime?
+
+  @@map("newsletter_subscriptions")
+}
+
+model CheckoutItem {
+  id         String @id @default(auto()) @map("_id") @db.ObjectId
+  checkoutId String @db.ObjectId
+  productId  String @db.ObjectId
+  quantity   Int    @default(1)
+
+  // Pricing fields (matches cart pattern but for checkout)
+  fixedPrice   Float? // Final price at checkout
+  unitPrice    Float? // Price per unit if different from fixedPrice
+  totalPrice   Float? // Price per unit if different from fixedPrice
+  selectedUnit String? // Preserve unit selection
+
+  title String // Product title snapshot
+
+  // Weight fields
+  weight      Float?
+  totalWeight Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  checkout Checkout @relation(fields: [checkoutId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([checkoutId, productId, selectedUnit], name: "checkout_product_unit")
+  @@index([checkoutId])
+  @@index([productId])
+  @@map("checkout_items")
+}
+
+model Coupon {
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
+  code          String       @unique
+  name          String?
+  description   String?
+  type          CouponType
+  value         Float
+  minimumAmount Float?
+  maximumAmount Float?
+  usageLimit    Int?
+  usageCount    Int          @default(0)
+  userLimit     Int?
+  status        CouponStatus @default(ACTIVE)
+  startsAt      DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  // Relations
+  checkouts Checkout[]
+
+  @@index([status])
+  @@index([expiresAt])
+  @@index([startsAt])
+  @@map("coupons")
+}
+
+// Payment Models
+model PaymentProvider {
+  id                  String                @id @default(auto()) @map("_id") @db.ObjectId
+  name                String                @unique
+  displayName         String
+  method              PaymentMethod
+  isActive            Boolean               @default(true)
+  status              PaymentProviderStatus @default(ACTIVE)
+  apiKey              String?
+  secretKey           String?
+  publicKey           String?
+  webhookSecret       String?
+  baseUrl             String?
+  sandboxMode         Boolean               @default(false)
+  supportedCurrencies String[]              @default([])
+  config              Json?
+  minAmount           Float?
+  maxAmount           Float?
+  processingFee       Float?                @default(0.0)
+  processingFeeType   String?               @default("percentage") // percentage or fixed
+  settings            PaymentSettings? // Changed from Json to embedded document
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  // Relations
+  payments            Payment[]
+  transactions        Transaction[]
+  webhooks            PaymentWebhook[]
+  savedPaymentMethods SavedPaymentMethod[]
+
+  @@index([method])
+  @@index([isActive])
+  @@map("payment_providers")
+}
+
+model Payment {
+  id                    String           @id @default(auto()) @map("_id") @db.ObjectId
+  paymentReference      String           @unique
+  orderId               String?          @db.ObjectId
+  checkoutId            String?          @db.ObjectId
+  userId                String?          @db.ObjectId
+  providerId            String           @db.ObjectId
+  method                PaymentMethod
+  type                  TransactionType  @default(ORDER_PAYMENT)
+  amount                Float
+  currency              String           @default("NGN")
+  processingFee         Float            @default(0.0)
+  netAmount             Float
+  status                PaymentStatus    @default(PENDING)
+  providerReference     String?
+  providerTransactionId String?
+  gatewayResponse       String? // Store as string or create a specific type
+  customerDetails       CustomerDetails? // Changed from Json to embedded document
+  billingAddress        BillingAddress? // Changed from Json to embedded document
+  description           String?
+  metadata              PaymentMetadata? // Changed from Json to embedded document
+  failureReason         String?
+  webhookVerified       Boolean          @default(false)
+  ipAddress             String?
+  userAgent             String?
+  expiresAt             DateTime?
+  paidAt                DateTime?
+  failedAt              DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  // Relations
+  order          Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  checkout       Checkout?        @relation(fields: [checkoutId], references: [id], onDelete: SetNull)
+  user           User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  provider       PaymentProvider  @relation(fields: [providerId], references: [id])
+  transactions   Transaction[]
+  refunds        Refund[]
+  InvoicePayment InvoicePayment[]
+
+  @@index([orderId])
+  @@index([checkoutId])
+  @@index([userId])
+  @@index([providerId])
+  @@index([status])
+  @@index([method])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+model Transaction {
+  id            String            @id @default(auto()) @map("_id") @db.ObjectId
+  transactionId String            @unique
+  paymentId     String?           @db.ObjectId
+  providerId    String            @db.ObjectId
+  userId        String?           @db.ObjectId
+  type          TransactionType
+  amount        Float
+  currency      String            @default("NGN")
+  status        TransactionStatus @default(PENDING)
+  reference     String?
+  description   String?
+  balanceBefore Float?            @default(0.0)
+  balanceAfter  Float?            @default(0.0)
+  metadata      PaymentMetadata? // Changed from Json to embedded document
+  providerData  String? // Store as string or create a specific type
+  reconciled    Boolean           @default(false)
+  reconciledAt  DateTime?
+  processedAt   DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  // Relations
+  payment  Payment?        @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  provider PaymentProvider @relation(fields: [providerId], references: [id])
+  user     User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([paymentId])
+  @@index([providerId])
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+model Refund {
+  id                String           @id @default(auto()) @map("_id") @db.ObjectId
+  refundReference   String           @unique
+  paymentId         String           @db.ObjectId
+  orderId           String?          @db.ObjectId
+  userId            String?          @db.ObjectId
+  amount            Float
+  currency          String           @default("NGN")
+  reason            String?
+  status            RefundStatus     @default(PENDING)
+  providerReference String?
+  gatewayResponse   String? // Store as string or create a specific type
+  metadata          PaymentMetadata? // Changed from Json to embedded document
+  processedAt       DateTime?
+  completedAt       DateTime?
+  failedAt          DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  // Relations
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([paymentId])
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("refunds")
+}
+
+model PaymentWebhook {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  providerId    String    @db.ObjectId
+  event         String
+  data          String // Store as string instead of Json
+  signature     String?
+  verified      Boolean   @default(false)
+  processed     Boolean   @default(false)
+  processedAt   DateTime?
+  failureReason String?
+  retryCount    Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  provider PaymentProvider @relation(fields: [providerId], references: [id])
+
+  @@index([providerId])
+  @@index([event])
+  @@index([verified])
+  @@index([processed])
+  @@index([createdAt])
+  @@map("payment_webhooks")
+}
+
+model UserWallet {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String    @unique @db.ObjectId
+  clerkId      String    @unique
+  balance      Float     @default(0.0)
+  currency     String    @default("NGN")
+  isActive     Boolean   @default(true)
+  pin          String?
+  lastActivity DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+
+  // @@index([userId])÷
+  @@index([balance])
+  @@map("user_wallets")
+}
+
+model WalletTransaction {
+  id            String            @id @default(auto()) @map("_id") @db.ObjectId
+  walletId      String            @db.ObjectId
+  userId        String            @db.ObjectId
+  type          TransactionType
+  amount        Float
+  currency      String            @default("NGN")
+  status        TransactionStatus @default(SUCCESS)
+  reference     String            @unique
+  description   String?
+  balanceBefore Float
+  balanceAfter  Float
+  metadata      Json? // Changed from Json to embedded document
+  createdAt     DateTime          @default(now())
+
+  // Relations
+  wallet UserWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@map("wallet_transactions")
+}
+
+model SavedPaymentMethod {
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String           @db.ObjectId
+  method      PaymentMethod
+  providerId  String           @db.ObjectId
+  token       String // Tokenized payment method
+  last4       String? // Last 4 digits for cards
+  brand       String? // Card brand or bank name
+  expiryMonth Int?
+  expiryYear  Int?
+  holderName  String?
+  isDefault   Boolean          @default(false)
+  isActive    Boolean          @default(true)
+  metadata    PaymentMetadata? // Changed from Json to embedded document
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // Relations
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider PaymentProvider @relation(fields: [providerId], references: [id])
+
+  @@index([userId])
+  @@index([method])
+  @@index([isDefault])
+  @@index([isActive])
+  @@map("saved_payment_methods")
+}
+
+model Invoice {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  clerkId       String
+  invoiceNumber String        @unique
+  orderId       String        @unique @db.ObjectId
+  userId        String?       @db.ObjectId
+  status        InvoiceStatus @default(PENDING)
+  type          InvoiceType   @default(SALES)
+
+  // Customer Information
+  customerName   String
+  customerEmail  String
+  customerPhone  String?
+  billingAddress BillingAddress?
+
+  // Company Information (optional - can be stored in settings)
+  companyName    String?
+  companyAddress String?
+  companyPhone   String?
+  companyEmail   String?
+
+  // Invoice Details
+  issueDate    DateTime @default(now())
+  dueDate      DateTime
+  paymentTerms String   @default("7 days")
+
+  // Financial Details
+  subtotal       Float
+  taxAmount      Float  @default(0.0)
+  shippingAmount Float  @default(0.0)
+  discountAmount Float  @default(0.0)
+  totalAmount    Float
+  paidAmount     Float  @default(0.0)
+  balanceAmount  Float  @default(0.0)
+  currency       String @default("NGN")
+
+  // Payment Information
+  paymentMethod String?
+  paymentStatus InvoicePaymentStatus @default(UNPAID)
+
+  // Bank Transfer Details (for bank transfer invoices)
+  bankDetails      BankDetails?
+  paymentReference String?
+
+  // Additional Information
+  notes  String?
+  terms  String?
+  footer String?
+
+  // Timestamps
+  paidAt    DateTime?
+  voidedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  order    Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user     User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items    InvoiceItem[]
+  payments InvoicePayment[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([issueDate])
+  @@index([dueDate])
+  @@map("invoices")
+}
+
+// Invoice Items Model
+model InvoiceItem {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceId String  @db.ObjectId
+  productId String? @db.ObjectId
+
+  // Item Details
+  title        String
+  description  String?
+  quantity     Int     @default(1)
+  // Pricing fields (matches cart pattern but for checkout)
+  fixedPrice   Float? // Final price at checkout
+  unitPrice    Float? // Price per unit if different from fixedPrice
+  totalPrice   Float? // Price per unit if different from fixedPrice
+  selectedUnit String? // Preserve unit selection
+
+  // Weight fields
+  weight      Float?
+  totalWeight Float?
+
+  // Tax Information
+  taxRate   Float @default(0.0)
+  taxAmount Float @default(0.0)
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([productId])
+  @@map("invoice_items")
+}
+
+// Invoice Payments Model (track all payments made against an invoice)
+model InvoicePayment {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceId String  @db.ObjectId
+  paymentId String? @db.ObjectId
+
+  // Payment Details
+  amount        Float
+  paymentMethod String
+  paymentType   InvoicePaymentType   @default(FULL)
+  status        InvoicePaymentStatus @default(PENDING)
+
+  // Transaction Details
+  transactionId String?
+  reference     String?
+  gateway       String? // 'opay', 'paystack', 'bank_transfer', etc.
+
+  // Bank Transfer Specific
+  bankName      String?
+  accountNumber String?
+  transferDate  DateTime?
+
+  // Verification
+  verifiedBy String?   @db.ObjectId
+  verifiedAt DateTime?
+
+  // Additional Information
+  notes    String?
+  metadata Json? // Store additional payment data
+
+  // Timestamps
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  invoice  Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  payment  Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  verifier User?    @relation(fields: [verifiedBy], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([status])
+  @@index([paymentMethod])
+  @@index([createdAt])
+  @@map("invoice_payments")
+}

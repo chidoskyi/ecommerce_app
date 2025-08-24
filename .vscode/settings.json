@@ -1,0 +1,5 @@
+{
+    "git.ignoreLimitWarning": true,
+    "codium.codeCompletion.enable": true,
+    "typescript.tsdk": "node_modules/typescript/lib"
+}

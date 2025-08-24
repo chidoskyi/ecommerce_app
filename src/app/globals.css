@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f9fafb;
+  /* --background: #f9fafb */
+  --foreground: #171717;
+  --header-height: 220px; /* Default mobile height with banner */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* @media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+} */
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  
+}
+.rc-slider-rail{
+  background: #000;
+}
+
+.rc-slider-track .rc-slider-track-1{
+  background: #e74d3c;
+}
+
+
+/* @layer utilities {
+  .content-padding {
+    padding-top: var(--header-height);
+  } */
+/* } */
+
+/* Responsive heights */
+@media (min-width: 768px) {
+  :root {
+    --header-height: 172px; /* Desktop height with banner */
+  }
+}
+
+
+
+code, pre {
+  font-family: var(--font-geist-mono), monospace;
+}
+
+
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+}
+
+@theme(
+  --font-poppins: 'Poppins';
+  --font-geist-sans: 'Geist Sans';
+  --font-geist-mono: 'Geist Mono';
+  --font-geist-sans-variable: var(--font-geist-sans);
+  --font-geist-mono-variable: var(--font-geist-mono);
+  --color-shop-light-orange: #ff5722;
+  --color-shop-dark-orange: #e64a19;
+)
+
