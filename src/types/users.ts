@@ -55,3 +55,11 @@ export interface UserDropdownProps {
   handleLogout: () => void;
   user: User | null;
 }
+
+// Define the user state interface
+export interface UserState {
+  user: User | null;
+  isLoading: boolean;
+  error: string | null;
+  isAuthenticated: boolean;
+}

@@ -4,6 +4,7 @@
 
 import { SignUp } from '@clerk/nextjs'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useState } from 'react'
 
 const testimonials = [
@@ -42,7 +43,7 @@ export default function Page() {
       <div className="flex flex-1">
         {/* Left side - Sign Up Form */}
         <div className="w-full lg:w-1/2 flex items-center justify-center bg-gray-50 p-8">
-          <div className="max-w-md w-full space-y-8">
+          <div className="max-w-md space-y-8">
             <div className="text-center">
               <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
                 Create your account
@@ -67,13 +68,22 @@ export default function Page() {
               path="/sign-up"
               signInUrl="/sign-in"
             />
+                        {/* Custom Forgot Password Link */}
+                        <div className="text-center">
+              <Link 
+                href="/forgot-password" 
+                 className="text-sm text-orange-600 hover:text-orange-500 font-medium"
+              >
+                Forgot your password?
+              </Link>
+            </div>
           </div>
         </div>
 
         {/* Right side - Full Image with Testimonial Overlay */}
         <div className="hidden lg:block lg:w-1/2 relative">
           <Image 
-            src="/shop-grocery.webp" 
+            src="/shop-grocery.jpg" 
             alt="Sign up" 
             fill
             className="object-cover"

@@ -11,6 +11,7 @@ import {
   Package,
   User,
   ChevronDown,
+  UserCog,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,34 +25,10 @@ import {
   MobileHeaderProps,
   WishButtonProps,
 } from "@/lib/types";
-import { categoriesData } from "@/data/categories";
 import { CartButtonProps } from "@/types/carts";
 import { UserDropdownProps } from "@/types/users";
 import SearchDropdown from "./SearchDropDown";
 import { useProducts } from "@/app/store/slices/productSlice";
-
-const userLinks = [
-  {
-    icon: <User className="w-5 h-5" />,
-    text: "Account Settings",
-    link: "/account/profile",
-  },
-  {
-    icon: <Package className="w-5 h-5" />,
-    text: "My Orders",
-    link: "/account/orders",
-  },
-  {
-    icon: <Wallet className="w-5 h-5" />,
-    text: "Wallet",
-    link: "/account/wallet",
-  },
-  {
-    icon: <Heart className="w-5 h-5" />,
-    text: "Favorites",
-    link: "/account/wishlist",
-  },
-];
 
 // Logo Component
 export const Logo: React.FC = () => (
@@ -227,6 +204,48 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
     setMouseLeaveTimeout(timeout);
   };
 
+  // Define user links with conditional admin link
+  const getUserLinks = () => {
+    const baseLinks = [
+      {
+        icon: <User className="w-5 h-5" />,
+        text: "Account Settings",
+        link: "/account/profile",
+      },
+      {
+        icon: <Package className="w-5 h-5" />,
+        text: "My Orders",
+        link: "/account/orders",
+      },
+      {
+        icon: <Wallet className="w-5 h-5" />,
+        text: "Wallet",
+        link: "/account/wallet",
+      },
+      {
+        icon: <Heart className="w-5 h-5" />,
+        text: "Favorites",
+        link: "/account/wishlist",
+      },
+    ];
+
+    // Check if user is admin - adjust this condition based on your user object structure
+    const isAdmin = user?.role === "ADMIN" || user?.isAdmin === true || user?.email === "admin@yoursite.com";
+
+    if (isAdmin) {
+      return [
+        {
+          icon: <UserCog className="w-5 h-5" />,
+          text: "Admin",
+          link: "/admin",
+        },
+        ...baseLinks,
+      ];
+    }
+
+    return baseLinks;
+  };
+
   if (!isSignedIn) {
     return (
       <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -241,9 +260,12 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
     );
   }
 
-  
   const displayName = user?.name || "User";
   const displayInitial = user?.initial || "U";
+  const userLinks = getUserLinks();
+
+  // Console log the user object for debugging
+  console.log("User object:", user);
 
   return (
     <motion.div
@@ -423,29 +445,10 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
 
             {/* Sidebar Content */}
             <div className="p-4 bg-orange-600 overflow-y-auto h-[calc(100%-80px)]">
-              <nav className="mt-4">
-                <ul className="space-y-2">
-                  {categoriesData.map((category, index) => (
-                    <li key={index}>
-                      <Link
-                        href={`/category/${category.slug}`}
-                        key={category.name}
-                        className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 transition-colors text-gray-200"
-                        onClick={(e) => {
-                          console.log(`Navigate to ${category.name}`);
-                          onClose(); // Close the sidebar
-                        }}
-                      >
-                        <span>{category.name}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </nav>
 
               {/* User Section */}
               {isSignedIn && user && (
-                <div className="mt-6 pt-4 border-t border-gray-300">
+                <div className=" pt-4 border-gray-300">
                   <div className="flex items-center gap-3 p-3 mb-4">
                     <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white font-bold text-sm">{user.initial}</span>

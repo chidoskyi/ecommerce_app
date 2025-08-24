@@ -8,6 +8,7 @@ import checkoutReducer from './slices/checkoutSlice'
 import orderReducer from './slices/orderSlice'
 import walletReducer from './slices/walletSlice'
 import reviewReducer from './slices/reviewSlice'
+import userReducer from './slices/userSlice'
 
 // Empty root reducer - add your slices here as you create them
 const rootReducer = combineReducers({
@@ -20,6 +21,7 @@ const rootReducer = combineReducers({
   order: orderReducer,
   wallet: walletReducer, 
   reviews: reviewReducer, 
+  users: userReducer, 
 })
 
 export type RootState = ReturnType<typeof rootReducer>

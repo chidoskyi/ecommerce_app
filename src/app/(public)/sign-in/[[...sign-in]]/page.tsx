@@ -41,7 +41,7 @@ export default function Page() {
     <div className="flex flex-col min-h-screen">
       <div className="flex flex-1">
         <div className="w-full lg:w-1/2 flex items-center justify-center bg-gray-50 p-8">
-          <div className="max-w-md w-full space-y-8">
+          <div className="max-w-md space-y-8">
             <div className="text-center">
               <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
                 Sign in to your account
@@ -72,24 +72,12 @@ export default function Page() {
             <div className="text-center">
               <Link 
                 href="/forgot-password" 
-                className="text-sm text-green-600 hover:text-green-500 font-medium"
+                 className="text-sm text-orange-600 hover:text-orange-500 font-medium"
               >
                 Forgot your password?
               </Link>
             </div>
-            
-            {/* Sign Up Link */}
-            <div className="text-center">
-              <p className="text-sm text-gray-600">
-                Don't have an account?{' '}
-                <Link 
-                  href="/sign-up" 
-                  className="font-medium text-green-600 hover:text-green-500"
-                >
-                  Sign up here
-                </Link>
-              </p>
-            </div>
+
           </div>
         </div>
         
