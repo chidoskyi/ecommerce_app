@@ -1,6 +1,6 @@
 // store/slices/wishlistSlice.ts - Fixed with proper authentication
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
-import { WishlistState } from "@/lib/types";
+import { WishlistState } from "@/types";
 import api from "@/lib/api";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/lib/error";

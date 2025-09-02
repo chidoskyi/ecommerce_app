@@ -3,7 +3,7 @@
 
 import React from "react";
 import { X, Edit, Trash2, Plus } from "lucide-react";
-import { Address } from "@/lib/types";
+import { Address } from "@/types";
 
 interface AddressSelectionModalProps {
   isOpen: boolean;

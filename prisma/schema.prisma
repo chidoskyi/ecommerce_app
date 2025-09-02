@@ -36,7 +36,6 @@ enum CategoryStatus {
 enum ProductStatus {
   ACTIVE
   INACTIVE
-  OUT_OF_STOCK
 }
 
 enum OrderStatus {
@@ -312,6 +311,7 @@ model Product {
   isDealOfTheDay Boolean       @default(false)
   isNewArrival   Boolean       @default(false)
   rating         Float?        @default(0.0)
+  averageRating         Float?        @default(0.0)
   images         String[]      @default([])
   weight         Float? // in kg, optional
 

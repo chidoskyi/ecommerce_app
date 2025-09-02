@@ -14,172 +14,228 @@ import { ProductActions } from "@/components/dashboard/products/ProductAction";
 import { ProductForm } from "@/components/dashboard/products/ProductForm";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "react-toastify";
-import { productsData } from "@/data/products";
-import { categoriesData } from "@/data/categories";
 import { ProductViewDialog } from "@/components/dashboard/products/ProductViewDialog";
-import { Product, Category } from "@/lib/types";
-import type { ProductFormState } from "./ProductForm";
+import {
+  formStateToApiData,
+  Product,
+  ProductFilters as ProductFiltersType,
+  ProductFormState,
+} from "@/types/products";
 
-// Conversion function
-function formStateToProduct(form: ProductFormState, original?: Product): Product {
-  return {
-    id: original?.id ?? Date.now(),
-    name: form.name,
-    description: form.description,
-    hasFixedPrice: form.hasFixedPrice,
-    priceType: form.priceType,
-    fixedPrice: parseFloat(form.fixedPrice) || 0,
-    unitPrices: form.unitPrices.map((u: { unit: string; price: string }) => ({ unit: u.unit, price: parseFloat(u.price) || 0 })),
-    inStock: parseInt(form.quantity) > 0,
-    compareAtPrice: parseFloat(form.compareAtPrice) || 0,
-    cost: parseFloat(form.cost) || 0,
-    sku: form.sku,
-    quantity: parseInt(form.quantity) || 0,
-    categoryId: form.categoryId ? parseInt(form.categoryId) : null,
-    status: form.status,
-    isFeatured: form.isFeatured,
-    isTrending: form.isTrending,
-    isDealOfTheDay: form.isDealOfTheDay,
-    isNewArrival: form.isNewArrival,
-    rating: original?.rating ?? null,
-    images: form.images,
-    weight: form.weight,
-    dimensions: form.dimensions,
-    createdAt: original?.createdAt ?? form.createdAt,
-    updatedAt: new Date().toISOString(),
-  };
-}
+import {
+  fetchProducts,
+  updateProduct,
+  updateProductStatus,
+  deleteProduct,
+  updateFilters,
+  clearFilters,
+  setSelectedProduct,
+  clearSelectedProduct,
+  clearError,
+  selectProducts,
+  selectPagination,
+  selectFilters,
+  selectLoading,
+  selectError,
+  selectSelectedProduct,
+  selectUpdateLoading,
+  selectDeleteLoading,
+  selectProductStats,
+  removeProductOptimistic,
+  updateProductOptimistic,
+  selectCategories,
+  fetchCategories,
+  deleteProductImage,
+  uploadProductImages,
+  addProductOptimistic,
+} from "@/app/store/slices/adminProductsSlice";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 
 export function ProductList() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const dispatch = useAppDispatch();
+
+  // Redux selectors
+  // Redux selectors
+  const products = useAppSelector(selectProducts);
+  const pagination = useAppSelector(selectPagination);
+  const filters = useAppSelector(selectFilters);
+  const loading = useAppSelector(selectLoading);
+  const error = useAppSelector(selectError);
+  const selectedProduct = useAppSelector(selectSelectedProduct);
+  const updateLoading = useAppSelector(selectUpdateLoading);
+  const deleteLoading = useAppSelector(selectDeleteLoading);
+  const productStats = useAppSelector(selectProductStats);
+  const categories = useAppSelector(selectCategories);
+
   const [isEditProductOpen, setIsEditProductOpen] = useState(false);
   const [isViewProductOpen, setIsViewProductOpen] = useState(false);
-  const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
+  const [productFormState, setProductFormState] =
+    useState<ProductFormState | null>(null);
   const [sortConfig, setSortConfig] = useState({
-    key: "name",
-    direction: "asc",
+    key: filters.sortBy || "name",
+    direction: filters.sortOrder || "asc",
   });
-  const [selectedProducts, setSelectedProducts] = useState<number[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
-  const [filters, setFilters] = useState({
-    status: "all",
-    category: "all",
-    stock: "all",
-    price: { min: "", max: "" },
-    priceType: "all",
-  });
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("all");
 
   // Fetch products and categories on component mount
   useEffect(() => {
-    fetchProducts();
-    fetchCategories();
-  }, []);
+    dispatch(fetchProducts(filters));
+    dispatch(fetchCategories());
+  }, [dispatch]);
 
-  const fetchProducts = async () => {
-    setLoading(true);
-    try {
-      setProducts((productsData as any[]).map((p) => ({
-        hasFixedPrice: typeof p.hasFixedPrice === 'boolean' ? p.hasFixedPrice : true,
-        priceType: p.priceType === 'fixed' || p.priceType === 'variable' ? p.priceType : 'fixed',
-        fixedPrice: typeof p.fixedPrice === 'number' ? p.fixedPrice : 0,
-        unitPrices: Array.isArray(p.unitPrices) ? p.unitPrices : [],
-        inStock: typeof p.inStock === 'boolean' ? p.inStock : true,
-        compareAtPrice: typeof p.compareAtPrice === 'number' ? p.compareAtPrice : 0,
-        cost: typeof p.cost === 'number' ? p.cost : 0,
-        sku: typeof p.sku === 'string' ? p.sku : '',
-        quantity: typeof p.quantity === 'number' ? p.quantity : 0,
-        categoryId: typeof p.categoryId === 'number' ? p.categoryId : null,
-        status: (p.status === 'active' || p.status === 'draft' || p.status === 'out_of_stock') ? p.status as 'active' | 'draft' | 'out_of_stock' : 'active',
-        isFeatured: typeof p.isFeatured === 'boolean' ? p.isFeatured : false,
-        isTrending: typeof p.isTrending === 'boolean' ? p.isTrending : false,
-        isDealOfTheDay: typeof p.isDealOfTheDay === 'boolean' ? p.isDealOfTheDay : false,
-        isNewArrival: typeof p.isNewArrival === 'boolean' ? p.isNewArrival : false,
-        rating: typeof p.rating === 'number' ? p.rating : null,
-        images: Array.isArray(p.images) ? p.images : [],
-        weight: typeof p.weight === 'string' ? p.weight : '',
-        dimensions: typeof p.dimensions === 'string' ? p.dimensions : '',
-        createdAt: typeof p.createdAt === 'string' ? p.createdAt : new Date().toISOString(),
-        updatedAt: typeof p.updatedAt === 'string' ? p.updatedAt : new Date().toISOString(),
-        ...p,
-      })));
-    } catch (error) {
-      console.error("Error fetching products:", error);
-      toast.error("Failed to load products");
-    } finally {
-      setLoading(false);
+  // Refetch products when filters change (debounced)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      dispatch(fetchProducts(filters));
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [
+    dispatch,
+    filters.search,
+    filters.category,
+    filters.status,
+    filters.minPrice,
+    filters.maxPrice,
+  ]);
+
+  // Immediate refetch for pagination and sorting
+  useEffect(() => {
+    dispatch(fetchProducts(filters));
+  }, [
+    dispatch,
+    filters.page,
+    filters.limit,
+    filters.sortBy,
+    filters.sortOrder,
+  ]);
+
+  // Show error toast
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+      dispatch(clearError());
     }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      setCategories((categoriesData as any[]).map((c) => ({
-        productsCount: typeof c.productsCount === 'number' ? c.productsCount : 0,
-        status: (c.status === 'active' || c.status === 'inactive') ? c.status as 'active' | 'inactive' : 'active',
-        createdAt: typeof c.createdAt === 'string' ? c.createdAt : new Date().toISOString(),
-        updatedAt: typeof c.updatedAt === 'string' ? c.updatedAt : new Date().toISOString(),
-        ...c,
-      })));
-    } catch (error) {
-      console.error("Error fetching categories:", error);
-      toast.error("Failed to load categories");
-    }
-  };
-
-  const handleAddProduct = (newProduct: Product) => {
-    setProducts(prev => [newProduct, ...prev]);
-    toast.success("Product added successfully");
-    setIsEditProductOpen(false);
-    setCurrentProduct(null);
-  };
+  }, [error, dispatch]);
 
   const handleEditProduct = async () => {
     try {
-      if (!currentProduct) return;
-      const updatedProducts = products.map((product) =>
-        product.id === currentProduct.id ? currentProduct : product
-      );
-      setProducts(updatedProducts);
-      setIsEditProductOpen(false);
-      setCurrentProduct(null);
+      if (!selectedProduct || !productFormState) return;
+
+      // Use the formStateToApiData function to convert the form data
+      const apiData = formStateToApiData(productFormState);
+
+      console.log("📤 Sending update data:", {
+        ...apiData,
+        images: `${apiData.images?.length || 0} existing URLs`,
+        newImageFiles: `${
+          apiData.newImageFiles?.length || 0
+        } new files to upload`,
+      });
+
+      // First update the product with existing image URLs
+      const productDataWithoutFiles = { ...apiData };
+      delete productDataWithoutFiles.newImageFiles;
+
+      const result = await dispatch(
+        updateProduct({
+          id: selectedProduct.id,
+          productData: productDataWithoutFiles,
+        })
+      ).unwrap();
+
+      console.log("✅ Product updated, now handling new images");
+
+      // Handle new image uploads if there are any new files
+      if (apiData.newImageFiles && apiData.newImageFiles.length > 0) {
+        console.log(
+          `📤 Uploading ${apiData.newImageFiles.length} new images for product ${selectedProduct.id}`
+        );
+        await dispatch(
+          uploadProductImages({
+            productId: selectedProduct.id,
+            files: apiData.newImageFiles,
+          })
+        ).unwrap();
+        console.log("✅ New images uploaded successfully");
+      }
+
       toast.success("Product updated successfully");
+      setIsEditProductOpen(false);
+      dispatch(clearSelectedProduct());
+      setProductFormState(null); // Clear the form state
+
+      // Refresh the products list to get the latest data
+      dispatch(fetchProducts(filters));
     } catch (error) {
+      // Revert optimistic update
+      dispatch(fetchProducts(filters));
       console.error("Error updating product:", error);
       toast.error("Failed to update product");
     }
   };
 
-  const handleDeleteProduct = async (productId: number) => {
+  const handleDeleteProduct = async (productId: string) => {
     try {
-      const updatedProducts = products.filter(
-        (product) => product.id !== productId
-      );
-      setProducts(updatedProducts);
+      const productToDelete = products.find((p) => p.id === productId);
+
+      // First, delete all images using the separate endpoint
+      if (productToDelete?.images && productToDelete.images.length > 0) {
+        console.log(
+          `🗑️ Deleting ${productToDelete.images.length} images before product deletion`
+        );
+
+        // Delete each image using the separate endpoint
+        const imageDeletionPromises = productToDelete.images.map((imageUrl) =>
+          dispatch(
+            deleteProductImage({
+              productId,
+              imageUrl,
+            })
+          ).unwrap()
+        );
+
+        // Wait for all images to be deleted (or at least attempted)
+        await Promise.allSettled(imageDeletionPromises);
+      }
+
+      // Then delete the product itself
+      dispatch(removeProductOptimistic(productId)); // Optimistic update
+      await dispatch(deleteProduct(productId)).unwrap();
+
+      setSelectedProducts((prev) => prev.filter((id) => id !== productId));
+      // Refresh products list
+      await dispatch(fetchProducts({})).unwrap();
       toast.success("Product deleted successfully");
     } catch (error) {
+      if (productToDelete) {
+        dispatch(addProductOptimistic(productToDelete));
+      }
       console.error("Error deleting product:", error);
       toast.error("Failed to delete product");
     }
   };
 
-  const handleStatusChange = async (productId: number, newStatus: string) => {
+  const handleStatusChange = async (productId: string, newStatus: string) => {
     try {
-      const updatedProducts = products.map((product) =>
-        product.id === productId
-          ? {
-              ...product,
-              status: newStatus,
-              updatedAt: new Date().toISOString(),
-            }
-          : product
-      );
-      setProducts(updatedProducts);
+      const product = products.find((p) => p.id === productId);
+      if (!product) return;
+
+      const validStatus = newStatus.toUpperCase() as "ACTIVE" | "INACTIVE";
+
+      const updatedProduct = { ...product, status: validStatus };
+      dispatch(updateProductOptimistic(updatedProduct));
+
+      await dispatch(
+        updateProductStatus({
+          id: productId,
+          status: validStatus,
+        })
+      ).unwrap();
+
       toast.success(`Product status updated to ${newStatus}`);
     } catch (error) {
+      dispatch(fetchProducts(filters));
       console.error("Error updating product status:", error);
       toast.error("Failed to update product status");
     }
@@ -192,47 +248,67 @@ export function ProductList() {
     }
 
     try {
-      let updatedProducts = [...products];
-      const now = new Date().toISOString();
-
       if (action === "delete") {
-        updatedProducts = products.filter(
-          (product) => !selectedProducts.includes(product.id)
+        selectedProducts.forEach((id) => {
+          dispatch(removeProductOptimistic(id));
+        });
+
+        // First, delete all images using the separate endpoint
+        if (selectedProducts?.images && selectedProducts.images.length > 0) {
+          console.log(
+            `🗑️ Deleting ${selectedProducts.images.length} images before product deletion`
+          );
+
+          // Delete each image using the separate endpoint
+          const imageDeletionPromises = selectedProducts.images.map(
+            (imageUrl) =>
+              dispatch(
+                deleteProductImage({
+                  productId,
+                  imageUrl,
+                })
+              ).unwrap()
+          );
+
+          // Wait for all images to be deleted (or at least attempted)
+          await Promise.allSettled(imageDeletionPromises);
+        }
+
+        await Promise.all(
+          selectedProducts.map((id) => dispatch(deleteProduct(id)).unwrap())
         );
+                        // Refresh products list
+                        await dispatch(fetchProducts({})).unwrap();
         toast.success(`${selectedProducts.length} products deleted`);
       } else {
-        const validStatus = (action === 'active' || action === 'draft' || action === 'out_of_stock') ? action : 'active';
-        updatedProducts = products.map((product) =>
-          selectedProducts.includes(product.id)
-            ? { ...product, status: validStatus, updatedAt: now }
-            : product
+        const validStatus = action.toUpperCase() as "ACTIVE" | "INACTIVE";
+
+        selectedProducts.forEach((id) => {
+          const product = products.find((p) => p.id === id);
+          if (product) {
+            const updatedProduct = { ...product, status: validStatus };
+            dispatch(updateProductOptimistic(updatedProduct));
+          }
+        });
+
+        await Promise.all(
+          selectedProducts.map((id) =>
+            dispatch(updateProductStatus({ id, status: validStatus })).unwrap()
+          )
         );
         toast.success(
           `${selectedProducts.length} products updated to ${validStatus}`
         );
       }
-
-      setProducts(updatedProducts);
+      // Refresh products list
+      await dispatch(fetchProducts({})).unwrap();
       setSelectedProducts([]);
     } catch (error) {
+      dispatch(fetchProducts(filters));
       console.error("Error performing bulk action:", error);
       toast.error("Failed to perform bulk action");
     }
   };
-
-  // const handleDuplicateProduct = (product) => {
-  //   const duplicatedProduct = {
-  //     ...product,
-  //     id: products.length + 1,
-  //     name: `${product.name} (Copy)`,
-  //     sku: `${product.sku}-COPY`,
-  //     barcode: product.barcode ? `${product.barcode}-COPY` : null,
-  //     createdAt: new Date().toISOString(),
-  //     updatedAt: new Date().toISOString(),
-  //   };
-  //   // setProducts([...products, duplicatedProduct]);
-  //   toast.success("Product duplicated successfully");
-  // };
 
   const handleSort = (key: string) => {
     let direction = "asc";
@@ -240,10 +316,19 @@ export function ProductList() {
       direction = "desc";
     }
     setSortConfig({ key, direction });
+
+    dispatch(
+      updateFilters({
+        sortBy: key as any,
+        sortOrder: direction as "asc" | "desc",
+      })
+    );
   };
 
-  // Change the handler signature to match the boolean value
-  const handleSelectAllProducts = (checked: boolean, currentProducts: Product[]) => {
+  const handleSelectAllProducts = (
+    checked: boolean,
+    currentProducts: Product[]
+  ) => {
     if (checked) {
       setSelectedProducts(currentProducts.map((product) => product.id));
     } else {
@@ -251,7 +336,7 @@ export function ProductList() {
     }
   };
 
-  const handleSelectProduct = (productId: number) => {
+  const handleSelectProduct = (productId: string) => {
     if (selectedProducts.includes(productId)) {
       setSelectedProducts(selectedProducts.filter((id) => id !== productId));
     } else {
@@ -260,163 +345,115 @@ export function ProductList() {
   };
 
   const handleFilterChange = (key: string, value: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-    setCurrentPage(1);
+    if (key === "category") {
+      dispatch(
+        updateFilters({
+          category: value === "all" ? "" : value,
+          page: 1,
+        })
+      );
+    } else {
+      dispatch(
+        updateFilters({
+          [key]: value,
+          page: 1,
+        })
+      );
+    }
   };
 
   const handlePriceFilterChange = (key: string, value: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      price: {
-        ...prev.price,
-        [key]: value,
-      },
-    }));
-    setCurrentPage(1);
+    dispatch(
+      updateFilters({
+        [key === "min" ? "minPrice" : "maxPrice"]: value,
+        page: 1,
+      })
+    );
   };
 
   const resetFilters = () => {
-    setFilters({
-      status: "all",
-      category: "all",
-      stock: "all",
-      price: { min: "", max: "" },
-      priceType: "all",
-    });
-    setCurrentPage(1);
+    dispatch(clearFilters());
+    setActiveTab("all");
+    setSelectedProducts([]);
   };
 
-  // Filter products based on search query, status, category, stock, and price
-  const filterProducts = () => {
-    return products.filter((product) => {
-      const searchMatch =
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (product.description &&
-          product.description
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase()));
+  const handleSearchChange = (query: string) => {
+    dispatch(
+      updateFilters({
+        search: query,
+        page: 1,
+      })
+    );
+  };
 
-      const tabMatch =
-        activeTab === "all" ||
-        (activeTab === "active" && product.status === "active") ||
-        (activeTab === "draft" && product.status === "draft") ||
-        (activeTab === "out_of_stock" && product.status === "out_of_stock") ||
-        (activeTab === "featured" && product.isFeatured);
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setSelectedProducts([]);
 
-      const statusMatch =
-        filters.status === "all" || product.status === filters.status;
-      const categoryMatch =
-        filters.category === "all" ||
-        (typeof product.categoryId === 'number' && product.categoryId === Number.parseInt(filters.category));
+    const statusMap: Record<string, string> = {
+      all: "",
+      active: "ACTIVE",
+      inactive: "INACTIVE",
+      featured: "",
+    };
 
-      const stockMatch =
-        filters.stock === "all" ||
-        (filters.stock === "in_stock" && product.quantity > 0) ||
-        (filters.stock === "low_stock" &&
-          product.quantity > 0 &&
-          product.quantity <= 10) ||
-        (filters.stock === "out_of_stock" && product.quantity === 0);
-
-      const priceTypeMatch =
-        !filters.priceType || filters.priceType === "all" || product.priceType === filters.priceType;
-
-      let priceMatch = true;
-      if (filters.price.min && !isNaN(Number(filters.price.min))) {
-        if (filters.priceType === "variable" || (filters.priceType === "all" && product.priceType === "variable")) {
-          // For variable, check if any unitPrice is >= min
-          priceMatch =
-            priceMatch &&
-            product.unitPrices &&
-            product.unitPrices.some((u) => u.price >= Number.parseFloat(filters.price.min));
-        } else {
-          priceMatch =
-            priceMatch && product.fixedPrice >= Number.parseFloat(filters.price.min);
-        }
-      }
-      if (filters.price.max && !isNaN(Number(filters.price.max))) {
-        if (filters.priceType === "variable" || (filters.priceType === "all" && product.priceType === "variable")) {
-          // For variable, check if any unitPrice is <= max
-          priceMatch =
-            priceMatch &&
-            product.unitPrices &&
-            product.unitPrices.some((u) => u.price <= Number.parseFloat(filters.price.max));
-        } else {
-          priceMatch =
-            priceMatch && product.fixedPrice <= Number.parseFloat(filters.price.max);
-        }
-      }
-
-      return (
-        searchMatch &&
-        tabMatch &&
-        statusMatch &&
-        categoryMatch &&
-        stockMatch &&
-        priceTypeMatch &&
-        priceMatch
+    if (tab === "featured") {
+      dispatch(
+        updateFilters({
+          featured: "true",
+          status: "",
+          page: 1,
+        })
       );
-    });
+    } else {
+      dispatch(
+        updateFilters({
+          status: statusMap[tab] || "",
+          featured: "",
+          page: 1,
+        })
+      );
+    }
   };
 
-  const filteredProducts = filterProducts();
+  const handlePaginate = (pageNumber: number) => {
+    dispatch(updateFilters({ page: pageNumber }));
+    setSelectedProducts([]);
+  };
 
-  // Sort products
-  const sortedProducts = [...filteredProducts].sort((a, b) => {
-    if (sortConfig.key === "name") {
-      return sortConfig.direction === "asc"
-        ? a.name.localeCompare(b.name)
-        : b.name.localeCompare(a.name);
-    }
-    if (sortConfig.key === "price") {
-      const aPrice = typeof a.fixedPrice === 'number' ? a.fixedPrice : 0;
-      const bPrice = typeof b.fixedPrice === 'number' ? b.fixedPrice : 0;
-      return sortConfig.direction === "asc"
-        ? aPrice - bPrice
-        : bPrice - aPrice;
-    }
-    if (sortConfig.key === "quantity") {
-      return sortConfig.direction === "asc"
-        ? a.quantity - b.quantity
-        : b.quantity - a.quantity;
-    }
-    if (sortConfig.key === "updatedAt") {
-      return sortConfig.direction === "asc"
-        ? new Date(a.updatedAt) - new Date(b.updatedAt)
-        : new Date(b.updatedAt) - new Date(a.updatedAt);
-    }
-    return 0;
-  });
+  // Handle successful form operations
+  const handleFormSuccess = () => {
+    setIsEditProductOpen(false);
+    dispatch(clearSelectedProduct());
+    // ProductForm already refreshes the list internally
+  };
 
-  // Pagination
-  const indexOfLastProduct = currentPage * itemsPerPage;
-  const indexOfFirstProduct = indexOfLastProduct - itemsPerPage;
-  const currentProducts = sortedProducts.slice(
-    indexOfFirstProduct,
-    indexOfLastProduct
-  );
-  const totalPages = Math.ceil(sortedProducts.length / itemsPerPage);
+  const handleFormError = (error: string) => {
+    console.error("Form error:", error);
+    // Error toast is already shown by ProductForm
+  };
 
-  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
+  const displayProducts = products || [];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Products</h1>
-        <p className="text-muted-foreground">Manage your product inventory</p>
+        <p className="text-muted-foreground">
+          Manage your product inventory ({productStats.total} total,{" "}
+          {productStats.active} active, {productStats.inactive} inactive)
+        </p>
       </div>
 
-      <div className="flex flex-col space-y-4 ">
-        <Card className=" border-gray-400 shadow-md">
+      <div className="flex flex-col space-y-4">
+        <Card className="border-gray-400 shadow-md">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle>Product Inventory</CardTitle>
               <ProductActions
                 selectedProducts={selectedProducts}
                 onBulkAction={handleBulkAction}
+                disabled={updateLoading || deleteLoading}
               />
             </div>
             <CardDescription>
@@ -424,82 +461,148 @@ export function ProductList() {
             </CardDescription>
 
             <ProductFilters
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              filters={filters}
+              searchQuery={filters.search || ""}
+              setSearchQuery={handleSearchChange}
+              filters={{
+                status: filters.status?.toLowerCase() || "all",
+                category: filters.category || "all",
+                price: {
+                  min: filters.minPrice || "",
+                  max: filters.maxPrice || "",
+                },
+                priceType: filters.priceType?.toLowerCase() || "all",
+              }}
               categories={categories}
               products={products}
               activeTab={activeTab}
-              setActiveTab={setActiveTab}
+              setActiveTab={handleTabChange}
               onFilterChange={handleFilterChange}
               onPriceFilterChange={handlePriceFilterChange}
               onResetFilters={resetFilters}
+              productStats={productStats}
             />
           </CardHeader>
 
           <CardContent>
             <ProductTable
-              products={currentProducts}
+              products={displayProducts}
               categories={categories}
               loading={loading}
               selectedProducts={selectedProducts}
               sortConfig={sortConfig}
-              currentPage={currentPage}
-              totalPages={totalPages}
-              searchQuery={searchQuery}
-              filters={filters}
+              currentPage={pagination.page}
+              totalPages={pagination.pages}
+              searchQuery={filters.search || ""}
+              filters={{
+                status: filters.status?.toLowerCase() || "all",
+                category: filters.category || "all",
+                stock: "all",
+                price: {
+                  min: filters.minPrice || "",
+                  max: filters.maxPrice || "",
+                },
+              }}
               onSort={handleSort}
               onSelectAll={handleSelectAllProducts}
               onSelectProduct={handleSelectProduct}
               onEdit={(product) => {
-                setCurrentProduct(product);
+                dispatch(setSelectedProduct(product));
                 setIsEditProductOpen(true);
               }}
               onView={(product) => {
-                setCurrentProduct(product);
+                dispatch(setSelectedProduct(product));
                 setIsViewProductOpen(true);
               }}
               onDelete={handleDeleteProduct}
               onStatusChange={handleStatusChange}
-              // onDuplicate={handleDuplicateProduct}
-              onPaginate={paginate}
+              onPaginate={handlePaginate}
               onResetFilters={resetFilters}
+              bulkActionLoading={updateLoading || deleteLoading}
             />
           </CardContent>
         </Card>
       </div>
 
-      {/* Edit Product Dialog */}
+      {/* Edit Product Dialog - Now only handles edit mode */}
+      {/* Edit Product Dialog - Now only handles edit mode */}
       <Dialog open={isEditProductOpen} onOpenChange={setIsEditProductOpen}>
-        <DialogContent className="max-w-3xl">
-          {!currentProduct && (
-            <ProductForm
-              mode="add"
-              categories={categories}
-              onSave={(newProduct) => handleAddProduct(newProduct)}
-              onCancel={() => setIsEditProductOpen(false)}
-            />
-          )}
-          {currentProduct && (
-            <ProductForm
-              mode="edit"
-              product={currentProduct}
-              categories={categories}
-              onSave={handleEditProduct}
-              onCancel={() => setIsEditProductOpen(false)}
-              onProductChange={formState => setCurrentProduct(formStateToProduct(formState, currentProduct))}
-            />
-          )}
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <ProductForm
+            mode="edit"
+            product={selectedProduct}
+            onSuccess={handleFormSuccess}
+            onError={handleFormError}
+            onCancel={() => {
+              setIsEditProductOpen(false);
+              dispatch(clearSelectedProduct());
+              setProductFormState(null); // Reset form state on cancel
+            }}
+            onProductChange={(formState) => {
+              // Store the form state for submission
+              setProductFormState(formState);
+
+              // Convert form state back to product for live updates (display only)
+              const imageUrls = formState.images
+                .map((img) => {
+                  if (typeof img === "string") return img;
+                  if (img?.url) return img.url;
+                  if (img?.previewUrl) return img.previewUrl;
+                  return "";
+                })
+                .filter((url) => url !== "");
+
+              const priceType = formState.hasFixedPrice ? "FIXED" : "VARIABLE";
+
+              const updatedProduct: Product = {
+                ...selectedProduct!,
+                name: formState.name,
+                description: formState.description,
+                hasFixedPrice: formState.hasFixedPrice,
+                priceType: priceType,
+                fixedPrice: Number(formState.fixedPrice),
+                unitPrices: formState.unitPrices.map((up) => ({
+                  unit: up.unit,
+                  price: Number(up.price),
+                })),
+                sku: formState.sku,
+                categoryId: formState.categoryId
+                  ? String(formState.categoryId)
+                  : null,
+                status: formState.status as "ACTIVE" | "INACTIVE",
+                isFeatured: formState.isFeatured,
+                isTrending: formState.isTrending,
+                isDealOfTheDay: formState.isDealOfTheDay,
+                isNewArrival: formState.isNewArrival,
+                isFruit: formState.isFruit,
+                isVegetable: formState.isVegetable,
+                images: imageUrls,
+                weight: formState.weight ? String(formState.weight) : null,
+              };
+              dispatch(setSelectedProduct(updatedProduct));
+            }}
+            onEditProduct={handleEditProduct} // Pass the edit handler
+          />
         </DialogContent>
       </Dialog>
 
       {/* View Product Dialog */}
       <Dialog open={isViewProductOpen} onOpenChange={setIsViewProductOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          {currentProduct && (
+          {selectedProduct && (
             <ProductViewDialog
-              product={currentProduct}
+              product={selectedProduct}
               categories={categories}
+              onEdit={() => {
+                setIsViewProductOpen(false);
+                setIsEditProductOpen(true);
+              }}
+              onDelete={() => {
+                setIsViewProductOpen(false);
+                handleDeleteProduct(selectedProduct.id);
+              }}
+              onStatusChange={(newStatus) =>
+                handleStatusChange(selectedProduct.id, newStatus)
+              }
             />
           )}
         </DialogContent>

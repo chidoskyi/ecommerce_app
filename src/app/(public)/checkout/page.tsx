@@ -34,7 +34,7 @@ import {
   selectAddressLoading,
   selectDefaultShippingAddress,
 } from "@/app/store/slices/addressSlice";
-import { Address } from "@/lib/types";
+import { Address } from "@/types";
 import ShippingStep from "@/components/reuse/ShippingSteps";
 import PaymentStep from "@/components/reuse/PaymentStep";
 import ReviewStep from "@/components/reuse/ReviewStep";
@@ -191,9 +191,10 @@ const CheckoutComponent: React.FC<CheckoutComponentProps> = ({
     
     // Check if we're already on a success/invoice page
     const currentPath = window.location.pathname;
-    const isOnSuccessPage = currentPath.includes('/invoice') || 
-                           currentPath.includes('/orders') ||
-                           window.location.search.includes('payment=success');
+    const isOnSuccessPage = currentPath.includes('/invoice') ||
+                            currentPath.includes('/orders') ||
+                            currentPath.includes('/payment-success') ||
+                            window.location.search.includes('payment=success');
     
     if (isOnSuccessPage) {
       console.log('Already on success page, skipping redirect');
@@ -251,12 +252,12 @@ const CheckoutComponent: React.FC<CheckoutComponentProps> = ({
   
     handleRedirect();
   }, [currentOrder, selectedPaymentMethod, paymentUrl, hasRedirected, router, dispatch]);
-
+  
   // Event handlers
   const handleContinueToPayment = () => {
     setCurrentStep(2);
   };
-
+ 
   const handleReviewOrder = () => {
     setCurrentStep(3);
   };

@@ -1,0 +1,180 @@
+// lib/pricing-utils.js
+// Utility functions for handling product pricing logic
+
+/**
+ * Get the display price for a product based on its pricing type
+ * @param {Object} product - Product object with pricing information
+ * @param {string} unit - Specific unit for variable pricing (optional)
+ * @returns {number} - Price value
+ */
+export const getProductDisplayPrice = (product, unit = null) => {
+    if (product.hasFixedPrice && product.priceType === 'FIXED') {
+      return product.fixedPrice || 0
+    }
+    
+    if (!product.hasFixedPrice && product.priceType === 'VARIABLE' && product.unitPrices?.length > 0) {
+      if (unit) {
+        // Get specific unit price
+        const unitPrice = product.unitPrices.find(up => up.unit === unit)
+        return unitPrice ? unitPrice.price : 0
+      }
+      
+      // Return the first/default unit price
+      return product.unitPrices[0]?.price || 0
+    }
+    
+    return 0
+  }
+  
+  /**
+   * Get formatted price display string
+   * @param {Object} product - Product object with pricing information
+   * @returns {string} - Formatted price string
+   */
+  export const getFormattedPriceDisplay = (product) => {
+    if (product.hasFixedPrice && product.priceType === 'FIXED') {
+      const price = product.fixedPrice || 0
+      return `$${price.toFixed(2)}`
+    }
+    
+    if (!product.hasFixedPrice && product.priceType === 'VARIABLE' && product.unitPrices?.length > 0) {
+      const prices = product.unitPrices.map(up => up.price)
+      const minPrice = Math.min(...prices)
+      const maxPrice = Math.max(...prices)
+      
+      if (minPrice === maxPrice) {
+        return `$${minPrice.toFixed(2)}`
+      }
+      
+      return `$${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}`
+    }
+    
+    return '$0.00'
+  }
+  
+  /**
+   * Get all available pricing options for a product
+   * @param {Object} product - Product object with pricing information
+   * @returns {Array} - Array of pricing options
+   */
+  export const getPricingOptions = (product) => {
+    if (product.hasFixedPrice && product.priceType === 'FIXED') {
+      return [{
+        type: 'fixed',
+        price: product.fixedPrice || 0,
+        display: `$${(product.fixedPrice || 0).toFixed(2)}`,
+        unit: null
+      }]
+    }
+    
+    if (!product.hasFixedPrice && product.priceType === 'VARIABLE' && product.unitPrices?.length > 0) {
+      return product.unitPrices.map(up => ({
+        type: 'variable',
+        price: up.price,
+        display: `$${up.price.toFixed(2)} per ${up.unit}`,
+        unit: up.unit
+      }))
+    }
+    
+    return []
+  }
+  
+  /**
+   * Calculate order item total based on product pricing
+   * @param {Object} product - Product object with pricing information
+   * @param {number} quantity - Quantity ordered
+   * @param {string} unit - Unit type for variable pricing
+   * @returns {Object} - Calculation result
+   */
+  export const calculateOrderItemTotal = (product, quantity, unit = null) => {
+    let unitPrice = 0
+    let selectedUnit = null
+    
+    if (product.hasFixedPrice && product.priceType === 'FIXED') {
+      unitPrice = product.fixedPrice || 0
+      selectedUnit = 'fixed'
+    } else if (!product.hasFixedPrice && product.priceType === 'VARIABLE' && product.unitPrices?.length > 0) {
+      if (unit) {
+        const unitPriceObj = product.unitPrices.find(up => up.unit === unit)
+        if (unitPriceObj) {
+          unitPrice = unitPriceObj.price
+          selectedUnit = unit
+        } else {
+          throw new Error(`Unit "${unit}" not found for product "${product.name}"`)
+        }
+      } else {
+        // Use first available unit if no unit specified
+        unitPrice = product.unitPrices[0].price
+        selectedUnit = product.unitPrices[0].unit
+      }
+    }
+    
+    return {
+      unitPrice,
+      quantity,
+      total: unitPrice * quantity,
+      unit: selectedUnit,
+      priceType: product.priceType
+    }
+  }
+  
+  /**
+   * Validate pricing data for product creation/update
+   * @param {Object} productData - Product data to validate
+   * @returns {Object} - Validation result
+   */
+  export const validateProductPricing = (productData) => {
+    const errors = []
+    
+    if (productData.hasFixedPrice) {
+      if (productData.priceType !== 'FIXED') {
+        errors.push('Price type must be FIXED when hasFixedPrice is true')
+      }
+      
+      if (!productData.fixedPrice || productData.fixedPrice <= 0) {
+        errors.push('Fixed price must be greater than 0')
+      }
+      
+      if (productData.unitPrices && productData.unitPrices.length > 0) {
+        errors.push('Unit prices should not be provided for fixed price products')
+      }
+    } else {
+      if (productData.priceType !== 'VARIABLE') {
+        errors.push('Price type must be VARIABLE when hasFixedPrice is false')
+      }
+      
+      if (!productData.unitPrices || productData.unitPrices.length === 0) {
+        errors.push('At least one unit price is required for variable price products')
+      }
+      
+      if (productData.fixedPrice) {
+        errors.push('Fixed price should not be provided for variable price products')
+      }
+      
+      // Validate unit prices
+      if (productData.unitPrices) {
+        const units = new Set()
+        
+        productData.unitPrices.forEach((up, index) => {
+          if (!up.unit || !up.unit.trim()) {
+            errors.push(`Unit name is required for unit price ${index + 1}`)
+          }
+          
+          if (!up.price || up.price <= 0) {
+            errors.push(`Price must be greater than 0 for unit price ${index + 1}`)
+          }
+          
+          if (units.has(up.unit)) {
+            errors.push(`Duplicate unit "${up.unit}" found`)
+          }
+          
+          units.add(up.unit)
+        })
+      }
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    }
+  }

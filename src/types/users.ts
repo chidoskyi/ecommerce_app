@@ -47,6 +47,24 @@ export interface UserProfile {
   updatedAt: Date;
 }
 
+export interface  UserActionsProps{
+  onStatusChange: () => void;
+  onDelete: () => void;
+  onEdit: () => void;
+  user: User | null;
+}
+export interface  UserTableProps{
+  onStatusChange: () => void;
+  onDelete: () => void;
+  onEdit: () => void;
+  users: User | null;
+  loading: (show: boolean) => void
+}
+
+export interface UserTableComponentProps extends UserTableProps {
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+}
 export interface UserDropdownProps {
   isSignedIn: boolean;
   showDropdown: boolean;
@@ -63,3 +81,126 @@ export interface UserState {
   error: string | null;
   isAuthenticated: boolean;
 }
+
+
+
+
+export interface UserFilters {
+  status?: string;
+  role?: string;
+  emailVerified?: boolean;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  createdAfter?: string;
+  createdBefore?: string;
+  lastLoginAfter?: string;
+  lastLoginBefore?: string;
+  search?: string;
+}
+
+export interface UserQueryParams {
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  filters?: UserFilters;
+  fields?: string[];
+  excludeFields?: string[];
+}
+
+export interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+export interface SortingInfo {
+  sortBy: string;
+  sortOrder: 'asc' | 'desc';
+}
+
+export interface UsersResponse {
+  users: User[];
+  pagination: PaginationInfo;
+  sorting: SortingInfo;
+  filters: UserFilters | null;
+}
+
+export type UserRole = 'USER' | 'ADMIN' | 'MODERATOR'
+export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'BANNED'
+
+export interface AdminUsersState {
+  users: User[];
+  selectedUser: User | null;
+  currentQuery: UserQueryParams;
+  pagination: PaginationInfo;
+  sorting: SortingInfo;
+  activeFilters: UserFilters;
+  
+  // Loading states
+  loading: boolean;
+  loadingUser: boolean;
+  updating: boolean;
+  deleting: boolean;
+  
+  // Error states
+  error: string | null;
+  userError: string | null;
+  updateError: string | null;
+  deleteError: string | null;
+  
+  // UI states
+  selectedUserIds: string[];
+  searchTerm: string;
+  
+  // Cache
+  lastFetch: number | null;
+  cache: Record<string, UsersResponse>;
+}
+
+export const initialState: AdminUsersState = {
+  users: [],
+  selectedUser: null,
+  currentQuery: {
+    page: 1,
+    limit: 10,
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+    filters: {},
+  },
+  pagination: {
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false,
+  },
+  sorting: {
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+  },
+  activeFilters: {},
+  
+  loading: false,
+  loadingUser: false,
+  updating: false,
+  deleting: false,
+  
+  error: null,
+  userError: null,
+  updateError: null,
+  deleteError: null,
+  
+  selectedUserIds: [],
+  searchTerm: '',
+  
+  lastFetch: null,
+  cache: {},
+};
+

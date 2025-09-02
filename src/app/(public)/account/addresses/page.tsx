@@ -36,7 +36,7 @@ import {
   clearError 
 } from "@/app/store/slices/addressSlice";
 
-import { Address } from "@/lib/types";
+import { Address } from "@/types";
 import { toast } from "react-toastify";
 
 export default function Addresses() {

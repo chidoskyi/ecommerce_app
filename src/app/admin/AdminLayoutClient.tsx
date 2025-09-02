@@ -7,11 +7,13 @@ import { Search, Bell, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { usePathname, useRouter } from "next/navigation"
 import { UserNav } from "@/components/dashboard/users/UserNav"
+import { useClerk } from "@clerk/nextjs"
 
 export default function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
+  const { signOut } = useClerk()
 
   const handlePageChange = useCallback(
     (page: string) => {
@@ -21,10 +23,18 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
     [router]
   )
 
-  const handleLogout = () => {
-    console.log("Logout clicked")
-    router.push("/login")
-  }
+  // const handleLogout = () => {
+    //   router.push("/login")
+    // }
+    const handleLogout = async (): Promise<void> => {
+      try {
+        await signOut();
+        router.push("/sign-in");
+          console.log("Logout clicked")
+    } catch (error) {
+      console.error("❌ Error signing out:", error);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">

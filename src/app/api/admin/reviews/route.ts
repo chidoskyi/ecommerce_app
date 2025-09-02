@@ -253,7 +253,12 @@ export async function PUT(request: NextRequest) {
       updatedAt: new Date(),
     };
 
-    // Add isVerified if provided
+    // Automatically set isVerified to true when approving a review
+    if (finalStatus === "APPROVED" && !existingReview.isVerified) {
+      updateData.isVerified = true;
+    }
+    
+    // Add isVerified if explicitly provided in the request
     if (isVerified !== undefined) {
       updateData.isVerified = Boolean(isVerified);
     }
@@ -286,8 +291,14 @@ export async function PUT(request: NextRequest) {
     if (action) {
       message = `Review ${action}d successfully`;
     }
-    if (isVerified !== undefined) {
-      message += ` and verification status updated`;
+    
+    // Add verification status message if applicable
+    if (updateData.isVerified !== undefined) {
+      if (finalStatus === "APPROVED" && updateData.isVerified) {
+        message += " and automatically verified";
+      } else {
+        message += ` and verification status ${updateData.isVerified ? "set to verified" : "updated"}`;
+      }
     }
 
     return NextResponse.json({

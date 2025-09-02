@@ -1,5 +1,4 @@
-// components/invoice/FullPageInvoice.tsx - Fixed with URL parameter extraction
-
+// components/invoice/FullPageInvoice.tsx - Fixed with proper data fetching
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -13,8 +12,10 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
+  RefreshCw,
+  ShoppingBag,
 } from "lucide-react";
-import   { Separator } from "@/components/ui/separator";
+import { Separator } from "@/components/ui/separator";
 import { Order } from "@/types/orders";
 import { PriceFormatter } from "@/components/reuse/FormatCurrency";
 import {
@@ -25,6 +26,15 @@ import {
 } from "@/app/store/slices/orderSlice";
 import { useRouter, useParams, usePathname } from "next/navigation";
 import { getItemPrice } from "@/utils/priceHelpers";
+import { useAuth } from "@/context/AuthContext";
+import {
+  clearEntireCart,
+  selectUserIdentification,
+} from "@/app/store/slices/cartSlice";
+import { ensureUserIdentification } from "@/utils/userIdentification";
+import { StorageUtil } from "@/lib/storageKeys";
+import { useSelector } from "react-redux";
+import { useUser } from "@clerk/nextjs";
 
 export interface InvoiceProps {
   orderId?: string;
@@ -41,27 +51,25 @@ export default function FullPageInvoice({
   const router = useRouter();
   const params = useParams();
   const pathname = usePathname();
+  const { isAuthenticated } = useAuth();
   const invoiceRef = useRef<HTMLDivElement>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
+  const [cartCleared, setCartCleared] = useState(false);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(
+    null
+  );
+  const userIdentification = useSelector(selectUserIdentification);
+  const { user: clerkUser, isSignedIn } = useUser();
 
-  // FIXED: Extract orderId from URL if not provided as prop
+  // Extract orderId from URL if not provided as prop
   const orderId =
     propOrderId ||
     (params?.orderId as string) ||
     (() => {
-      // Fallback: extract from pathname if params doesn't work
-      const pathMatch = pathname.match(/\/invoice\/([^\/]+)/);
+      const pathMatch = pathname?.match(/\/invoice\/([^\/]+)/);
       return pathMatch ? pathMatch[1] : undefined;
     })();
-
-  console.log("🆔 OrderId resolution:", {
-    propOrderId,
-    paramsOrderId: params?.orderId,
-    pathName: pathname,
-    finalOrderId: orderId,
-  });
 
   // Safe Redux state selectors
   const reduxOrder = useAppSelector(selectCurrentOrder);
@@ -71,34 +79,21 @@ export default function FullPageInvoice({
   // Use prop order or Redux order
   const order = propOrder || reduxOrder;
 
-  // FIXED: Prevent infinite loop with better logic
+  // FIXED: Data fetching logic similar to order detail page
   useEffect(() => {
-    console.log("🔍 Invoice useEffect:", {
-      propOrder: !!propOrder,
+    console.log("🔍 Invoice useEffect - Checking if we should fetch:", {
       orderId,
-      reduxOrder: !!reduxOrder,
+      hasPropOrder: !!propOrder,
+      hasReduxOrder: !!reduxOrder,
+      reduxOrderId: reduxOrder?.id,
       loading,
-      error,
-      hasAttemptedFetch,
+      isAuthenticated,
     });
 
-    // Only fetch if:
-    // 1. We have an orderId
-    // 2. No prop order was provided
-    // 3. No order in Redux OR the Redux order ID doesn't match current orderId
-    // 4. Not currently loading
-    // 5. Haven't attempted fetch for this specific orderId
-    const shouldFetch =
-      orderId &&
-      !propOrder &&
-      (!reduxOrder || reduxOrder.id !== orderId) &&
-      !loading &&
-      !hasAttemptedFetch;
-
-    if (shouldFetch) {
+    // Only fetch if we have an orderId, no prop order provided, and user is authenticated
+    if (orderId && !propOrder && isAuthenticated) {
       console.log("🚀 Fetching order:", orderId);
       setLocalError(null);
-      setHasAttemptedFetch(true);
 
       dispatch(fetchOrderById(orderId))
         .unwrap()
@@ -112,21 +107,88 @@ export default function FullPageInvoice({
           console.error("❌ Failed to fetch order:", err);
           setLocalError(err.toString() || "Failed to fetch order");
         });
+    } else if (orderId && !isAuthenticated) {
+      setLocalError("Authentication required to view invoice");
     }
-  }, [
-    orderId,
-    propOrder,
-    reduxOrder?.id,
-    loading,
-    hasAttemptedFetch,
-    dispatch,
-  ]);
+  }, [orderId, propOrder, dispatch, isAuthenticated]);
 
-  // Reset fetch attempt when orderId changes
+  // Add polling for pending orders (same as order detail page)
   useEffect(() => {
-    setHasAttemptedFetch(false);
-    setLocalError(null);
-  }, [orderId]);
+    if (orderId && order?.paymentStatus === "PENDING") {
+      console.log("🔄 Setting up polling for order:", orderId);
+      const interval = setInterval(() => {
+        console.log("📡 Polling for order updates:", orderId);
+        dispatch(fetchOrderById(orderId));
+      }, 30000); // Poll every 30 seconds
+
+      setPollingInterval(interval);
+
+      return () => {
+        if (interval) {
+          console.log("🧹 Clearing polling interval");
+          clearInterval(interval);
+        }
+      };
+    } else if (pollingInterval) {
+      // Clear interval if order is no longer pending
+      console.log("🧹 Order no longer pending, clearing interval");
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+  }, [orderId, order?.paymentStatus, dispatch]);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        console.log("🧹 Component unmounting, clearing interval");
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [pollingInterval]);
+
+  const clearCartAfterPayment = async () => {
+    if (cartCleared) return;
+
+    const storageUserId = StorageUtil.getUserId();
+    const storageGuestId =
+      StorageUtil.getGuestIdForMerge() || StorageUtil.getGuestId();
+
+    try {
+      console.log("🛒 Clearing entire cart after successful payment");
+
+      const { userId, guestId } = ensureUserIdentification({
+        storageUserId,
+        storageGuestId,
+        reduxUserId: userIdentification.userId,
+        reduxGuestId: userIdentification.guestId,
+        clerkUserId: clerkUser?.id,
+        isSignedIn,
+        dispatch,
+      });
+
+      if (!userId && !guestId) {
+        console.error(
+          "❌ Could not establish user identification for cart update"
+        );
+        toast.error("Unable to update cart. Please refresh the page.");
+        return;
+      }
+
+      // Pass userId and guestId to the thunk
+      const result = await dispatch(clearEntireCart({ userId, guestId }));
+
+      if (clearEntireCart.fulfilled.match(result)) {
+        setCartCleared(true);
+        router.push("/");
+        console.log("✅ Cart cleared successfully:", result.payload);
+      } else if (clearEntireCart.rejected.match(result)) {
+        console.error("❌ Failed to clear cart:", result.payload);
+      }
+    } catch (error) {
+      console.error("❌ Error clearing cart:", error);
+    }
+  };
 
   // Bank account details from environment variables
   const bankAccounts = [
@@ -152,6 +214,13 @@ export default function FullPageInvoice({
 
   const handleDownload = () => {
     window.print();
+  };
+
+  const handleRefresh = () => {
+    if (orderId && isAuthenticated) {
+      console.log("🔄 Manual refresh triggered for order:", orderId);
+      dispatch(fetchOrderById(orderId));
+    }
   };
 
   const copyToClipboard = async (text: string, field: string) => {
@@ -223,16 +292,16 @@ export default function FullPageInvoice({
     };
   };
 
- 
-
   const handleOnBack = () => {
-    // router.push('/checkout');
-    // or
-    router.back(); // if you want to go to the previous page
+    if (onBack) {
+      onBack();
+    } else {
+      router.back();
+    }
   };
 
-  // IMPROVED: Loading state logic
-  if (loading || (orderId && !order && !localError && hasAttemptedFetch)) {
+  // Loading state (similar to order detail page)
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -246,7 +315,33 @@ export default function FullPageInvoice({
     );
   }
 
-  // IMPROVED: Error state logic
+  // Authentication required state
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <AlertCircle className="w-12 h-12 text-orange-600 mx-auto mb-4" />
+          <p className="text-orange-600 mb-4">Authentication Required</p>
+          <p className="text-sm text-gray-600 mb-4">
+            Please log in to view this invoice
+          </p>
+          <Button
+            onClick={() =>
+              router.push(
+                "/sign-in?redirect_url=" +
+                  encodeURIComponent(window.location.pathname)
+              )
+            }
+            className="w-full"
+          >
+            Sign In
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state logic
   const displayError = error || localError;
   if (displayError && !order) {
     return (
@@ -258,22 +353,17 @@ export default function FullPageInvoice({
           <div className="space-y-2">
             {orderId && (
               <Button
-                onClick={() => {
-                  setLocalError(null);
-                  setHasAttemptedFetch(false); // Reset to allow retry
-                }}
+                onClick={handleRefresh}
                 variant="outline"
                 className="w-full"
               >
                 Try Again
               </Button>
             )}
-            {onBack && (
-              <Button onClick={onBack} variant="outline" className="w-full">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-            )}
+            <Button onClick={handleOnBack} variant="outline" className="w-full">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
             <Button
               onClick={() => router.push("/checkout")}
               variant="outline"
@@ -287,8 +377,8 @@ export default function FullPageInvoice({
     );
   }
 
-  // IMPROVED: No order found state
-  if (!order && hasAttemptedFetch && !loading) {
+  // No order found state
+  if (!order && !loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
@@ -302,22 +392,17 @@ export default function FullPageInvoice({
           <div className="space-y-2">
             {orderId && (
               <Button
-                onClick={() => {
-                  setLocalError(null);
-                  setHasAttemptedFetch(false);
-                }}
+                onClick={handleRefresh}
                 variant="outline"
                 className="w-full"
               >
                 Try Again
               </Button>
             )}
-            {onBack && (
-              <Button onClick={onBack} variant="outline" className="w-full">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-            )}
+            <Button onClick={handleOnBack} variant="outline" className="w-full">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
             <Button onClick={() => router.push("/checkout")} className="w-full">
               Return to Checkout
             </Button>
@@ -327,38 +412,7 @@ export default function FullPageInvoice({
     );
   }
 
-  // ADDED: Debug info for missing orderId (development only)
-  if (!orderId && process.env.NODE_ENV === "development") {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-6">
-          <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-          <p className="text-yellow-600 mb-4">
-            Development Debug: Missing Order ID
-          </p>
-          <div className="text-left bg-gray-100 p-4 rounded text-xs">
-            <p>
-              <strong>Current params:</strong> {JSON.stringify(params)}
-            </p>
-            <p>
-              <strong>Pathname:</strong> {pathname}
-            </p>
-            <p>
-              <strong>PropOrderId:</strong> {propOrderId || "undefined"}
-            </p>
-          </div>
-          <Button
-            onClick={() => router.push("/checkout")}
-            className="w-full mt-4"
-          >
-            Return to Checkout
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // If we get here without an order, show loading
+  // If we get here without an order, show loading (fallback)
   if (!order) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -405,19 +459,31 @@ export default function FullPageInvoice({
       <div className="print:hidden bg-transparent px-3 sm:px-6 py-4 sticky top-0 z-10 bg-white/90 backdrop-blur-sm border-b border-gray-200">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
           <div className="flex items-center gap-4 order-2 sm:order-1">
-            {/* {onBack && ( */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleOnBack}
-                className="w-full sm:w-auto cursor-pointer"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-            {/* )} */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOnBack}
+              className="w-full sm:w-auto cursor-pointer"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
           </div>
           <div className="flex gap-2 justify-end order-1 sm:order-2 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={loading}
+              className="bg-white/90 backdrop-blur-sm border-orange-200 hover:bg-orange-50 flex-1 sm:flex-initial cursor-pointer"
+            >
+              <RefreshCw
+                className={`mr-1 sm:mr-2 h-4 w-4 ${
+                  loading ? "animate-spin" : ""
+                }`}
+              />
+              <span className="hidden xs:inline">Refresh</span>
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -441,7 +507,7 @@ export default function FullPageInvoice({
 
       {/* Invoice Content */}
       <div className="max-w-5xl mx-auto p-3 sm:p-6 print:p-0">
-        <div className="invoice-container bg-orange-50 rounded-lg shadow-md border border-gray-200 print:shadow-none print:border-none">
+        <div className="invoice-container bg-orange-100 rounded-lg shadow-md border border-gray-200 print:shadow-none print:border-none">
           <div ref={invoiceRef} className="p-4 sm:p-6 lg:p-8 print:p-6">
             {/* Payment Status Banner - Only for bank transfer, hidden in print */}
             {order.paymentMethod === "bank_transfer" && (
@@ -558,7 +624,7 @@ export default function FullPageInvoice({
             </div>
 
             {/* Invoice Info */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-8 sm:mb-12">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-10">
               <div>
                 <h4 className="font-semibold text-gray-800 mb-3 sm:mb-4 text-base sm:text-lg">
                   Bill To:
@@ -757,7 +823,7 @@ export default function FullPageInvoice({
               )}
 
             {/* Invoice Items */}
-            <div className="mb-8 sm:mb-12">
+            <div className="mb-6 sm:mb-8">
               <h4 className="font-semibold text-gray-800 mb-3 sm:mb-4 text-base sm:text-lg">
                 Items:
               </h4>
@@ -826,8 +892,7 @@ export default function FullPageInvoice({
               {/* Mobile Card View */}
               <div className="md:hidden space-y-3">
                 {order.items?.map((item, index) => {
-                  const itemPrice =
-                    item.price || item.fixedPrice || item.unitPrice?.price || 0;
+                  const itemPrice = getItemPrice(item);
                   const itemTotal = itemPrice * (item.quantity || 1);
 
                   return (
@@ -840,11 +905,6 @@ export default function FullPageInvoice({
                           <p className="font-medium text-gray-900 text-sm">
                             {item.title}
                           </p>
-                          {item.sku && (
-                            <p className="text-xs text-gray-500">
-                              SKU: {item.sku}
-                            </p>
-                          )}
                         </div>
                         <div className="text-right">
                           <p className="font-medium text-gray-900 text-sm">
@@ -866,7 +926,7 @@ export default function FullPageInvoice({
             </div>
 
             {/* Invoice Summary */}
-            <div className="flex justify-end mb-8 sm:mb-12">
+            <div className="flex justify-end mb-6 sm:mb-8">
               <div className="w-full sm:w-80">
                 <div className="bg-gray-50 p-4 sm:p-6 rounded-lg border print:bg-white print:border-gray-300">
                   <div className="space-y-2 sm:space-y-3 text-sm sm:text-base">
@@ -881,19 +941,22 @@ export default function FullPageInvoice({
                     </div>
 
                     {/* Discount if applicable */}
-                    {/* {order.totalDiscount && order.totalDiscount > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">Discount:</span>
-                        <span className="text-green-600">
-                          -<PriceFormatter amount={order.totalDiscount} showDecimals />
-                        </span>
-                      </div>
-                    )} */}
+                    {/* {order.totalDiscount && order.totalDiscount > 0 && ( */}
+                    <div className="flex justify-between">
+                      <span className="text-gray-700">Shipping:</span>
+                      <span className="text-gray-900">
+                        <PriceFormatter
+                          amount={order.totalShipping}
+                          showDecimals
+                        />
+                      </span>
+                    </div>
+                    {/* )} */}
 
                     <Separator />
                     <div className="flex justify-between text-base sm:text-lg font-bold">
                       <span className="text-gray-900">Total:</span>
-                      <span className="text-gray-900">
+                      <span className="text-orange-600">
                         <PriceFormatter
                           amount={order.totalPrice || 0}
                           showDecimals
@@ -905,47 +968,8 @@ export default function FullPageInvoice({
               </div>
             </div>
 
-            {/* Payment Status for Completed Orders */}
-            {order.paymentStatus === "PAID" && (
-              <div className="mb-8 sm:mb-12">
-                <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="w-6 h-6 text-green-600" />
-                    <div>
-                      <h4 className="font-semibold text-green-800">
-                        Payment Confirmed
-                      </h4>
-                      <p className="text-sm text-green-700">
-                        Thank you for your payment. Your order is being
-                        processed.
-                      </p>
-                      {order.processedAt && (
-                        <p className="text-xs text-green-600 mt-1">
-                          Payment received on {formatDate(order.processedAt)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Order Notes if any */}
-            {order.notes && (
-              <div className="mb-8 sm:mb-12">
-                <h4 className="font-semibold text-gray-800 mb-3 text-base sm:text-lg">
-                  Order Notes:
-                </h4>
-                <div className="bg-gray-100 p-4 rounded-lg border print:bg-gray-50">
-                  <p className="text-gray-700 text-sm sm:text-base">
-                    {order.notes}
-                  </p>
-                </div>
-              </div>
-            )}
-
             {/* Invoice Footer */}
-            <div className="border-t border-gray-200 pt-6 sm:pt-8">
+            <div className="border-t border-gray-200 pt-4 sm:pt-6">
               <div className="text-center text-gray-600">
                 <p className="text-base sm:text-lg font-medium mb-2">
                   Thank you for your business!
@@ -992,10 +1016,6 @@ export default function FullPageInvoice({
                       • Delivery times may vary based on product availability
                       and location
                     </p>
-                    <p>
-                      • For returns and refunds, please contact customer service
-                      within 14 days
-                    </p>
                   </div>
                 </div>
 
@@ -1013,6 +1033,15 @@ export default function FullPageInvoice({
             </div>
           </div>
         </div>
+      </div>
+      <div className="flex item-center ">
+        <button
+          onClick={clearCartAfterPayment}
+          className="w-full flex items-center justify-center px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mt-4 cursor-pointer"
+        >
+          <ShoppingBag className="w-4 h-4 mr-2" />
+          Clear Cart & Continue Shopping
+        </button>
       </div>
     </div>
   );

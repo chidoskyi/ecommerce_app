@@ -1,5 +1,6 @@
-// components/CategoryTable.tsx
-import React from 'react';
+"use client"
+
+import React, { useState } from 'react';
 import {
   MoreHorizontal,
   Edit,
@@ -11,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { CategoryPagination } from "./CategoryPagination";
 import Image from "next/image";
 import {
   DropdownMenu,
@@ -20,8 +22,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CategoryTableProps, Category } from '@/lib/types';
+import { Category, CategoryStatus, CategoryTableProps } from '@/types/categories';
+import { getStatusBadgeColor } from "./CategoryBadge";
 
+// Updated interface to include pagination props
 export const CategoryTable: React.FC<CategoryTableProps> = ({
   categories,
   loading,
@@ -31,9 +35,26 @@ export const CategoryTable: React.FC<CategoryTableProps> = ({
   onEdit,
   onDelete,
   onStatusChange,
+  currentPage,
+  totalPages,
+  onPageChange,
 }) => {
-  const formatDate = (dateString: string): string => {
+  const formatDate = (dateString: string | undefined | null): string => {
+    console.log('🔍 Formatting date:', dateString, 'Type:', typeof dateString);
+    
+    if (!dateString) {
+      console.warn('⚠️ Date string is empty or null');
+      return "No date";
+    }
+    
     const date = new Date(dateString);
+    console.log('📅 Parsed date:', date, 'Valid:', !isNaN(date.getTime()));
+    
+    if (isNaN(date.getTime())) {
+      console.error('❌ Invalid date format:', dateString);
+      return "Invalid date";
+    }
+    
     return new Intl.DateTimeFormat("en-US", {
       year: "numeric",
       month: "short",
@@ -41,51 +62,28 @@ export const CategoryTable: React.FC<CategoryTableProps> = ({
     }).format(date);
   };
 
-  const filterCategories = (categories: Category[]): Category[] => {
-    if (!searchQuery) return categories;
+  // Since filtering and sorting are now handled by the backend,
+  // we just use the categories as-is
+  const safeCategories = Array.isArray(categories) ? categories : [];
+  
+  console.log('🔍 CategoryTable: Displaying categories:', safeCategories.length);
 
-    return categories.filter(
-      (category) =>
-        category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        category.slug.toLowerCase().includes(searchQuery.toLowerCase())
+  const isActive = (category: Category): boolean => {
+    return category.status === CategoryStatus.ACTIVE;
+  };
+
+  const getStatusBadge = (category: Category) => {
+    const active = isActive(category);
+    return (
+      <Badge
+        variant="outline"
+        className={`${getStatusBadgeColor(category.status)} text-xs`}
+      >
+        {active ? "Active" : "Inactive"}
+      </Badge>
     );
   };
-
-  const sortCategories = (categories: Category[]): Category[] => {
-    return [...categories].sort((a, b) => {
-      const aValue = a[sortConfig.key];
-      const bValue = b[sortConfig.key];
-
-      if (sortConfig.key === "name" || sortConfig.key === "slug") {
-        const aStr = String(aValue);
-        const bStr = String(bValue);
-        return sortConfig.direction === "asc" 
-          ? aStr.localeCompare(bStr) 
-          : bStr.localeCompare(aStr);
-      }
-
-      if (sortConfig.key === "productsCount") {
-        const aNum = Number(aValue);
-        const bNum = Number(bValue);
-        return sortConfig.direction === "asc" 
-          ? aNum - bNum 
-          : bNum - aNum;
-      }
-
-      if (sortConfig.key === "updatedAt" || sortConfig.key === "createdAt") {
-        const aDate = new Date(String(aValue)).getTime();
-        const bDate = new Date(String(bValue)).getTime();
-        return sortConfig.direction === "asc" 
-          ? aDate - bDate 
-          : bDate - aDate;
-      }
-
-      return 0;
-    });
-  };
-
-  const filteredAndSortedCategories = sortCategories(filterCategories(categories));
-
+  
   if (loading) {
     return (
       <div className="rounded-md border">
@@ -114,7 +112,7 @@ export const CategoryTable: React.FC<CategoryTableProps> = ({
     );
   }
 
-  if (filteredAndSortedCategories.length === 0 && searchQuery) {
+  if (safeCategories.length === 0 && searchQuery) {
     return (
       <div className="rounded-md border">
         <Table>
@@ -140,7 +138,7 @@ export const CategoryTable: React.FC<CategoryTableProps> = ({
     );
   }
 
-  if (filteredAndSortedCategories.length === 0) {
+  if (safeCategories.length === 0) {
     return (
       <div className="rounded-md border">
         <Table>
@@ -167,6 +165,7 @@ export const CategoryTable: React.FC<CategoryTableProps> = ({
   }
 
   return (
+    <>
     <div className="rounded-md border">
       <Table>
         <TableHeader>
@@ -204,68 +203,93 @@ export const CategoryTable: React.FC<CategoryTableProps> = ({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filteredAndSortedCategories.map((category) => (
-            <TableRow key={category.id}>
-              <TableCell className="font-medium flex items-center gap-1">
-                <div className="relative w-20 h-20">
-                  <Image src={category.image ?? "/placeholder.png"} alt={category.name} fill className="object-contain rounded-md" />
-                </div>
-                <span>{category.name}</span>
-              </TableCell>
-              <TableCell>{category.slug}</TableCell>
-              <TableCell>{category.productsCount}</TableCell>
-              <TableCell>
-                <Badge variant={category.isActive ? "outline" : "secondary"}>
-                  {category.isActive ? "Active" : "Inactive"}
-                </Badge>
-              </TableCell>
-              <TableCell>{formatDate(category.updatedAt)}</TableCell>
-              <TableCell className="text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="cursor-pointer">
-                      <MoreHorizontal className="h-4 w-4" />
-                      <span className="sr-only">Open menu</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-white shadow-md border-none">
-                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                    <DropdownMenuItem onClick={() => onEdit(category)} className="cursor-pointer">
-                      <Edit className="mr-2 h-4 w-4" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      onClick={() => onStatusChange(category.id, !category.isActive)}
-                      className='cursor-pointer'
-                    >
-                      {category.isActive ? (
-                        <>
-                          <X className="mr-2 h-4 w-4" />
-                          Deactivate
-                        </>
-                      ) : (
-                        <>
-                          <Check className="mr-2 h-4 w-4" />
-                          Activate
-                        </>
-                      )}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      className="text-red-600 cursor-pointer" 
-                      onClick={() => onDelete(category.id)}
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
-          ))}
+          {safeCategories.map((category, index) => {
+            console.log(`🔍 CategoryTable: Rendering category ${index}:`, category);
+            console.log(`🔍 CategoryTable: Category ${index} updatedAt:`, category.updatedAt);
+            console.log(`🔍 CategoryTable: Category ${index} properties:`, Object.keys(category));
+            
+            return (
+              <TableRow key={category.id}>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-3">
+                    <div className="relative w-12 h-12 flex-shrink-0">
+                      <Image 
+                        src={category.image ?? "/placeholder.png"} 
+                        alt={category.name} 
+                        fill 
+                        className="object-cover rounded-md border" 
+                      />
+                    </div>
+                    <span className="truncate">{category.name}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="font-mono text-sm">{category.slug}</TableCell>
+                <TableCell>
+                  <span className="font-medium">{category.productsCount || 0}</span>
+                </TableCell>
+                <TableCell>
+                  {getStatusBadge(category)}
+                </TableCell>
+                <TableCell>{formatDate(category.updatedAt)}</TableCell>
+                <TableCell className="text-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="cursor-pointer">
+                        <MoreHorizontal className="h-4 w-4" />
+                        <span className="sr-only">Open menu</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-white shadow-md border-none">
+                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => onEdit(category)} className="cursor-pointer">
+                        <Edit className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onClick={() => onStatusChange(category.id, !isActive(category))}
+                        className='cursor-pointer'
+                      >
+                        {isActive(category) ? (
+                          <>
+                            <X className="mr-2 h-4 w-4" />
+                            Deactivate
+                          </>
+                        ) : (
+                          <>
+                            <Check className="mr-2 h-4 w-4" />
+                            Activate
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        className="text-red-600 cursor-pointer" 
+                        onClick={() => onDelete(category.id)}
+                        disabled={(category.productsCount || 0) > 0}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                        {(category.productsCount || 0) > 0 && (
+                          <span className="ml-1 text-xs">(has products)</span>
+                        )}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
+    {/* Add pagination */}
+    <CategoryPagination
+      currentPage={currentPage}
+      totalPages={totalPages}
+      onPageChange={onPageChange}
+      className="mt-4"
+    />
+    </>
   );
 };

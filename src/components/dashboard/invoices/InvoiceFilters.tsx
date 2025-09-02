@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { format } from "date-fns"
-import type { DateRange } from "@/lib/types"
+import type { DateRange } from "@/types"
 
 interface InvoiceFiltersProps {
   statusFilter: string

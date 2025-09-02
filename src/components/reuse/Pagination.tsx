@@ -1,4 +1,4 @@
-import { PaginationProps } from "@/lib/types"
+import { PaginationProps } from "@/types"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 

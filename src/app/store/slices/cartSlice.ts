@@ -965,7 +965,6 @@ const cartSlice = createSlice({
 
         // Clear localStorage
         StorageUtil.clearCartData();
-        toast.success("Cart cleared successfully!");
       })
       .addCase(clearEntireCart.rejected, (state, action) => {
         state.loading = false;

@@ -1,8 +1,12 @@
+
 // /api/payments/paystack/callback/route.ts - Paystack Webhook Handler
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { paystackService } from "@/lib/paystack";
+import EmailService from '@/lib/emailService';
+
+const emailService = new EmailService()
 
 export async function POST(request: NextRequest) {
   try {
@@ -69,7 +73,7 @@ export async function POST(request: NextRequest) {
 }
 
 async function handleSuccessfulPayment(data: any) {
-  const { reference, amount, currency, status, metadata } = data;
+  const { reference } = data;
 
   console.log("Processing successful payment:", reference);
 
@@ -95,6 +99,8 @@ async function handleSuccessfulPayment(data: any) {
             product: true,
           },
         },
+        user: true, // Include user data for email
+        shippingAddress: true, // Include shipping address
       },
     });
 
@@ -115,7 +121,18 @@ async function handleSuccessfulPayment(data: any) {
         processedAt: new Date(),
         // paymentData: data // Store the full payment data
       },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+        user: true,
+        shippingAddress: true,
+      },
     });
+
+    type OrderWithRelations = typeof updatedOrder;
 
     // Update checkout status
     await prisma.checkout.updateMany({
@@ -148,7 +165,20 @@ async function handleSuccessfulPayment(data: any) {
       },
     });
 
-    // TODO: Send confirmation email to customer
+    // Send confirmation email to customer
+    try {
+      if (updatedOrder.user && updatedOrder.user.email) {
+        console.log("Sending order confirmation email to:", updatedOrder.user.email);
+        await emailService.sendOrderConfirmation(updatedOrder.user, updatedOrder);
+        console.log("Order confirmation email sent successfully");
+      } else {
+        console.warn("No user email found for order:", order.id);
+      }
+    } catch (emailError) {
+      console.error("Failed to send order confirmation email:", emailError);
+      // Don't throw error here - payment was successful, email failure shouldn't break the flow
+    }
+
     // TODO: Send notification to admin
     // TODO: Trigger order fulfillment process
 
@@ -158,6 +188,7 @@ async function handleSuccessfulPayment(data: any) {
     throw error;
   }
 }
+
 
 async function handleFailedPayment(data: any) {
   const { reference, gateway_response } = data;

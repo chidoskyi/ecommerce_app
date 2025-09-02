@@ -1,172 +1,196 @@
-// pages/OrderListPage.tsx
+// pages/OrderListPage.tsx - Fixed Redux Connected
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useEffect, useCallback, useMemo } from "react";
+import { useSelector, useDispatch } from 'react-redux';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "react-toastify";
-import { Order, OrderSortConfig, OrderStatus, OrderFiltersType } from "@/lib/types";
+import { Order, OrderStatus } from "@/types/orders";
 import { OrderDetailsDialog } from "@/components/dashboard/orders/OrderDetailsDialog";
 import { OrderTable } from "@/components/dashboard/orders/OrderTable";
 import { OrderFilters } from "@/components/dashboard/orders/OrderFilters";
-import { ordersData } from "@/data/orders";
-
-
+import { CategoryPagination } from "@/components/dashboard/categories/CategoryPagination";
+import {
+  selectOrders,
+  selectCurrentOrder,
+  selectOrdersLoading,
+  selectOrdersError,
+  selectOrdersFilters,
+  selectOrdersPagination,
+  selectOrdersStats,
+  fetchOrders,
+  setCurrentOrder,
+  clearCurrentOrder,
+  clearError,
+  setFilters,
+  updateOrderStatus,
+  bulkUpdateOrderStatus,
+} from '@/app/store/slices/adminOrderSlice';
+import { PriceFormatter } from "@/components/reuse/FormatCurrency";
 
 export const OrdersList: React.FC = () => {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState<boolean>(false);
-  const [sortConfig, setSortConfig] = useState<OrderSortConfig>({ key: "date", direction: "desc" });
-  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const dispatch = useDispatch();
   
-  const [filters, setFilters] = useState<OrderFiltersType>({
-    searchQuery: "",
-    statusFilter: "all",
-    dateRange: { from: null, to: null },
+  // Redux selectors
+  const orders = useSelector(selectOrders);
+  const currentOrder = useSelector(selectCurrentOrder);
+  const loading = useSelector(selectOrdersLoading);
+  const error = useSelector(selectOrdersError);
+  const filters = useSelector(selectOrdersFilters);
+  const pagination = useSelector(selectOrdersPagination);
+  const stats = useSelector(selectOrdersStats);
+
+  // Local state for UI interactions
+  const [selectedOrders, setSelectedOrders] = React.useState<string[]>([]);
+  const [isOrderDetailsOpen, setIsOrderDetailsOpen] = React.useState<boolean>(false);
+  const [sortConfig, setSortConfig] = React.useState<{ key: string; direction: 'asc' | 'desc' }>({ 
+    key: "date", 
+    direction: "desc" 
   });
 
-  // Fetch orders on component mount
+  // Memoize the filters conversion to prevent unnecessary re-renders
+  const apiFilters = useMemo(() => {
+    return {
+      ...filters,
+      // Handle date conversion safely - check if it's already a string or if it's a Date object
+      startDate: filters.dateRange?.from 
+        ? (typeof filters.dateRange.from === 'string' 
+           ? filters.dateRange.from 
+           : filters.dateRange.from.toISOString())
+        : undefined,
+      endDate: filters.dateRange?.to 
+        ? (typeof filters.dateRange.to === 'string' 
+           ? filters.dateRange.to 
+           : filters.dateRange.to.toISOString())
+        : undefined,
+      search: filters.searchQuery,
+      status: filters.statusFilter !== "all" ? filters.statusFilter : undefined,
+    };
+  }, [
+    filters.page,
+    filters.limit,
+    filters.searchQuery,
+    filters.statusFilter,
+    filters.dateRange?.from,
+    filters.dateRange?.to
+  ]);
+
+  // Fetch orders on component mount and when filters change
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    dispatch<any>(fetchOrders(apiFilters));
+  }, [dispatch, apiFilters]);
 
-  const fetchOrders = async (): Promise<void> => {
-    setLoading(true);
-    try {
-      // Mock data for demonstration
-      // Ensure all order statuses and payment statuses are valid enum values
-      const mockOrders: Order[] = ordersData.map((order) => ({
-        ...order,
-        status: order.status as OrderStatus,
-        payment: {
-          ...order.payment,
-          status: order.payment.status as Order["payment"]["status"],
-        },
-      }));
-
-      setOrders(mockOrders);
-    } catch (error) {
-      console.error("Error fetching orders:", error);
-      toast.error("Failed to load orders");
-    } finally {
-      setLoading(false);
+  // Handle errors with toast notifications
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+      dispatch(clearError());
     }
-  };
+  }, [error, dispatch]);
 
-  const handleStatusChange = async (orderId: string, newStatus: OrderStatus): Promise<void> => {
+  // Use Redux orders directly - API handles all filtering
+  const filteredOrders = orders;
+
+  // Handle status change for individual order
+  const handleStatusChange = useCallback(async (orderId: string, newStatus: OrderStatus): Promise<void> => {
     try {
-      // In a real app, you would call your API
-      // await api.updateOrderStatus(orderId, newStatus)
-
-      const updatedOrders = orders.map((order) =>
-        order.id === orderId ? { ...order, status: newStatus } : order
-      );
-
-      setOrders(updatedOrders);
-      
-      // Update selected order if it's the one being changed
-      if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder({ ...selectedOrder, status: newStatus });
-      }
-      
+      await dispatch(updateOrderStatus(orderId, newStatus)).unwrap();
       toast.success(`Order status updated to ${newStatus}`);
     } catch (error) {
       console.error("Error updating order status:", error);
       toast.error("Failed to update order status");
     }
-  };
+  }, [dispatch]);
 
-  const handleBulkStatusChange = async (newStatus: OrderStatus): Promise<void> => {
+  // Handle bulk status change
+  const handleBulkStatusChange = useCallback(async (newStatus: OrderStatus): Promise<void> => {
     if (selectedOrders.length === 0) {
       toast.warning("No orders selected");
       return;
     }
 
     try {
-      // In a real app, you would call your API
-      // await Promise.all(selectedOrders.map(id => api.updateOrderStatus(id, newStatus)))
-
-      const updatedOrders = orders.map((order) =>
-        selectedOrders.includes(order.id) ? { ...order, status: newStatus } : order
-      );
-
-      setOrders(updatedOrders);
+      await dispatch(bulkUpdateOrderStatus({ 
+        orderIds: selectedOrders, 
+        status: newStatus 
+      })).unwrap();
+      
       toast.success(`${selectedOrders.length} orders updated to ${newStatus}`);
       setSelectedOrders([]);
     } catch (error) {
       console.error("Error updating order status:", error);
       toast.error("Failed to update order status");
     }
-  };
+  }, [dispatch, selectedOrders]);
 
-  const handleSort = useCallback((key: OrderSortConfig['key']): void => {
-    let direction: OrderSortConfig['direction'] = "asc";
-    if (sortConfig.key === key && sortConfig.direction === "asc") {
-      direction = "desc";
-    }
-    setSortConfig({ key, direction });
-  }, [sortConfig]);
+  // Handle sorting - memoize to prevent unnecessary re-renders
+  const handleSort = useCallback((key: string): void => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc"
+    }));
+  }, []);
 
-  // Filter orders based on search query, status, and date range
-  const filteredOrders = orders.filter((order) => {
-    // Search filter
-    const searchMatch =
-      order.id.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
-      order.customer.name.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
-      order.customer.email.toLowerCase().includes(filters.searchQuery.toLowerCase());
-
-    // Status filter
-    const statusMatch = filters.statusFilter === "all" || order.status === filters.statusFilter;
-
-    // Date range filter
-    let dateMatch = true;
-    if (filters.dateRange.from && filters.dateRange.to) {
-      const orderDate = new Date(order.date);
-      dateMatch = orderDate >= filters.dateRange.from && orderDate <= filters.dateRange.to;
-    }
-
-    return searchMatch && statusMatch && dateMatch;
-  });
-
+  // Handle order selection - memoize callbacks
   const handleSelectAllOrders = useCallback((checked: boolean): void => {
     if (checked) {
-      setSelectedOrders(filteredOrders.map((order) => order.id));
+      setSelectedOrders(orders.map((order) => order.id));
     } else {
       setSelectedOrders([]);
     }
-  }, [filteredOrders]);
+  }, [orders]);
 
   const handleSelectOrder = useCallback((orderId: string): void => {
-    if (selectedOrders.includes(orderId)) {
-      setSelectedOrders(selectedOrders.filter((id) => id !== orderId));
-    } else {
-      setSelectedOrders([...selectedOrders, orderId]);
-    }
-  }, [selectedOrders]);
-
-  const handleViewDetails = useCallback((order: Order): void => {
-    setSelectedOrder(order);
-    setIsOrderDetailsOpen(true);
+    setSelectedOrders(prev => 
+      prev.includes(orderId) 
+        ? prev.filter((id) => id !== orderId)
+        : [...prev, orderId]
+    );
   }, []);
+
+  // Handle view details
+  const handleViewDetails = useCallback((order: Order): void => {
+    dispatch(setCurrentOrder(order));
+    setIsOrderDetailsOpen(true);
+  }, [dispatch]);
 
   const handleCloseDetails = useCallback((): void => {
     setIsOrderDetailsOpen(false);
-    setSelectedOrder(null);
-  }, []);
+    setTimeout(() => {
+      dispatch(clearCurrentOrder());
+    }, 300); // Wait for dialog animation to complete
+  }, [dispatch]);
 
-  // Filter handlers
-  const handleSearchChange = useCallback((query: string): void => {
-    setFilters(prev => ({ ...prev, searchQuery: query }));
-  }, []);
+  // Handle pagination
+  const handlePageChange = useCallback((page: number): void => {
+    dispatch(setFilters({ page }));
+  }, [dispatch]);
 
-  const handleStatusFilterChange = useCallback((status: OrderStatus | 'all'): void => {
-    setFilters(prev => ({ ...prev, statusFilter: status }));
-  }, []);
+  // Handle filters change
+  const handleFiltersChange = useCallback((newFilters: any): void => {
+    // Convert Date objects to ISO strings for Redux state
+    const serializedFilters = {
+      ...newFilters,
+      dateRange: newFilters.dateRange ? {
+        from: newFilters.dateRange.from 
+          ? (newFilters.dateRange.from instanceof Date 
+             ? newFilters.dateRange.from.toISOString() 
+             : newFilters.dateRange.from)
+          : null,
+        to: newFilters.dateRange.to 
+          ? (newFilters.dateRange.to instanceof Date 
+             ? newFilters.dateRange.to.toISOString() 
+             : newFilters.dateRange.to)
+          : null,
+      } : null
+    };
+    
+    dispatch(setFilters(serializedFilters));
+  }, [dispatch]);
 
-  const handleDateRangeChange = useCallback((dateRange: OrderFiltersType['dateRange']): void => {
-    setFilters(prev => ({ ...prev, dateRange }));
-  }, []);
+  // Memoize props to prevent unnecessary re-renders
+  const memoizedSortConfig = useMemo(() => sortConfig, [sortConfig.key, sortConfig.direction]);
+  const memoizedSelectedOrders = useMemo(() => selectedOrders, [selectedOrders]);
 
   return (
     <div className="">
@@ -176,8 +200,46 @@ export const OrdersList: React.FC = () => {
           <p className="text-muted-foreground">View and manage customer orders</p>
         </div>
 
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.total}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Completed</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{stats.confirmed}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                <PriceFormatter amount={stats.totalRevenue} />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="flex flex-col space-y-4">
-          <Card className="shadow-md border-gray-300" >
+          <Card className="shadow-md border-gray-300">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle>Orders</CardTitle>
@@ -186,11 +248,9 @@ export const OrdersList: React.FC = () => {
               
               <div className="pt-4">
                 <OrderFilters
-                  filters={filters}
-                  onSearchChange={handleSearchChange}
-                  onStatusFilterChange={handleStatusFilterChange}
-                  onDateRangeChange={handleDateRangeChange}
                   selectedOrdersCount={selectedOrders.length}
+                  selectedOrders={memoizedSelectedOrders}
+                  onFiltersChange={handleFiltersChange}
                   onBulkStatusChange={handleBulkStatusChange}
                 />
               </div>
@@ -198,24 +258,34 @@ export const OrdersList: React.FC = () => {
             
             <CardContent>
               <OrderTable
-                orders={orders}
+                filteredOrders={filteredOrders}
                 loading={loading}
-                selectedOrders={selectedOrders}
-                sortConfig={sortConfig}
+                selectedOrders={memoizedSelectedOrders}
+                sortConfig={memoizedSortConfig}
                 onSort={handleSort}
                 onSelectOrder={handleSelectOrder}
                 onSelectAllOrders={handleSelectAllOrders}
                 onStatusChange={handleStatusChange}
                 onViewDetails={handleViewDetails}
-                filteredOrders={filteredOrders}
               />
+              
+              {/* Pagination */}
+              {pagination && pagination.pages > 1 && (
+                <div className="mt-4 flex justify-center">
+                  <CategoryPagination
+                    currentPage={pagination.page}
+                    totalPages={pagination.pages}
+                    onPageChange={handlePageChange}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
       </div>
 
       <OrderDetailsDialog
-        order={selectedOrder}
+        order={currentOrder}
         isOpen={isOrderDetailsOpen}
         onClose={handleCloseDetails}
         onStatusChange={handleStatusChange}

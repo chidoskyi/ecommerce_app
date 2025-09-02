@@ -1,6 +1,6 @@
 // store/slices/addressSlice.js
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import {  Address, NewAddress } from '@/lib/types'; // Adjust the import path as necessary
+import {  Address, NewAddress } from '@/types'; // Adjust the import path as necessary
 import api from "@/lib/api"
 
 

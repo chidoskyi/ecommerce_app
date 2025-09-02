@@ -3,66 +3,66 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/middleware";
 import { slugify } from "@/lib/slugify";
-import { CloudinaryUploader, UploadType } from "@/lib/cloudinary"; // Import your enhanced library
+// import { CloudinaryUploader } from "@/lib/cloudinary"; // Import your enhanced library
 
 // Initialize Cloudinary uploader
-const cloudinaryUploader = new CloudinaryUploader({
-  cloudName: process.env.CLOUDINARY_CLOUD_NAME!,
-  uploadPreset: process.env.CLOUDINARY_CATEGORIES_PRESET!, // This will be overridden when using UploadType
-});
+// export const cloudinaryUploader = new CloudinaryUploader({
+//   cloudName: process.env.CLOUDINARY_CLOUD_NAME!,
+//   uploadPreset: process.env.CLOUDINARY_CATEGORIES_PRESET!, // This will be overridden when using UploadType
+// });
 
-// Helper function to handle image upload using the new type-safe method
-async function handleImageUpload(
-  imageData: string | File | null
-): Promise<string | null> {
-  if (!imageData) return null;
+// // Helper function to handle image upload using the new type-safe method
+// export async function handleImageUpload(
+//   imageData: string | File | null
+// ): Promise<string | null> {
+//   if (!imageData) return null;
 
-  try {
-    // If it's a base64 string or blob URL, convert to File
-    if (typeof imageData === "string") {
-      if (imageData.startsWith("data:")) {
-        // Handle base64 data URL
-        const response = await fetch(imageData);
-        const blob = await response.blob();
-        const file = new File([blob], "category-image.jpg", {
-          type: blob.type,
-        });
+//   try {
+//     // If it's a base64 string or blob URL, convert to File
+//     if (typeof imageData === "string") {
+//       if (imageData.startsWith("data:")) {
+//         // Handle base64 data URL
+//         const response = await fetch(imageData);
+//         const blob = await response.blob();
+//         const file = new File([blob], "category-image.jpg", {
+//           type: blob.type,
+//         });
 
-        // Use the new type-safe upload method
-        return await cloudinaryUploader.uploadByType(
-          file,
-          UploadType.CATEGORY,
-          {
-            publicId: `category_${Date.now()}`, // Optional: custom public ID
-          }
-        );
-      } else if (imageData.startsWith("http")) {
-        // If it's already a URL (e.g., existing Cloudinary URL), return as is
-        return imageData;
-      }
-    }
+//         // Use the new type-safe upload method
+//         return await cloudinaryUploader.uploadByType(
+//           file,
+//           UploadType.CATEGORY,
+//           {
+//             publicId: `category_${Date.now()}`, // Optional: custom public ID
+//           }
+//         );
+//       } else if (imageData.startsWith("http")) {
+//         // If it's already a URL (e.g., existing Cloudinary URL), return as is
+//         return imageData;
+//       }
+//     }
 
-    // If it's a File object
-    if (imageData instanceof File) {
-      return await cloudinaryUploader.uploadByType(
-        imageData,
-        UploadType.CATEGORY,
-        {
-          publicId: `category_${Date.now()}`, // Optional: custom public ID
-        }
-      );
-    }
+//     // If it's a File object
+//     if (imageData instanceof File) {
+//       return await cloudinaryUploader.uploadByType(
+//         imageData,
+//         UploadType.CATEGORY,
+//         {
+//           publicId: `category_${Date.now()}`, // Optional: custom public ID
+//         }
+//       );
+//     }
 
-    return null;
-  } catch (error) {
-    console.error("Image upload failed:", error);
-    throw new Error(
-      `Failed to upload image: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`
-    );
-  }
-}
+//     return null;
+//   } catch (error) {
+//     console.error("Image upload failed:", error);
+//     throw new Error(
+//       `Failed to upload image: ${
+//         error instanceof Error ? error.message : "Unknown error"
+//       }`
+//     );
+//   }
+// }
 
 // GET all categories (public)
 export async function GET(request: NextRequest) {

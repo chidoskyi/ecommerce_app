@@ -1,40 +1,54 @@
 import React from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { UserTableProps, User, UserRole, UserStatus } from '@/lib/types';
+import { UserRole, UserStatus } from '@/types/users';
 import { UserActions } from '@/components/dashboard/users/UserActions';
+import {
+  selectUsers,
+  selectLoading,
+  selectSearchTerm,
+  setSearchTerm,
+} from '@/app/store/slices/adminUsersSlice';
+import { AppDispatch } from '@/app/store';
 
-interface UserTableComponentProps extends UserTableProps {
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
+interface UserTableProps {
+  onEdit?: () => void;
 }
 
-export const UserTable: React.FC<UserTableComponentProps> = ({
-  users,
-  loading,
-  searchQuery,
-  onSearchChange,
-  onEdit,
-  onDelete,
-  onStatusChange,
-}) => {
+export const UserTable: React.FC<UserTableProps> = ({ onEdit }) => {
+  const dispatch = useDispatch<AppDispatch>();
+  const users = useSelector(selectUsers);
+  const loading = useSelector(selectLoading);
+  const searchTerm = useSelector(selectSearchTerm);
+
+  const handleSearchChange = (value: string) => {
+    dispatch(setSearchTerm(value));
+  };
+
+  // Filter users based on search term
   const filteredUsers = users.filter(
-    (user) =>
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.role.toLowerCase().includes(searchQuery.toLowerCase())
+    (user) => {
+      const searchLower = searchTerm.toLowerCase();
+      const fullName = `${user.firstName || ''} ${user.lastName || ''}`.toLowerCase();
+      return (
+        fullName.includes(searchLower) ||
+        user.email.toLowerCase().includes(searchLower) ||
+        user.role.toLowerCase().includes(searchLower)
+      );
+    }
   );
 
   const getRoleBadgeColor = (role: UserRole): string => {
     switch (role) {
-      case 'admin':
+      case 'ADMIN':
         return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-      case 'manager':
+      case 'USER':
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-      case 'customer':
+      case 'MODERATOR':
         return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
@@ -43,11 +57,11 @@ export const UserTable: React.FC<UserTableComponentProps> = ({
 
   const getStatusBadgeColor = (status: UserStatus): string => {
     switch (status) {
-      case 'active':
+      case 'ACTIVE':
         return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-      case 'inactive':
+      case 'INACTIVE':
         return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-      case 'suspended':
+      case 'SUSPENDED':
         return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
@@ -63,7 +77,28 @@ export const UserTable: React.FC<UserTableComponentProps> = ({
       hour: '2-digit',
       minute: '2-digit',
     }).format(date);
-  };    
+  };
+
+  const getDisplayName = (user: any): string => {
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    return user.name || user.email;
+  };
+
+  const getInitials = (user: any): string => {
+    if (user.firstName && user.lastName) {
+      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+    }
+    if (user.name) {
+      return user.name
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .toUpperCase();
+    }
+    return user.email[0].toUpperCase();
+  };
 
   return (
     <>
@@ -74,8 +109,8 @@ export const UserTable: React.FC<UserTableComponentProps> = ({
             type="search"
             placeholder="Search users..."
             className="!text-[16px] border-gray-300 text-base transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 md:text-sm border pl-10 h-10 sm:h-12 focus:border-[#1B6013] focus:ring-orange-600"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
+            value={searchTerm}
+            onChange={(e) => handleSearchChange(e.target.value)}
           />
         </div>
       </div>
@@ -87,7 +122,7 @@ export const UserTable: React.FC<UserTableComponentProps> = ({
               <TableHead>User</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Last Login</TableHead>
+              <TableHead>Created At</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -103,7 +138,7 @@ export const UserTable: React.FC<UserTableComponentProps> = ({
             ) : filteredUsers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-10">
-                  No users found
+                  {searchTerm ? `No users found matching "${searchTerm}"` : 'No users found'}
                 </TableCell>
               </TableRow>
             ) : (
@@ -113,18 +148,14 @@ export const UserTable: React.FC<UserTableComponentProps> = ({
                     <div className="flex items-center gap-3">
                       <Avatar>
                         <AvatarImage
-                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`}
+                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(getDisplayName(user))}&background=random`}
                         />
                         <AvatarFallback>
-                          {user.name
-                            .split(' ')
-                            .map((n) => n[0])
-                            .join('')
-                            .toUpperCase()}
+                          {getInitials(user)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <div className="font-medium">{user.name}</div>
+                        <div className="font-medium">{getDisplayName(user)}</div>
                         <div className="text-sm text-muted-foreground">{user.email}</div>
                       </div>
                     </div>
@@ -139,14 +170,11 @@ export const UserTable: React.FC<UserTableComponentProps> = ({
                       {user.status}
                     </Badge>
                   </TableCell>
-                  <TableCell>{formatDate(user.lastLogin)}</TableCell>
+                  <TableCell>
+                    {user.createdAt ? formatDate(user.createdAt) : 'Never'}
+                  </TableCell>
                   <TableCell className="text-right">
-                    <UserActions
-                      user={user}
-                      onEdit={onEdit}
-                      onDelete={onDelete}
-                      onStatusChange={onStatusChange}
-                    />
+                    <UserActions user={user} onEdit={onEdit} />
                   </TableCell>
                 </TableRow>
               ))

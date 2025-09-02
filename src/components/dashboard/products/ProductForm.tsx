@@ -1,136 +1,143 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState, useRef, useCallback, useEffect, useMemo } from "react"
-import { X, Upload, Eye } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
-import Image from "next/image"
-import { toast } from "react-toastify"
-import { useRouter } from "next/navigation"
-import { Category, Product } from "@/lib/types"
+import type React from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { X, Upload, Eye } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { useRouter } from 'next/navigation';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import Image from "next/image";
+import { toast } from "react-toastify";
+import {
+  formStateToApiData,
+  Product,
+  ProductFormProps,
+  ProductFormState,
+  productToFormState,
+} from "@/types/products";
+import { HybridSkuInput } from "@/components/reuse/SkuGenerator";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
+import {
+  fetchCategories,
+  selectCategories,
+  createProduct,
+  updateProduct,
+  fetchProducts,
+  uploadProductImages,
+} from "@/app/store/slices/adminProductsSlice";
 
-interface ProductFormProps {
-  mode: "add" | "edit";
-  product?: Product;
-  categories?: Category[];
-  onSave?: (product: Product) => void;
+export interface ProductFormPropsExtended
+  extends Omit<ProductFormProps, "onSave"> {
+  onSuccess?: () => void;
+  onError?: (error: string) => void;
   onCancel?: () => void;
-  onProductChange?: (product: ProductFormState) => void;
+  onProductChange?: (formState: ProductFormState) => void;
+  existingSkus?: string[];
+  onEditProduct?: () => void; // Add this new prop
 }
 
-// 1. Define a type for your form state
+export function ProductForm({
+  mode,
+  product,
+  onSuccess,
+  onError,
+  onCancel,
+  onProductChange,
+   onEditProduct, // Add this new prop
+  existingSkus = [],
+}: ProductFormPropsExtended) {
+  const dispatch = useAppDispatch();
+  const categories = useAppSelector(selectCategories);
 
-export type ProductFormState = {
-  name: string;
-  description: string;
-  hasFixedPrice: boolean;
-  priceType: "fixed" | "variable";
-  fixedPrice: string;
-  unitPrices: { unit: string; price: string }[];
-  compareAtPrice: string;
-  cost: string;
-  sku: string;
-  quantity: string;
-  categoryId: string;
-  status: "active" | "draft" | "out_of_stock";
-  isFeatured: boolean;
-  isTrending: boolean;
-  isDealOfTheDay: boolean;
-  isNewArrival: boolean;
-  images: string[];
-  weight: string;
-  dimensions: string;
-  createdAt: string;
-};
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeTab, setActiveTab] = useState("basic");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const router = useRouter();
 
-export function ProductForm({ mode, product, categories = [], onSave, onCancel, onProductChange }: ProductFormProps) {
-  console.log("🔄 ProductForm RENDER START - mode:", mode, "product ID:", product?.id, "timestamp:", Date.now())
+  // Fetch categories
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        await dispatch(fetchCategories()).unwrap();
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        toast.error("Failed to load categories");
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
 
-  const router = useRouter()
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [activeTab, setActiveTab] = useState("basic")
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+    loadCategories();
+  }, [dispatch]);
 
-  // 2. Use this type for your form state
-  const initialFormData: ProductFormState = useMemo(() => ({
-    name: "",
-    description: "",
-    hasFixedPrice: true,
-    priceType: "fixed",
-    fixedPrice: "0",
-    unitPrices: [],
-    compareAtPrice: "0",
-    cost: "0",
-    sku: "",
-    quantity: "0",
-    categoryId: "",
-    status: "active",
-    isFeatured: false,
-    isTrending: false,
-    isDealOfTheDay: false,
-    isNewArrival: false,
-    images: [],
-    weight: "",
-    dimensions: "",
-    createdAt: new Date().toISOString(),
-  }), []);
-
-  // In the form initialization and useEffect, ensure unitPrices always have price as string
-  const [formData, setFormData] = useState<ProductFormState>(
-    product
-      ? {
-          ...initialFormData,
-          ...product,
-          fixedPrice: String(product.fixedPrice ?? "0"),
-          compareAtPrice: String(product.compareAtPrice ?? "0"),
-          cost: String(product.cost ?? "0"),
-          quantity: String(product.quantity ?? "0"),
-          categoryId: product.categoryId ? String(product.categoryId) : "",
-          unitPrices: product.unitPrices
-            ? product.unitPrices.map((u) => ({ unit: u.unit, price: String(u.price) }))
-            : [],
-        }
-      : initialFormData
+  const initialFormData: ProductFormState = useMemo(
+    () => ({
+      id: "",
+      name: "",
+      description: "",
+      hasFixedPrice: true,
+      priceType: "FIXED",
+      fixedPrice: "0",
+      unitPrices: [],
+      sku: "",
+      quantity: "0",
+      categoryId: "",
+      status: "ACTIVE",
+      isFeatured: false,
+      isTrending: false,
+      isFruit: false,
+      isVegetable: false,
+      isDealOfTheDay: false,
+      isNewArrival: false,
+      images: [],
+      weight: "",
+      dimensions: "", // FIXED: Added missing property
+      createdAt: new Date().toISOString(),
+    }),
+    []
   );
 
-  // In useEffect, ensure unitPrices always have price as string
+  const [formData, setFormData] = useState<ProductFormState>(
+    product ? productToFormState(product) : initialFormData
+  );
+
   useEffect(() => {
     if (product) {
-      setFormData({
-        ...initialFormData,
-        ...product,
-        fixedPrice: String(product.fixedPrice ?? "0"),
-        compareAtPrice: String(product.compareAtPrice ?? "0"),
-        cost: String(product.cost ?? "0"),
-        quantity: String(product.quantity ?? "0"),
-        categoryId: product.categoryId ? String(product.categoryId) : "",
-        unitPrices: product.unitPrices
-          ? product.unitPrices.map((u) => ({ unit: u.unit, price: String(u.price) }))
-          : [],
-      });
+      setFormData(productToFormState(product));
     }
-  }, [product, initialFormData]);
+  }, [product]);
 
-  // Stable input change handler
   const handleInputChange = useCallback(
     (field: keyof ProductFormState, value: unknown) => {
-      console.log(
-        "📝 Input change - field:",
-        field,
-        "value:",
-        typeof value === "string" ? value.substring(0, 50) : value,
-      )
-
       setFormData((prevData) => {
         const updatedForm: ProductFormState = { ...prevData, [field]: value };
         if (onProductChange) {
@@ -142,178 +149,372 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
       });
     },
     [onProductChange]
-  )
+  );
 
-  const handleImageUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log("📷 Image upload triggered")
-    const files = event.target.files
-    if (!files) return
+  const handleSkuChange = useCallback(
+    (newSku: string) => {
+      handleInputChange("sku", newSku);
+    },
+    [handleInputChange]
+  );
 
-    const fileArray = Array.from(files)
-    const imagePromises: Promise<string>[] = []
+  const handleImageUpload = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
 
-    fileArray.forEach((file) => {
-      if (file.type.startsWith("image/")) {
-        const promise = new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = (e) => {
-            const imageUrl = e.target?.result as string
-            resolve(imageUrl)
-          }
-          reader.onerror = reject
-          reader.readAsDataURL(file)
-        })
-        imagePromises.push(promise)
-      } else {
-        toast.error(`${file.name} is not an image file`)
+      console.log(`📤 Frontend: Selected ${files.length} files for upload`);
+
+      const fileArray = Array.from(files);
+
+      // Validate file types and size
+      const validFiles = fileArray.filter((file) => {
+        const isValidType = file.type.startsWith("image/");
+        const isValidSize = file.size <= 10 * 1024 * 1024; // 10MB limit
+
+        if (!isValidType) {
+          toast.error(`${file.name} is not a valid image file`);
+          return false;
+        }
+
+        if (!isValidSize) {
+          toast.error(`${file.name} is too large (max 10MB)`);
+          return false;
+        }
+
+        return true;
+      });
+
+      if (validFiles.length === 0) {
+        console.log("❌ No valid image files selected");
+        return;
       }
-    })
 
-    Promise.all(imagePromises)
-      .then((imageUrls) => {
-        console.log("📷 Images processed:", imageUrls.length)
-        setFormData((prevData) => {
-          const updatedImages = [...prevData.images, ...imageUrls]
-          return { ...prevData, images: updatedImages }
-        })
-        toast.success(`${imageUrls.length} image(s) uploaded successfully`)
-      })
-      .catch((error) => {
-        console.error("❌ Error uploading images:", error)
-        toast.error("Failed to upload some images")
-      })
+      console.log(`✅ Frontend: ${validFiles.length} valid files to process`);
 
-    // Reset the input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
-  }, [])
+      // Add files to form data with preview URLs
+      setFormData((prevData) => {
+        const newImages = validFiles.map((file) => ({
+          file, // Store the actual File object
+          previewUrl: URL.createObjectURL(file),
+          isNew: true,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+        }));
+
+        console.log(
+          "🖼️ Frontend: Created image objects:",
+          newImages.map((img) => ({
+            name: img.name,
+            size: img.size,
+            hasFile: !!img.file,
+          }))
+        );
+
+        // Keep existing images and add new ones
+        const existingImages = prevData.images || [];
+        const updatedImages = [...existingImages, ...newImages];
+
+        console.log(
+          `🖼️ Frontend: Total images after upload: ${updatedImages.length}`
+        );
+
+        return { ...prevData, images: updatedImages };
+      });
+
+      // Clear file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      toast.success(`${validFiles.length} image(s) selected for upload`);
+    },
+    []
+  );
 
   const handleRemoveImage = useCallback(
     (index: number) => {
-      console.log("🗑️ Removing image at index:", index)
       setFormData((prevData) => {
-        const updatedImages = [...prevData.images]
-        const removedImage = updatedImages.splice(index, 1)[0]
+        const updatedImages = [...prevData.images];
+        const removedImage = updatedImages.splice(index, 1)[0];
 
-        // Close preview if the previewed image is being removed
-        if (imagePreview === removedImage) {
-          setImagePreview(null)
-          setIsPreviewOpen(false)
+        // Revoke object URL if it was a preview to prevent memory leaks
+        if (
+          removedImage &&
+          typeof removedImage === "object" &&
+          removedImage.previewUrl
+        ) {
+          URL.revokeObjectURL(removedImage.previewUrl);
         }
 
-        return { ...prevData, images: updatedImages }
-      })
-    },
-    [imagePreview],
-  )
+        // Close preview if the removed image was being previewed
+        const imageUrl = getImageUrl(removedImage);
+        if (imagePreview === imageUrl) {
+          setImagePreview(null);
+          setIsPreviewOpen(false);
+        }
 
-  const handlePreviewImage = useCallback((imageUrl: string) => {
-    console.log("👁️ Preview image:", imageUrl.substring(0, 50) + "...")
-    setImagePreview(imageUrl)
-    setIsPreviewOpen(true)
-  }, [])
+        return { ...prevData, images: updatedImages };
+      });
+    },
+    [imagePreview]
+  );
+
+  const getImageUrl = useCallback((image: any): string => {
+    if (typeof image === "string") return image;
+    if (image?.previewUrl) return image.previewUrl;
+    if (image?.url) return image.url;
+    return "/placeholder.svg";
+  }, []);
+
+  const handlePreviewImage = useCallback(
+    (image: any) => {
+      const url = getImageUrl(image);
+      setImagePreview(url);
+      setIsPreviewOpen(true);
+    },
+    [getImageUrl]
+  );
 
   const handleAddImageClick = useCallback((e: React.MouseEvent) => {
-    console.log("📷 Add image click")
-    e.preventDefault()
-    e.stopPropagation()
-    fileInputRef.current?.click()
-  }, [])
+    e.preventDefault();
+    e.stopPropagation();
+    fileInputRef.current?.click();
+  }, []);
+
+  // FIXED: Enhanced form validation
+  const validateForm = (formData: ProductFormState): string[] => {
+    const errors: string[] = [];
+
+    if (!formData.name?.trim()) {
+      errors.push("Product name is required");
+    }
+
+    if (!formData.description?.trim()) {
+      errors.push("Product description is required");
+    }
+
+    if (!formData.sku?.trim()) {
+      errors.push("SKU is required");
+    }
+
+    // Check for duplicate SKU
+    if (existingSkus.includes(formData.sku) && mode === "add") {
+      errors.push("SKU already exists");
+    }
+
+    if (
+      formData.hasFixedPrice &&
+      (!formData.fixedPrice || Number(formData.fixedPrice) <= 0)
+    ) {
+      errors.push("Fixed price must be greater than 0");
+    }
+
+    if (!formData.hasFixedPrice && formData.unitPrices.length === 0) {
+      errors.push("At least one unit price is required for variable pricing");
+    }
+
+    // Validate unit prices
+    if (!formData.hasFixedPrice) {
+      for (const unitPrice of formData.unitPrices) {
+        if (!unitPrice.unit?.trim()) {
+          errors.push("All unit names are required");
+          break;
+        }
+        if (!unitPrice.price || Number(unitPrice.price) <= 0) {
+          errors.push("All unit prices must be greater than 0");
+          break;
+        }
+      }
+    }
+
+    return errors;
+  };
+
 
   const handleSubmit = useCallback(
     async (e?: React.MouseEvent) => {
-      console.log("💾 Submit triggered - mode:", mode)
+      console.log("Submit triggered - mode:", mode);
       if (e) {
-        e.preventDefault()
-        e.stopPropagation()
+        e.preventDefault();
+        e.stopPropagation();
       }
-
+  
       try {
+        setLoading(true);
+  
         // Validate form
-        if (!formData.name || (!formData.fixedPrice && formData.priceType === "fixed") || !formData.sku) {
-          console.log("❌ Validation failed:", {
-            name: formData.name,
-            price: formData.fixedPrice,
-            sku: formData.sku,
-          })
-          toast.error("Name, price, and SKU are required fields")
-          return
+        const validationErrors = validateForm(formData);
+        if (validationErrors.length > 0) {
+          toast.error(validationErrors[0]);
+          return;
         }
-
+  
+        // Convert form data to API format
+        const apiData = formStateToApiData(formData);
+        console.log("API data prepared:", {
+          ...apiData,
+          images: `${apiData.images?.length || 0} existing images`,
+          newImageFiles: `${apiData.newImageFiles?.length || 0} new files`,
+        });
+  
         if (mode === "add") {
-          const mockProduct: Product = {
-            id: Date.now(),
-            name: formData.name,
-            description: formData.description,
-            hasFixedPrice: formData.hasFixedPrice,
-            priceType: formData.priceType,
-            fixedPrice: parseFloat(formData.fixedPrice) || 0,
-            unitPrices: formData.unitPrices.map((u) => ({ unit: u.unit, price: parseFloat(u.price) || 0 })),
-            inStock: parseInt(formData.quantity) > 0,
-            compareAtPrice: parseFloat(formData.compareAtPrice) || 0,
-            cost: parseFloat(formData.cost) || 0,
-            sku: formData.sku,
-            quantity: parseInt(formData.quantity) || 0,
-            categoryId: formData.categoryId ? parseInt(formData.categoryId) : null,
-            status: formData.status,
-            isFeatured: formData.isFeatured,
-            isTrending: formData.isTrending,
-            isDealOfTheDay: formData.isDealOfTheDay,
-            isNewArrival: formData.isNewArrival,
-            rating: null,
-            images: formData.images,
-            weight: formData.weight,
-            dimensions: formData.dimensions,
-            createdAt: formData.createdAt,
-            updatedAt: new Date().toISOString(),
-          };
-          console.log("✅ Product added:", mockProduct.name)
-          toast.success("Product added successfully")
-          router.push("/admin/products")
-          if (onSave) {
-            onSave(mockProduct);
+          console.log("🆕 Starting product creation...");
+          
+          // For new products, handle file uploads differently
+          if (apiData.newImageFiles && apiData.newImageFiles.length > 0) {
+            // Create product first, then upload images separately
+            console.log("🆕 Creating product with file uploads...");
+  
+            // Create product without images first
+            const productDataWithoutFiles = { ...apiData };
+            delete productDataWithoutFiles.newImageFiles;
+  
+            const result = await dispatch(
+              createProduct(productDataWithoutFiles)
+            ).unwrap();
+            console.log("✅ Product created, now uploading images...");
+  
+            // Upload images to the created product
+            if (apiData.newImageFiles.length > 0) {
+              await dispatch(
+                uploadProductImages({
+                  productId: result.id,
+                  files: apiData.newImageFiles,
+                })
+              ).unwrap();
+              console.log("✅ Images uploaded successfully");
+            }
+          } else {
+            // No file uploads, create normally
+            const result = await dispatch(createProduct(apiData)).unwrap();
+            console.log("✅ Product created successfully:", result);
           }
-        } else if (onSave) {
-          console.log("✅ Product saved")
-          onSave()
+  
+          // Refresh products list
+          console.log("🔄 Refreshing products list...");
+          await dispatch(fetchProducts({})).unwrap();
+          console.log("✅ Products list refreshed");
+  
+          // Show success message
+          toast.success("Product added successfully!");
+  
+          // Call onSuccess callback if provided
+          if (onSuccess) {
+            console.log("📞 Calling onSuccess callback...");
+            onSuccess();
+          }
+  
+          // REDIRECT TO ADMIN/PRODUCTS AFTER SUCCESSFUL ADD
+          console.log("🔄 Redirecting to /admin/products...");
+          
+          // Use setTimeout to ensure the redirect happens after state updates
+          setTimeout(() => {
+            router.push('/admin/products');
+          }, 100);
+  
+        } else if (mode === "edit" && product) {
+          // For updates, handle images separately
+          console.log("📝 Updating existing product...");
+  
+          // Update product data (without new files)
+          const productDataWithoutFiles = { ...apiData };
+          delete productDataWithoutFiles.newImageFiles;
+  
+          const result = await dispatch(
+            updateProduct({
+              id: product.id,
+              productData: productDataWithoutFiles,
+            })
+          ).unwrap();
+  
+          // Upload any new images
+          if (apiData.newImageFiles && apiData.newImageFiles.length > 0) {
+            console.log(
+              `📤 Uploading ${apiData.newImageFiles.length} new images...`
+            );
+            await dispatch(
+              uploadProductImages({
+                productId: product.id,
+                files: apiData.newImageFiles,
+              })
+            ).unwrap();
+            console.log("✅ New images uploaded successfully");
+          }
+  
+          console.log("✅ Product updated successfully:", result);
+          toast.success("Product updated successfully");
+  
+          // Refresh products list
+          await dispatch(fetchProducts({})).unwrap();
+  
+          if (onSuccess) {
+            onSuccess();
+          }
         }
-      } catch (error) {
-        console.error("❌ Error saving product:", error)
-        toast.error("Failed to save product")
+      } catch (error: any) {
+        console.error("❌ Error in form submission:", error);
+        const errorMessage =
+          error?.message || error || "Failed to save product";
+        toast.error(errorMessage);
+  
+        if (onError) {
+          onError(errorMessage);
+        }
+      } finally {
+        setLoading(false);
       }
     },
-    [mode, formData, onSave, router],
-  )
+    [mode, formData, product, dispatch, onSuccess, onError, existingSkus, router]
+  );
 
   const handleCancel = useCallback(
     (e?: React.MouseEvent) => {
-      console.log("❌ Cancel triggered")
       if (e) {
-        e.preventDefault()
-        e.stopPropagation()
+        e.preventDefault();
+        e.stopPropagation();
       }
+
+      // FIXED: Clean up any object URLs to prevent memory leaks
+      formData.images?.forEach((image) => {
+        if (typeof image === "object" && image?.previewUrl) {
+          URL.revokeObjectURL(image.previewUrl);
+        }
+      });
+
       if (onCancel) {
-        onCancel()
-      } else {
-        router.push("/admin/products")
+        onCancel();
       }
     },
-    [onCancel, router],
-  )
+    [onCancel, formData.images]
+  );
 
-  // Memoize the form JSX to prevent unnecessary re-renders
+  // Inside your ProductForm component
+  useEffect(() => {
+    const newPriceType = formData.hasFixedPrice ? "FIXED" : "VARIABLE";
+    if (formData.priceType !== newPriceType) {
+      handleInputChange("priceType", newPriceType);
+    }
+  }, [formData.hasFixedPrice, formData.priceType, handleInputChange]);
+
   const formContent = useMemo(() => {
-    console.log("🎨 Form content render - activeTab:", activeTab, "formData.name:", formData.name)
-
     return (
       <div className="w-full">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="basic">Basic Info</TabsTrigger>
-            <TabsTrigger value="pricing">Pricing & Inventory</TabsTrigger>
-            <TabsTrigger value="metadata">Metadata</TabsTrigger>
-            <TabsTrigger value="media">Media</TabsTrigger>
+            <TabsTrigger className="cursor-pointer" value="basic">
+              Basic Info
+            </TabsTrigger>
+            <TabsTrigger className="cursor-pointer" value="pricing">
+              Pricing & Inventory
+            </TabsTrigger>
+            <TabsTrigger className="cursor-pointer" value="metadata">
+              Metadata
+            </TabsTrigger>
+            <TabsTrigger className="cursor-pointer" value="media">
+              Media
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="basic" className="space-y-4 py-4">
@@ -323,10 +524,7 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
                 <Input
                   id="name"
                   value={formData.name}
-                  onChange={(e) => {
-                    console.log("📝 Name input onChange:", e.target.value)
-                    handleInputChange("name", e.target.value)
-                  }}
+                  onChange={(e) => handleInputChange("name", e.target.value)}
                   placeholder="e.g. Premium T-Shirt"
                 />
               </div>
@@ -336,10 +534,9 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
                 <Textarea
                   id="description"
                   value={formData.description}
-                  onChange={(e) => {
-                    console.log("📝 Description input onChange:", e.target.value.substring(0, 50) + "...")
+                  onChange={(e) =>
                     handleInputChange("description", e.target.value)
-                  }}
+                  }
                   placeholder="Describe this product..."
                   className="min-h-[100px]"
                 />
@@ -350,20 +547,42 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
                 <Select
                   value={formData.categoryId ? String(formData.categoryId) : ""}
                   onValueChange={(value) => {
-                    console.log("📝 Category onChange:", value)
-                    handleInputChange("categoryId", value ? Number.parseInt(value) : null)
+                    handleInputChange("categoryId", value === "0" ? "" : value);
                   }}
+                  disabled={categoriesLoading}
                 >
                   <SelectTrigger id="category">
-                    <SelectValue placeholder="Select category" />
+                    <SelectValue
+                      placeholder={
+                        categoriesLoading
+                          ? "Loading categories..."
+                          : categories.length === 0
+                          ? "No categories available"
+                          : "Select category"
+                      }
+                    />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">Uncategorized</SelectItem>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={String(category.id)}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
+                  <SelectContent className="bg-white">
+                    <SelectItem value="0">Select category</SelectItem>
+                    {categoriesLoading ? (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        Loading categories...
+                      </div>
+                    ) : categories.length > 0 ? (
+                      categories.map((category) => (
+                        <SelectItem
+                          key={category.id}
+                          value={String(category.id)}
+                          className="cursor-pointer"
+                        >
+                          {category.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        No categories available
+                      </div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -372,18 +591,14 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
                 <Label htmlFor="status">Status</Label>
                 <Select
                   value={formData.status}
-                  onValueChange={(value) => {
-                    console.log("📝 Status onChange:", value)
-                    handleInputChange("status", value)
-                  }}
+                  onValueChange={(value) => handleInputChange("status", value)}
                 >
                   <SelectTrigger id="status">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+                    <SelectItem value="INACTIVE">Draft</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -397,52 +612,72 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
                 <Select
                   value={formData.priceType}
                   onValueChange={(value) => {
-                    console.log("📝 Price type onChange:", value)
-                    handleInputChange("priceType", value)
+                    handleInputChange("priceType", value);
+                    handleInputChange("hasFixedPrice", value === "FIXED");
                   }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select pricing type" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fixed">Fixed Price</SelectItem>
-                    <SelectItem value="variable">Variable Price (by unit)</SelectItem>
+                  <SelectContent className="bg-white">
+                    <SelectItem className="cursor-pointer" value="FIXED">
+                      Fixed Price
+                    </SelectItem>
+                    <SelectItem className="cursor-pointer" value="VARIABLE">
+                      Variable Price (by unit)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {formData.priceType === "fixed" ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="grid gap-2">
-                    <Label htmlFor="fixedPrice">Fixed Price</Label>
-                    <Input
-                      id="fixedPrice"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.fixedPrice}
-                      onChange={(e) => {
-                        console.log("📝 Fixed price onChange:", e.target.value)
-                        handleInputChange("fixedPrice", e.target.value)
-                      }}
-                      placeholder="29.99"
-                    />
-                  </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="hasFixedPrice"
+                  checked={formData.hasFixedPrice}
+                  onCheckedChange={(checked) => {
+                    handleInputChange("hasFixedPrice", checked);
+                    // FIXED: Update priceType when switch changes
+                    handleInputChange(
+                      "priceType",
+                      checked ? "FIXED" : "VARIABLE"
+                    );
+                  }}
+                  className="bg-gray-300"
+                />
+                <Label htmlFor="hasFixedPrice">Has Fixed Price</Label>
+              </div>
+
+              {formData.hasFixedPrice ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="fixedPrice">Fixed Price</Label>
+                  <Input
+                    id="fixedPrice"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.fixedPrice}
+                    onChange={(e) =>
+                      handleInputChange("fixedPrice", e.target.value)
+                    }
+                    placeholder="29.99"
+                  />
                 </div>
               ) : (
                 <div className="grid gap-4">
                   <Label>Unit Prices</Label>
                   {formData.unitPrices.map((unitPrice, index) => (
-                    <div key={index} className="grid grid-cols-3 gap-2 items-end">
+                    <div
+                      key={index}
+                      className="grid grid-cols-3 gap-2 items-end"
+                    >
                       <div className="grid gap-1">
                         <Label>Unit</Label>
                         <Input
                           value={unitPrice.unit}
                           onChange={(e) => {
-                            console.log("📝 Unit price unit onChange:", index, e.target.value)
-                            const updatedUnitPrices = [...formData.unitPrices]
-                            updatedUnitPrices[index].unit = e.target.value
-                            handleInputChange("unitPrices", updatedUnitPrices)
+                            const updatedUnitPrices = [...formData.unitPrices];
+                            updatedUnitPrices[index].unit = e.target.value;
+                            handleInputChange("unitPrices", updatedUnitPrices);
                           }}
                           placeholder="1kg"
                         />
@@ -455,7 +690,6 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
                           min="0"
                           value={unitPrice.price}
                           onChange={(e) => {
-                            console.log("📝 Unit price value onChange:", index, e.target.value)
                             const updatedUnitPrices = [...formData.unitPrices];
                             updatedUnitPrices[index].price = e.target.value;
                             handleInputChange("unitPrices", updatedUnitPrices);
@@ -468,11 +702,11 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
                         variant="outline"
                         size="sm"
                         onClick={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          console.log("🗑️ Remove unit price:", index)
-                          const updatedUnitPrices = formData.unitPrices.filter((_, i) => i !== index)
-                          handleInputChange("unitPrices", updatedUnitPrices)
+                          e.preventDefault();
+                          const updatedUnitPrices = formData.unitPrices.filter(
+                            (_, i) => i !== index
+                          );
+                          handleInputChange("unitPrices", updatedUnitPrices);
                         }}
                       >
                         Remove
@@ -484,8 +718,10 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
                     variant="outline"
                     onClick={(e) => {
                       e.preventDefault();
-                      e.stopPropagation();
-                      const updatedUnitPrices = [...formData.unitPrices, { unit: "", price: "0" }];
+                      const updatedUnitPrices = [
+                        ...formData.unitPrices,
+                        { unit: "", price: "0" },
+                      ];
                       handleInputChange("unitPrices", updatedUnitPrices);
                     }}
                   >
@@ -494,80 +730,31 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
                 </div>
               )}
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="compareAtPrice">Compare at Price</Label>
-                  <Input
-                    id="compareAtPrice"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.compareAtPrice}
-                    onChange={(e) => {
-                      console.log("📝 Compare price onChange:", e.target.value)
-                      handleInputChange("compareAtPrice", e.target.value)
-                    }}
-                    placeholder="39.99"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="cost">Cost per Item</Label>
-                  <Input
-                    id="cost"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.cost}
-                    onChange={(e) => {
-                      console.log("📝 Cost onChange:", e.target.value)
-                      handleInputChange("cost", e.target.value)
-                    }}
-                    placeholder="15.00"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="quantity">Quantity</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    min="0"
-                    value={formData.quantity}
-                    onChange={(e) => {
-                      console.log("📝 Quantity onChange:", e.target.value)
-                      handleInputChange("quantity", e.target.value)
-                    }}
-                    placeholder="100"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="sku">SKU (Stock Keeping Unit)</Label>
-                  <Input
-                    id="sku"
-                    value={formData.sku}
-                    onChange={(e) => {
-                      console.log("📝 SKU onChange:", e.target.value)
-                      handleInputChange("sku", e.target.value)
-                    }}
-                    placeholder="TS-001"
-                  />
-                </div>
-
-                {/* <div className="grid gap-2">
-                  <Label htmlFor="barcode">Barcode (ISBN, UPC, GTIN, etc.)</Label>
-                  <Input
-                    id="barcode"
-                    value={formData.barcode}
-                    onChange={(e) => {
-                      console.log("📝 Barcode onChange:", e.target.value)
-                      handleInputChange("barcode", e.target.value)
-                    }}
-                    placeholder="123456789012"
-                  />
-                </div> */}
+              <div className="grid gap-2">
+                <Label>Product SKU</Label>
+                <HybridSkuInput
+                  value={formData.sku}
+                  onChange={handleSkuChange}
+                  productName={formData.name}
+                  categoryId={formData.categoryId}
+                  existingSkus={existingSkus}
+                  className="w-full"
+                />
               </div>
+
+              {/* <div className="grid gap-2">
+                <Label htmlFor="quantity">Stock Quantity</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="0"
+                  value={formData.quantity}
+                  onChange={(e) =>
+                    handleInputChange("quantity", e.target.value)
+                  }
+                  placeholder="100"
+                />
+              </div> */}
             </div>
           </TabsContent>
 
@@ -580,94 +767,89 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
                     <Switch
                       id="isFeatured"
                       checked={formData.isFeatured}
-                      onCheckedChange={(checked) => {
-                        console.log("📝 Featured onChange:", checked)
+                      onCheckedChange={(checked) =>
                         handleInputChange("isFeatured", checked)
-                      }}
+                      }
+                      className="bg-gray-300"
                     />
-                    <Label htmlFor="isFeatured">Featured Product</Label>
+                    <Label htmlFor="isFruit">Featured Product</Label>
                   </div>
 
                   <div className="flex items-center space-x-2">
                     <Switch
-                      id="isTrending"
-                      checked={formData.isTrending}
-                      onCheckedChange={(checked) => {
-                        console.log("📝 Trending onChange:", checked)
-                        handleInputChange("isTrending", checked)
-                      }}
+                      id="isVegetable"
+                      checked={formData.isVegetable}
+                      onCheckedChange={(checked) =>
+                        handleInputChange("isVegetable", checked)
+                      }
+                      className="bg-gray-300"
                     />
-                    <Label htmlFor="isTrending">Trending Product</Label>
+                    <Label htmlFor="isVegetable">Vegetable Product</Label>
                   </div>
 
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="isDealOfTheDay"
                       checked={formData.isDealOfTheDay}
-                      onCheckedChange={(checked) => {
-                        console.log("📝 Deal of day onChange:", checked)
+                      onCheckedChange={(checked) =>
                         handleInputChange("isDealOfTheDay", checked)
-                      }}
+                      }
+                      className="bg-gray-300"
                     />
                     <Label htmlFor="isDealOfTheDay">Deal of the Day</Label>
                   </div>
 
                   <div className="flex items-center space-x-2">
                     <Switch
+                      id="isFruit"
+                      checked={formData.isFruit}
+                      onCheckedChange={(checked) =>
+                        handleInputChange("isFruit", checked)
+                      }
+                      className="bg-gray-300"
+                    />
+                    <Label htmlFor="isFruit">Fruit Product</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch
                       id="isNewArrival"
                       checked={formData.isNewArrival}
-                      onCheckedChange={(checked) => {
-                        console.log("📝 New arrival onChange:", checked)
+                      onCheckedChange={(checked) =>
                         handleInputChange("isNewArrival", checked)
-                      }}
+                      }
+                      className="bg-gray-300"
                     />
                     <Label htmlFor="isNewArrival">New Arrival</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="isTrending"
+                      checked={formData.isTrending}
+                      onCheckedChange={(checked) =>
+                        handleInputChange("isTrending", checked)
+                      }
+                      className="bg-gray-300"
+                    />
+                    <Label htmlFor="isTrending">Trending Product</Label>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <h4 className="font-medium">Additional Information</h4>
-                {/* <div className="grid gap-2">
-                  <Label htmlFor="tags">Tags (comma separated)</Label>
-                  <Input
-                    id="tags"
-                    value={formData.tags || ""}
-                    onChange={(e) => {
-                      console.log("📝 Tags onChange:", e.target.value)
-                      handleInputChange("tags", e.target.value)
-                    }}
-                    placeholder="summer, cotton, casual"
-                  />
-                </div> */}
-
-                {/* <div className="grid gap-2">
+                <div className="grid gap-2">
                   <Label htmlFor="weight">Weight (grams)</Label>
                   <Input
                     id="weight"
                     type="number"
                     min="0"
                     value={formData.weight || ""}
-                    onChange={(e) => {
-                      console.log("📝 Weight onChange:", e.target.value)
+                    onChange={(e) =>
                       handleInputChange("weight", e.target.value)
-                    }}
-                    placeholder="250"
+                    }
+                    placeholder="weight in kg"
                   />
                 </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="dimensions">Dimensions (L x W x H cm)</Label>
-                  <Input
-                    id="dimensions"
-                    value={formData.dimensions || ""}
-                    onChange={(e) => {
-                      console.log("📝 Dimensions onChange:", e.target.value)
-                      handleInputChange("dimensions", e.target.value)
-                    }}
-                    placeholder="30 x 20 x 5"
-                  />
-                </div> */}
               </div>
             </div>
           </TabsContent>
@@ -683,55 +865,67 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
                   >
                     <Upload className="h-8 w-8 text-gray-400 mb-2" />
                     <p className="text-sm text-gray-500">Click to upload</p>
-                    <p className="text-xs text-gray-400 mt-1">PNG, JPG, GIF up to 10MB</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      PNG, JPG, GIF up to 10MB
+                    </p>
                   </div>
 
-                  {formData.images.map((image, index) => (
-                    <div key={index} className="relative h-40 rounded-md overflow-hidden group">
-                      <Image
-                        src={image || "/placeholder.svg"}
-                        alt={`Product ${index + 1}`}
-                        className="w-full h-full object-cover"
-                        width={150}
-                        height={150}
-                      />
-                      <div className="absolute inset-0 bg-black/50 bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="icon"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 h-8 w-8 cursor-pointer"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              handlePreviewImage(image)
-                            }}
-                          >
-                            <Eye className="h-4 w-4 text-white" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="icon"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 h-8 w-8 cursor-pointer"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              handleRemoveImage(index)
-                            }}
-                          >
-                            <X className="h-4 w-4 text-white cursor-pointer" />
-                          </Button>
+                  {formData.images.map((image, index) => {
+                    const imageUrl = getImageUrl(image);
+                    return (
+                      <div
+                        key={index}
+                        className="relative h-40 rounded-md overflow-hidden group"
+                      >
+                        <Image
+                          src={imageUrl}
+                          alt={`Product ${index + 1}`}
+                          className="w-full h-full object-cover"
+                          width={150}
+                          height={150}
+                        />
+                        <div className="absolute inset-0 bg-black/50 bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="icon"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 h-8 w-8 cursor-pointer"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handlePreviewImage(image);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 text-white" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 h-8 w-8 cursor-pointer"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleRemoveImage(index);
+                              }}
+                            >
+                              <X className="h-4 w-4 text-white cursor-pointer" />
+                            </Button>
+                          </div>
                         </div>
+                        {index === 0 && (
+                          <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded">
+                            Primary
+                          </div>
+                        )}
+                        {/* FIXED: Show upload status for new images */}
+                        {typeof image === "object" && image?.isNew && (
+                          <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">
+                            New
+                          </div>
+                        )}
                       </div>
-                      {index === 0 && (
-                        <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded">
-                          Primary
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <input
@@ -743,8 +937,8 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
                   className="hidden"
                 />
                 <p className="text-sm text-muted-foreground mt-2">
-                  Upload product images. First image will be used as the product thumbnail. You can upload multiple
-                  images at once. Click the eye icon to preview images in full size.
+                  Upload product images. First image will be used as the product
+                  thumbnail. You can upload multiple images at once.
                 </p>
               </div>
             </div>
@@ -760,7 +954,7 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
             <div className="flex items-center justify-center p-4">
               {imagePreview && (
                 <Image
-                  src={imagePreview || "/placeholder.svg"}
+                  src={imagePreview}
                   alt="Preview"
                   className="max-w-full max-h-[70vh] object-contain rounded-md"
                   width={800}
@@ -771,42 +965,68 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
           </DialogContent>
         </Dialog>
       </div>
-    )
+    );
   }, [
     activeTab,
     formData,
     categories,
+    categoriesLoading,
+    existingSkus,
     handleInputChange,
+    handleSkuChange,
     handleAddImageClick,
     handleImageUpload,
     handleRemoveImage,
     handlePreviewImage,
+    getImageUrl,
     imagePreview,
     isPreviewOpen,
-  ])
+  ]);
 
-  console.log("🔄 ProductForm RENDER END - returning JSX")
+  // FIXED: Cleanup effect for object URLs
+  useEffect(() => {
+    return () => {
+      // Cleanup any object URLs when component unmounts
+      formData.images?.forEach((image) => {
+        if (typeof image === "object" && image?.previewUrl) {
+          URL.revokeObjectURL(image.previewUrl);
+        }
+      });
+    };
+  }, []);
 
   if (mode === "add") {
     return (
       <Card className="mx-auto border border-gray-200 shadow-md">
         <CardHeader>
-          <CardTitle>Product Information</CardTitle>
-          <CardDescription>Fill in the details for your new product</CardDescription>
+          <CardTitle>Add New Product</CardTitle>
+          <CardDescription>
+            Fill in the details for your new product
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {formContent}
           <div className="flex justify-end gap-2 mt-6">
-            <Button type="button" variant="outline" onClick={handleCancel}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCancel}
+              disabled={loading}
+            >
               Cancel
             </Button>
-            <Button type="button" onClick={handleSubmit}>
-              Add Product
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={loading}
+              className="cursor-pointer flex items-center gap-1 bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/25"
+            >
+              {loading ? "Adding Product..." : "Add Product"}
             </Button>
           </div>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   return (
@@ -817,13 +1037,23 @@ export function ProductForm({ mode, product, categories = [], onSave, onCancel, 
       </DialogHeader>
       {formContent}
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={handleCancel}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleCancel}
+          disabled={loading}
+        >
           Cancel
         </Button>
-        <Button type="button" onClick={handleSubmit}>
-          Save Changes
+        <Button
+          type="button"
+          onClick={handleSubmit}
+          disabled={loading}
+          className="cursor-pointer flex items-center gap-1 bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/25"
+        >
+          {loading ? "Saving..." : "Save Changes"}
         </Button>
       </DialogFooter>
     </>
-  )
+  );
 }

@@ -69,10 +69,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (typeof window !== 'undefined') {
       if (newUserId) {
         localStorage.setItem(USER_ID_STORAGE_KEY, newUserId);
-        console.log('🆔 UserId stored in localStorage:', newUserId);
       } else {
         localStorage.removeItem(USER_ID_STORAGE_KEY);
-        console.log('🗑️ UserId removed from localStorage');
       }
     }
     setUserId(newUserId);
@@ -80,7 +78,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const getToken = useCallback(async (): Promise<string | null> => {
     if (tokenFetchInProgress.current) {
-      console.log("🔄 Token fetch already in progress, waiting...");
       return token;
     }
 
@@ -89,7 +86,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setError(null);
 
       if (!user || !isLoaded) {
-        console.log("👤 No user or not loaded yet");
         storeToken(null);
         storeUserId(null); // Clear userId when no user
         return null;
@@ -99,8 +95,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (user.id && user.id !== userId) {
         storeUserId(user.id);
       }
-
-      console.log("🔑 Attempting to get token for user:", user.id);
 
       let newToken: string | null = null;
       
@@ -122,7 +116,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return null;
       }
 
-      console.log("✅ Token retrieved successfully");
       storeToken(newToken);
       setRetryCount(0);
       
@@ -154,8 +147,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setIsLoading(true);
       setError(null);
       
-      console.log('🚪 Logging out user...');
-      
       // Clear stored data before signOut
       storeToken(null);
       storeUserId(null);
@@ -176,7 +167,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (isLoaded) {
       if (user?.id) {
         // User is logged in
-        console.log("👤 User logged in, storing userId:", user.id);
         storeUserId(user.id);
         
         // Get token for authenticated user
@@ -185,8 +175,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setIsLoading(false);
         });
       } else {
-        // User is logged out
-        console.log("👤 User logged out, clearing stored data");
         storeToken(null);
         storeUserId(null);
         setIsLoading(false);
@@ -197,7 +185,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Sync clerkId with localStorage if it changes
   useEffect(() => {
     if (user?.id && user.id !== userId) {
-      console.log("🔄 ClerkId changed, updating localStorage:", user.id);
       storeUserId(user.id);
     }
   }, [user?.id, userId, storeUserId]);
@@ -205,9 +192,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (!user || !token) return;
 
-    console.log("⏰ Setting up token refresh interval");
     const interval = setInterval(async () => {
-      console.log("🔄 Refreshing token automatically...");
       try {
         await getToken();
       } catch (err) {
@@ -216,7 +201,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }, 4 * 60 * 1000);
 
     return () => {
-      console.log("🛑 Clearing token refresh interval");
       clearInterval(interval);
     };
   }, [user, token, getToken]);
@@ -242,17 +226,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     userId, // Added userId to context value
   };
 
-  useEffect(() => {
-    console.log("🔍 Auth state:", {
-      hasUser: !!user,
-      hasToken: !!token,
-      hasUserId: !!userId,
-      userId: userId,
-      isLoaded,
-      isAuthenticated: contextValue.isAuthenticated,
-      retryCount,
-    });
-  }, [user, token, userId, isLoaded, contextValue.isAuthenticated, retryCount]);
+  // useEffect(() => {
+  //   console.log("🔍 Auth state:", {
+  //     hasUser: !!user,
+  //     hasToken: !!token,
+  //     hasUserId: !!userId,
+  //     userId: userId,
+  //     isLoaded,
+  //     isAuthenticated: contextValue.isAuthenticated,
+  //     retryCount,
+  //   });
+  // }, [user, token, userId, isLoaded, contextValue.isAuthenticated, retryCount]);
 
   return (
     <AuthContext.Provider value={contextValue}>

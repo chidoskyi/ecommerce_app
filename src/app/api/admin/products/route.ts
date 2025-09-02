@@ -1,14 +1,11 @@
+// api/admin/products/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/middleware";
+import { requireAdmin } from "@/lib/auth";
 import { slugify } from "@/lib/slugify";
-import {
-  deleteCloudinaryImage,
-  handleImageUploads,
-  parseFormDataWithFiles,
-} from "../../products/route";
 
-export async function POST(request: NextRequest) {
+
+export async function GET(request: NextRequest) {
   try {
     // Apply admin middleware
     const adminCheck = await requireAdmin(request);
@@ -16,167 +13,338 @@ export async function POST(request: NextRequest) {
       return adminCheck;
     }
 
-    // Parse request data (handles both JSON and FormData)
-    const body = await parseFormDataWithFiles(request);
+    const { searchParams } = new URL(request.url);
 
-    const {
-      name,
-      description,
-      hasFixedPrice = true,
-      priceType = "FIXED",
-      fixedPrice,
-      unitPrices,
-      sku,
-      categoryId,
-      images = [],
-      uploadedImages = [], // From file uploads
-      slug,
-      isFeatured = false,
-      isFruit = false,
-      isVegetable = false,
-      isTrending = false,
-      isDealOfTheDay = false,
-      isNewArrival = false,
-      status = "ACTIVE",
-    } = body;
+    // Extract and validate query parameters
+    const minPriceParam = searchParams.get("minPrice");
+    const maxPriceParam = searchParams.get("maxPrice");
+    const minPrice = minPriceParam ? parseFloat(minPriceParam) : undefined;
+    const maxPrice = maxPriceParam ? parseFloat(maxPriceParam) : undefined;
 
-    // Validation
-    if (!name || !description) {
+    const sortBy = searchParams.get("sortBy") || "createdAt";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
+    const search = searchParams.get("search");
+    
+    // FIXED: Get category as ID, not name
+    const categoryId = searchParams.get("category");
+    console.log('Category filter received:', categoryId);
+    
+    const minRatingParam = searchParams.get("minRating");
+    const minRating = minRatingParam ? parseFloat(minRatingParam) : undefined;
+
+    const limitParam = searchParams.get("limit");
+    const limit = Math.min(parseInt(limitParam || "10"), 100);
+
+    const pageParam = searchParams.get("page");
+    const page = parseInt(pageParam || "1");
+    const featured = searchParams.get("featured");
+    const fruit = searchParams.get("fruit");
+    const vegetable = searchParams.get("vegetable");
+    const trending = searchParams.get("trending");
+    const dealOfTheDay = searchParams.get("dealOfTheDay");
+    const newArrival = searchParams.get("newArrival");
+    const status = searchParams.get("status") || "ACTIVE";
+    const priceType = searchParams.get("priceType") || "FIXED";
+
+    // Build where conditions
+    const whereConditions: any[] = [];
+
+    // Only add status condition if it's not "ALL"
+    if (status && status.toUpperCase() !== "ALL") {
+      const validStatuses = ['ACTIVE', 'INACTIVE', 'DRAFT'];
+      const requestedStatus = status.toUpperCase();
+      
+      // Only add if it's a valid status
+      if (validStatuses.includes(requestedStatus)) {
+        whereConditions.push({ status: requestedStatus });
+      }
+    }
+
+    // PriceType filter
+    if (priceType && priceType.toUpperCase() !== "ALL") {
+      const priceTypeUpper = priceType.toUpperCase();
+      if (priceTypeUpper === "FIXED") {
+        whereConditions.push({ hasFixedPrice: true });
+      } else if (priceTypeUpper === "VARIABLE") {
+        whereConditions.push({ hasFixedPrice: false });
+      }
+    }
+
+    // FIXED: Category filter - handle by ID directly
+    if (categoryId && categoryId.toLowerCase() !== "all") {
+      // Check if it's a valid ObjectId format (24 hex characters)
+      const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(categoryId);
+      
+      if (isValidObjectId) {
+        console.log('Adding category filter with ID:', categoryId);
+        whereConditions.push({ categoryId: categoryId });
+      } else {
+        console.log('Invalid category ID format:', categoryId);
+        // If invalid ID format, return empty results
+        return NextResponse.json({
+          success: true,
+          products: [],
+          pagination: { count: 0, total: 0, page, limit, pages: 0 },
+        });
+      }
+    }
+
+    // Boolean filters
+    if (featured) whereConditions.push({ isFeatured: featured === "true" });
+    if (fruit) whereConditions.push({ isFruit: fruit === "true" });
+    if (vegetable) whereConditions.push({ isVegetable: vegetable === "true" });
+    if (trending) whereConditions.push({ isTrending: trending === "true" });
+    if (dealOfTheDay)
+      whereConditions.push({ isDealOfTheDay: dealOfTheDay === "true" });
+    if (newArrival)
+      whereConditions.push({ isNewArrival: newArrival === "true" });
+
+    // Price Filter (simplified and more reliable)
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      const priceConditions: any[] = [];
+
+      // Handle fixed price products
+      const fixedPriceCondition: any = { hasFixedPrice: true };
+      if (minPrice !== undefined)
+        fixedPriceCondition.fixedPrice = { gte: minPrice };
+      if (maxPrice !== undefined)
+        fixedPriceCondition.fixedPrice = { lte: maxPrice };
+      priceConditions.push(fixedPriceCondition);
+
+      // Handle unit price products
+      const unitPriceCondition: any = {
+        hasFixedPrice: false,
+        unitPrices: { some: {} },
+      };
+      if (minPrice !== undefined)
+        unitPriceCondition.unitPrices.some.price = { gte: minPrice };
+      if (maxPrice !== undefined)
+        unitPriceCondition.unitPrices.some.price = { lte: maxPrice };
+      priceConditions.push(unitPriceCondition);
+
+      whereConditions.push({ OR: priceConditions });
+    }
+
+    // Rating filter
+    if (minRating !== undefined) {
+      whereConditions.push({
+        reviews: { some: { rating: { gte: minRating } } },
+      });
+    }
+
+    // Search filter
+    if (search) {
+      whereConditions.push({
+        OR: [
+          { name: { contains: search, mode: "insensitive" } },
+          { description: { contains: search, mode: "insensitive" } },
+          { sku: { contains: search, mode: "insensitive" } },
+        ],
+      });
+    }
+
+    // Final where clause
+    const where =
+      whereConditions.length === 1
+        ? whereConditions[0]
+        : { AND: whereConditions };
+
+    console.log('Final where clause:', JSON.stringify(where, null, 2));
+
+    // Sort options
+    let orderBy: any;
+    const isPriceSort = sortBy === "priceAsc" || sortBy === "priceDesc";
+
+    if (isPriceSort) {
+      orderBy = { createdAt: "desc" }; // Temporary, will sort in memory
+    } else {
+      switch (sortBy) {
+        case "popularity":
+          orderBy = { reviews: { _count: "desc" } };
+          break;
+        case "bestSelling":
+          orderBy = { salesCount: "desc" };
+          break;
+        case "rating":
+          orderBy = { reviews: { _avg: { rating: "desc" } } };
+          break;
+        default:
+          orderBy = { [sortBy]: sortOrder };
+      }
+    }
+
+    const skip = (page - 1) * limit;
+
+    // Execute queries
+    const [products, totalCount] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limit,
+        include: {
+          category: { select: { id: true, name: true } },
+          reviews: { select: { rating: true } },
+          unitPrices: true,
+        },
+      }),
+      prisma.product.count({ where }),
+    ]);
+
+    console.log('Query results:', {
+      productsFound: products.length,
+      totalCount,
+      categoryFilter: categoryId
+    });
+
+    // Process products
+    const productsWithRatings = products.map((product) => {
+      const ratings = product.reviews.map((r) => r.rating);
+      const averageRating = ratings.length
+        ? parseFloat(
+            (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(2)
+          )
+        : 0;
+
+      let priceInfo = {};
+      let sortPrice = 0;
+
+      if (product.hasFixedPrice) {
+        priceInfo = { displayPrice: product.fixedPrice, priceType: "fixed" };
+        sortPrice = product.fixedPrice;
+      } else if (product.unitPrices?.length) {
+        const validPrices = product.unitPrices.filter((up) => up.price > 0);
+        if (validPrices.length) {
+          const prices = validPrices.map((up) => up.price);
+          const minPrice = Math.min(...prices);
+          priceInfo = {
+            displayPrice: minPrice,
+            priceType: "unit",
+            priceRange:
+              Math.min(...prices) !== Math.max(...prices)
+                ? { min: Math.min(...prices), max: Math.max(...prices) }
+                : null,
+          };
+          sortPrice = minPrice;
+        }
+      }
+
+      return {
+        ...product,
+        ...priceInfo,
+        rating: averageRating,
+        averageRating,
+        reviewCount: product.reviews.length,
+        reviews: undefined,
+        sortPrice,
+      };
+    });
+
+    // Handle price sorting in memory if needed
+    const finalProducts = isPriceSort
+      ? [...productsWithRatings].sort((a, b) =>
+          sortBy === "priceAsc"
+            ? a.sortPrice - b.sortPrice
+            : b.sortPrice - a.sortPrice
+        )
+      : productsWithRatings;
+
+    // Remove internal field before returning
+    const cleanProducts = finalProducts.map(({ sortPrice, ...rest }) => rest);
+
+    return NextResponse.json({
+      success: true,
+      products: cleanProducts,
+      pagination: {
+        count: cleanProducts.length,
+        total: totalCount,
+        page,
+        limit,
+        pages: Math.ceil(totalCount / limit),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching products:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Internal server error",
+        ...(process.env.NODE_ENV === "development" && {
+          error: error instanceof Error ? error.message : "Unknown error",
+        }),
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  console.log("🚀 Starting product creation API call");
+  
+  try {
+    const body = await request.json();
+    console.log("📊 Parsed body:", body);
+
+    // Validate required fields
+    if (!body.name || !body.description) {
       return NextResponse.json(
         { error: "Name and description are required" },
         { status: 400 }
       );
     }
 
-    if (hasFixedPrice && !fixedPrice) {
-      return NextResponse.json(
-        { error: "Fixed price is required when hasFixedPrice is true" },
-        { status: 400 }
-      );
-    }
+    // Validate images are URLs (already uploaded)
+    const images = Array.isArray(body.images) ? body.images : [];
+    const validImageUrls = images.filter((img: any) => 
+      typeof img === 'string' && img.startsWith('http')
+    );
 
-    if (!hasFixedPrice && !unitPrices) {
-      return NextResponse.json(
-        { error: "Unit prices are required when hasFixedPrice is false" },
-        { status: 400 }
-      );
-    }
+    console.log(`🖼️ Using ${validImageUrls.length} valid image URLs`);
 
-    // Check if SKU exists
-    if (sku) {
-      const existingSku = await prisma.product.findUnique({
-        where: { sku },
-      });
-      if (existingSku) {
-        return NextResponse.json(
-          { error: "SKU already exists" },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Handle image uploads
-    let finalImages: string[] = [];
-
-    // Combine existing images and newly uploaded images
-    if (Array.isArray(images)) {
-      const existingImageUrls = await handleImageUploads(images);
-      finalImages = [...finalImages, ...existingImageUrls];
-    }
-
-    if (Array.isArray(uploadedImages)) {
-      finalImages = [...finalImages, ...uploadedImages];
-    }
-
-    // Prepare base product data
+    // Create product data
     const productData: any = {
-      name,
-      description,
-      hasFixedPrice: Boolean(hasFixedPrice),
-      priceType,
-      sku,
-      images: finalImages,
-      slug: slug || slugify(name),
-      isFruit: Boolean(isFruit),
-      isVegetable: Boolean(isVegetable),
-      isTrending: Boolean(isTrending),
-      isFeatured: Boolean(isFeatured),
-      isDealOfTheDay: Boolean(isDealOfTheDay),
-      isNewArrival: Boolean(isNewArrival),
-      status: status.toUpperCase(),
+      name: body.name,
+      description: body.description,
+      hasFixedPrice: body.hasFixedPrice === true || body.hasFixedPrice === "true",
+      priceType: body.priceType,
+      sku: body.sku,
+      images: validImageUrls,
+      slug: body.slug || slugify(body.name),
+      isFruit: Boolean(body.isFruit),
+      isVegetable: Boolean(body.isVegetable),
+      isTrending: Boolean(body.isTrending),
+      isFeatured: Boolean(body.isFeatured),
+      isDealOfTheDay: Boolean(body.isDealOfTheDay),
+      isNewArrival: Boolean(body.isNewArrival),
+      status: body.status?.toUpperCase() || 'ACTIVE',
     };
 
-    // Handle category relationship
-    if (categoryId) {
-      const categoryExists = await prisma.category.findUnique({
-        where: { id: categoryId },
-      });
-
-      if (!categoryExists) {
-        return NextResponse.json(
-          { error: "Category not found" },
-          { status: 400 }
-        );
-      }
-
-      productData.category = {
-        connect: { id: categoryId },
-      };
-    }
-
-    const validateUnitPrices = (unitPrices: any) => {
-      if (!unitPrices) return [];
-
-      // Handle array format
-      if (Array.isArray(unitPrices)) {
-        return unitPrices.map((up) => ({
-          unit: up.unit,
-          price: parseFloat(up.price),
-        }));
-      }
-
-      // Handle object with options array
-      if (unitPrices.options && Array.isArray(unitPrices.options)) {
-        return unitPrices.options.map((up: any) => ({
-          unit: up.unit,
-          price: parseFloat(up.price),
-        }));
-      }
-
-      // Handle JSON string
-      if (typeof unitPrices === "string") {
-        try {
-          const parsed = JSON.parse(unitPrices);
-          return validateUnitPrices(parsed);
-        } catch {
-          return [];
-        }
-      }
-
-      return [];
-    };
-
-    // Handle pricing based on type
-    if (hasFixedPrice) {
-      productData.fixedPrice = parseFloat(fixedPrice);
-      productData.unitPrices = [];
+    // Handle pricing
+    if (productData.hasFixedPrice) {
+      productData.fixedPrice = parseFloat(body.fixedPrice);
     } else {
       productData.fixedPrice = 0;
-      productData.unitPrices = validateUnitPrices(unitPrices);
-      // if (Array.isArray(unitPrices) && unitPrices.length > 0) {
-      //   productData.unitPrices = unitPrices.map((up) => ({
-      //     unit: up.unit,
-      //     price: parseFloat(up.price),
-      //   }));
-      // } else if (unitPrices?.options) {
-      //   productData.unitPrices = unitPrices.options.map((up) => ({
-      //     unit: up.unit,
-      //     price: parseFloat(up.price),
-      //   }));
-      // } else {
-      //   productData.unitPrices = [];
-      // }
+      productData.unitPrices = Array.isArray(body.unitPrices) 
+        ? body.unitPrices.map((up: any) => ({
+            unit: up.unit,
+            price: parseFloat(up.price),
+          }))
+        : [];
     }
+
+    // Add category if provided - FIXED: Use string ID directly
+    if (body.categoryId) {
+      productData.category = {
+        connect: { id: body.categoryId } // Use the string ID directly
+      };
+      console.log("📋 Added category connection for ID:", body.categoryId);
+    }
+
+    console.log("💾 Creating product with data:", {
+      ...productData,
+      images: `Array(${productData.images.length})`,
+      category: productData.category ? `Connected to category` : 'None'
+    });
 
     const product = await prisma.product.create({
       data: productData,
@@ -185,341 +353,17 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    console.log("✅ Product created successfully:", product.id);
     return NextResponse.json(product, { status: 201 });
+
   } catch (error) {
-    console.error("Products POST error:", error);
+    console.error("❌ Product creation error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Failed to create product", details: (error as Error).message },
       { status: 500 }
     );
   }
 }
-export async function PUT(request: NextRequest) {
-  try {
-    // Apply admin middleware
-    const adminCheck = await requireAdmin(request);
-    if (adminCheck instanceof NextResponse) {
-      return adminCheck;
-    }
 
-    // const updatedProduct = await prisma.product.update({
-    //   where: { id },
-    //   data: updateData,
-    //   include: {
-    //     category: true,
-    //   }
-    // });
 
-    // Parse request data (handles both JSON and FormData)
-    const body = await parseFormDataWithFiles(request);
 
-    const {
-      id, // Product ID to update
-      name,
-      description,
-      hasFixedPrice,
-      priceType,
-      fixedPrice,
-      unitPrices,
-      sku,
-      categoryId,
-      images = [],
-      uploadedImages = [], // From file uploads
-      removeImages = [], // Images to remove
-      slug,
-      isFeatured,
-      isFruit,
-      isVegetable,
-      isTrending,
-      isDealOfTheDay,
-      isNewArrival,
-      status,
-    } = body;
-
-    if (!id) {
-      return NextResponse.json(
-        { error: "Product ID is required" },
-        { status: 400 }
-      );
-    }
-
-    // Check if product exists
-    const existingProduct = await prisma.product.findUnique({
-      where: { id },
-    });
-
-    if (!existingProduct) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
-    }
-
-    // Check if SKU exists (excluding current product)
-    if (sku && sku !== existingProduct.sku) {
-      const existingSku = await prisma.product.findUnique({
-        where: { sku },
-      });
-      if (existingSku) {
-        return NextResponse.json(
-          { error: "SKU already exists" },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Handle image updates
-    let finalImages: string[] = [...(existingProduct.images || [])];
-
-    // Remove specified images
-    if (Array.isArray(removeImages) && removeImages.length > 0) {
-      finalImages = finalImages.filter((img) => !removeImages.includes(img));
-    }
-
-    // Add new uploaded images
-    if (Array.isArray(images)) {
-      const newImageUrls = await handleImageUploads(images);
-      finalImages = [...finalImages, ...newImageUrls];
-    }
-
-    if (Array.isArray(uploadedImages)) {
-      finalImages = [...finalImages, ...uploadedImages];
-    }
-
-    // Prepare update data
-    const updateData: any = {};
-
-    // Only update fields that are provided
-    if (name !== undefined) updateData.name = name;
-    if (description !== undefined) updateData.description = description;
-    if (hasFixedPrice !== undefined)
-      updateData.hasFixedPrice = Boolean(hasFixedPrice);
-    if (priceType !== undefined) updateData.priceType = priceType;
-    if (sku !== undefined) updateData.sku = sku;
-    if (slug !== undefined) updateData.slug = slug;
-    if (isFruit !== undefined) updateData.isFruit = Boolean(isFruit);
-    if (isVegetable !== undefined)
-      updateData.isVegetable = Boolean(isVegetable);
-    if (isTrending !== undefined) updateData.isTrending = Boolean(isTrending);
-    if (isFeatured !== undefined) updateData.isFeatured = Boolean(isFeatured);
-    if (isDealOfTheDay !== undefined)
-      updateData.isDealOfTheDay = Boolean(isDealOfTheDay);
-    if (isNewArrival !== undefined)
-      updateData.isNewArrival = Boolean(isNewArrival);
-    if (status !== undefined) updateData.status = status.toUpperCase();
-
-    // Always update images if there were changes
-    updateData.images = finalImages;
-
-    // Handle category relationship
-    if (categoryId !== undefined) {
-      if (categoryId) {
-        const categoryExists = await prisma.category.findUnique({
-          where: { id: categoryId },
-        });
-
-        if (!categoryExists) {
-          return NextResponse.json(
-            { error: "Category not found" },
-            { status: 400 }
-          );
-        }
-
-        updateData.category = {
-          connect: { id: categoryId },
-        };
-      } else {
-        updateData.category = {
-          disconnect: true,
-        };
-      }
-    }
-
-    const validateUnitPrices = (unitPrices: any) => {
-      if (!unitPrices) return [];
-
-      // Handle array format
-      if (Array.isArray(unitPrices)) {
-        return unitPrices.map((up) => ({
-          unit: up.unit,
-          price: parseFloat(up.price),
-        }));
-      }
-
-      // Handle object with options array
-      if (unitPrices.options && Array.isArray(unitPrices.options)) {
-        return unitPrices.options.map((up: any) => ({
-          unit: up.unit,
-          price: parseFloat(up.price),
-        }));
-      }
-
-      // Handle JSON string
-      if (typeof unitPrices === "string") {
-        try {
-          const parsed = JSON.parse(unitPrices);
-          return validateUnitPrices(parsed);
-        } catch {
-          return [];
-        }
-      }
-
-      return [];
-    };
-
-    // Handle pricing updates
-    if (hasFixedPrice !== undefined) {
-      if (hasFixedPrice) {
-        if (fixedPrice !== undefined) {
-          updateData.fixedPrice = parseFloat(fixedPrice);
-        }
-        updateData.unitPrices = [];
-      } else {
-        updateData.fixedPrice = 0;
-
-        if (unitPrices !== undefined) {
-          if (Array.isArray(unitPrices) && unitPrices.length > 0) {
-            updateData.unitPrices = unitPrices.map((up) => ({
-              unit: up.unit,
-              price: parseFloat(up.price),
-            }));
-          } else if (unitPrices?.options) {
-            updateData.unitPrices = unitPrices.options.map((up) => ({
-              unit: up.unit,
-              price: parseFloat(up.price),
-            }));
-          } else {
-            updateData.unitPrices = [];
-          }
-        }
-      }
-    } else if (fixedPrice !== undefined || unitPrices !== undefined) {
-      // Handle price updates based on existing pricing type
-      if (existingProduct.hasFixedPrice && fixedPrice !== undefined) {
-        updateData.fixedPrice = parseFloat(fixedPrice);
-      } else if (!existingProduct.hasFixedPrice && unitPrices !== undefined) {
-        if (Array.isArray(unitPrices) && unitPrices.length > 0) {
-          updateData.unitPrices = unitPrices.map((up) => ({
-            unit: up.unit,
-            price: parseFloat(up.price),
-          }));
-        } else if (unitPrices?.options) {
-          updateData.unitPrices = unitPrices.options.map((up) => ({
-            unit: up.unit,
-            price: parseFloat(up.price),
-          }));
-        } else {
-          updateData.unitPrices = [];
-        }
-      } else if (unitPrices !== undefined) {
-        updateData.unitPrices = validateUnitPrices(unitPrices);
-      } else {
-        updateData.unitPrices = [];
-      }
-    }
-
-    const updatedProduct = await prisma.product.update({
-      where: { id },
-      data: updateData,
-      include: {
-        category: true,
-      },
-    });
-
-    // ✅ Return format that Redux expects
-    return NextResponse.json({
-      id: updatedProduct.id,
-      product: updatedProduct,
-    });
-  } catch (error) {
-    console.error("Products PUT error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
-}
-export async function DELETE(request: NextRequest) {
-  try {
-    // Apply admin middleware first
-    const adminCheck = await requireAdmin(request);
-    if (adminCheck instanceof NextResponse) {
-      return adminCheck;
-    }
-
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
-
-    if (!id) {
-      return NextResponse.json(
-        { error: "Product ID is required" },
-        { status: 400 }
-      );
-    }
-
-    // Check if product exists and get its data (including images)
-    const existingProduct = await prisma.product.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        name: true,
-        images: true, // Only select the images array that exists in your schema
-        // Add other fields you want to return
-      },
-    });
-
-    if (!existingProduct) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
-    }
-
-    // Collect all image URLs to delete
-    const imagesToDelete: string[] = [];
-
-    // Add all images from the images array
-    if (existingProduct.images && Array.isArray(existingProduct.images)) {
-      imagesToDelete.push(
-        ...existingProduct.images.filter((url) => url && url.trim() !== "")
-      );
-    }
-
-    // Delete images from Cloudinary (in parallel for better performance)
-    const imageDeletePromises = imagesToDelete.map((url) =>
-      deleteCloudinaryImage(url)
-    );
-
-    // Wait for all image deletions to complete (but don't fail if some fail)
-    await Promise.allSettled(imageDeletePromises);
-
-    // Hard delete the product from database
-    const deletedProduct = await prisma.product.delete({
-      where: { id },
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: "Product deleted successfully",
-      id: deletedProduct.id, // ✅ Redux needs this ID field
-      product: {
-        id: deletedProduct.id,
-        name: existingProduct.name,
-        deletedImages: imagesToDelete.length,
-      },
-    });
-  } catch (error) {
-    console.error("Products DELETE error:", error);
-
-    if (error instanceof Error) {
-      if (error.message.includes("Foreign key constraint")) {
-        return NextResponse.json(
-          {
-            error:
-              "Cannot delete product: it may be referenced by orders or other records",
-          },
-          { status: 409 }
-        );
-      }
-    }
-
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
-}

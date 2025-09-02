@@ -20,7 +20,7 @@ export default function AddProductPage() {
           <p className="text-muted-foreground">Create a new product in your inventory</p>
         </div>
       </div>
-      <ProductForm mode="add" />
+      <ProductForm mode="add" loading />
     </div>
   )
 }

@@ -3,30 +3,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sha512 } from 'js-sha512'
 import prisma from '@/lib/prisma'
 import { PaymentStatus, OrderStatus, CheckoutStatus, InvoiceStatus, PaymentMethod } from '@prisma/client'
+import EmailService from '@/lib/emailService';
 
-// Define types based on your Prisma schema
-type TransactionStatus = 
-  | 'PENDING'
-  | 'PROCESSING' 
-  | 'SUCCESS'
-  | 'FAILED'
-  | 'CANCELLED'
-  | 'EXPIRED'
-  | 'REFUNDED'
-  | 'PARTIALLY_REFUNDED'
-  | 'DISPUTED'
-
-type OrderStatus = 
-  | 'PENDING'
-  | 'COMFIRMED'
-  | 'PROCESSING'
-  | 'SHIPPED'
-  | 'DELIVERED'
-  | 'CANCELLED'
-  | 'REFUNDED'
+const emailService = new EmailService()
 
 // Documented OPay webhook payload structure
-interface OpayDocumentedPayload {
+export interface OpayDocumentedPayload {
   payload: {
     amount: string
     channel: string
@@ -49,7 +31,7 @@ interface OpayDocumentedPayload {
 }
 
 // Simplified payload structure actually received
-interface OpaySimplePayload {
+export interface OpaySimplePayload {
   reference: string
   status: 'SUCCESS' | 'FAILED' | 'PENDING'
   signature?: string
@@ -207,46 +189,96 @@ export async function POST(request: NextRequest) {
 // Handler functions
 async function handleSuccessfulPayment(order: any, payload: any) {
   try {
+    console.log('🟢 handleSuccessfulPayment called');
+    console.log('📦 Order received:', {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      currentStatus: order.status,
+      currentPaymentStatus: order.paymentStatus
+    });
+    console.log('📨 Payload received:', JSON.stringify(payload, null, 2));
+    console.log('📨 Webhook data structure:', {
+      hasPayload: 'payload' in payload.webhookData,
+      hasSha512: 'sha512' in payload.webhookData,
+      webhookDataKeys: Object.keys(payload.webhookData)
+    });
+
     // Get or create OPay payment provider
+    console.log('🔍 Looking for OPay payment provider...');
     const opayProvider = await prisma.paymentProvider.findFirst({
       where: { name: 'OPay' }
-    }) || await prisma.paymentProvider.create({
-      data: {
-        name: 'OPay',
-        displayName: 'OPay',
-        method: PaymentMethod.OPAY,
-        isActive: true,
-        supportedCurrencies: ['NGN'],
-        sandboxMode: process.env.NODE_ENV !== 'production'
-      }
-    })
+    });
 
+    if (opayProvider) {
+      console.log('✅ Found existing OPay provider:', opayProvider.id);
+    } else {
+      console.log('🆕 Creating new OPay provider...');
+      const newProvider = await prisma.paymentProvider.create({
+        data: {
+          name: 'OPay',
+          displayName: 'OPay',
+          method: PaymentMethod.OPAY,
+          isActive: true,
+          supportedCurrencies: ['NGN'],
+          sandboxMode: process.env.NODE_ENV !== 'production'
+        }
+      });
+      console.log('✅ Created new OPay provider:', newProvider.id);
+    }
+
+    console.log('🔄 Starting database transaction...');
     await prisma.$transaction(async (tx) => {
       // Update order - using correct status values from your schema
-      await tx.order.update({
+      console.log('📝 Updating order status...');
+      const updatedOrder = await tx.order.update({
         where: { id: order.id },
         data: {
           paymentStatus: PaymentStatus.PAID,
-          status: OrderStatus.COMFIRMED,
+          status: OrderStatus.CONFIRMED,
           processedAt: new Date(payload.timestamp),
           transactionId: payload.transactionId,
           updatedAt: new Date()
         }
-      })
+      });
+
+
+    // Send confirmation email to customer
+    try {
+      if (updatedOrder.user && updatedOrder.user.email) {
+        console.log("Sending order confirmation email to:", updatedOrder.user.email);
+        await emailService.sendOrderConfirmation(updatedOrder.user, updatedOrder);
+        console.log("Order confirmation email sent successfully");
+      } else {
+        console.warn("No user email found for order:", order.id);
+      }
+    } catch (emailError) {
+      console.error("Failed to send order confirmation email:", emailError);
+      // Don't throw error here - payment was successful, email failure shouldn't break the flow
+    }
+      console.log('✅ Order updated:', {
+        orderId: updatedOrder.id,
+        newStatus: updatedOrder.status,
+        newPaymentStatus: updatedOrder.paymentStatus
+      });
 
       if (order.checkout) {
-        await tx.checkout.update({
+        console.log('📝 Updating checkout status...');
+        const updatedCheckout = await tx.checkout.update({
           where: { id: order.checkout.id },
           data: {
             paymentStatus: PaymentStatus.PAID,
             status: CheckoutStatus.COMPLETED,
             updatedAt: new Date()
           }
-        })
+        });
+        console.log('✅ Checkout updated:', updatedCheckout.id);
+      } else {
+        console.log('ℹ️ No checkout associated with order');
       }
 
       if (order.Invoice) {
-        await tx.invoice.update({
+        console.log('📝 Updating invoice status...');
+        const updatedInvoice = await tx.invoice.update({
           where: { id: order.Invoice.id },
           data: {
             paymentStatus: PaymentStatus.PAID,
@@ -255,10 +287,14 @@ async function handleSuccessfulPayment(order: any, payload: any) {
             balanceAmount: 0,
             updatedAt: new Date()
           }
-        })
+        });
+        console.log('✅ Invoice updated:', updatedInvoice.id);
+      } else {
+        console.log('ℹ️ No invoice associated with order');
       }
 
       // Create payment record with all required fields
+      console.log('💰 Creating payment record...');
       const paymentData: any = {
         orderId: order.id,
         providerId: opayProvider.id,
@@ -274,23 +310,53 @@ async function handleSuccessfulPayment(order: any, payload: any) {
 
       // Add optional fields only if they exist in the documented payload
       if ('payload' in payload.webhookData && 'sha512' in payload.webhookData) {
-        const docPayload = payload.webhookData.payload
-        paymentData.processingFee = parseInt(docPayload.fee) / 100 || 0
+        console.log('📊 Processing detailed payload with fees...');
+        const docPayload = payload.webhookData.payload;
+        paymentData.processingFee = parseInt(docPayload.fee) / 100 || 0;
+        console.log('💸 Processing fee:', paymentData.processingFee);
+        
         // Recalculate netAmount if fee is present
         if (paymentData.processingFee > 0) {
-          paymentData.netAmount = paymentData.amount - paymentData.processingFee
+          paymentData.netAmount = paymentData.amount - paymentData.processingFee;
+          console.log('📉 Net amount after fee:', paymentData.netAmount);
         }
+      } else {
+        console.log('ℹ️ No detailed payload with fee information');
       }
 
-      await tx.payment.create({
+      const createdPayment = await tx.payment.create({
         data: paymentData
-      })
-    })
+      });
+      console.log('✅ Payment record created:', createdPayment.id);
+      console.log('💰 Payment details:', {
+        amount: createdPayment.amount,
+        reference: createdPayment.paymentReference,
+        status: createdPayment.status
+      });
+    });
 
-    console.log(`Payment successful for order ${order.id}`)
+    console.log('🎉 Transaction completed successfully');
+    console.log(`✅ Payment successful for order ${order.id} (${order.orderNumber})`);
+    
+    // Log success for monitoring
+    console.log('📋 SUCCESS SUMMARY:', {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      amount: payload.amount,
+      currency: payload.currency,
+      reference: payload.reference,
+      timestamp: new Date().toISOString()
+    });
+
   } catch (error) {
-    console.error('Error handling successful payment:', error)
-    throw error
+    console.error('❌ Error in handleSuccessfulPayment:', error);
+    console.error('🔍 Error details:', {
+      message: error.message,
+      stack: error.stack,
+      orderId: order?.id,
+      payload: payload
+    });
+    throw error;
   }
 }
 

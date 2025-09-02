@@ -9,8 +9,9 @@ import {
 import { Order, OrderItem } from "@/types/orders";
 import { Product } from "@/types/products";
 import { CartItem } from "@/types/carts";
-import { Address, ContactFormData, Refund } from "./types";
+import { Address, ContactFormData, Refund } from "../types";
 import { User } from "@/types/users";
+import { getItemPrice, getUnitDisplay } from "@/utils/priceHelpers"; // Adjust the import path as needed
 
 // Email service class
 class EmailService {
@@ -70,9 +71,9 @@ class EmailService {
   }
 
   // 1. Welcome Email
-  async sendWelcomeEmail(user: { 
-    email: string; 
-    firstName?: string | null; 
+  async sendWelcomeEmail(user: {
+    email: string;
+    firstName?: string | null;
     lastName?: string | null;
     // Only include properties actually used in the email template
   }): Promise<SentMessageInfo> {
@@ -103,11 +104,11 @@ class EmailService {
     );
   }
 
-    // 2. Contact Form Submission - Send to Admin/Support
-    async sendContactFormNotification(
-      contact: ContactFormData
-    ): Promise<SentMessageInfo> {
-      const content = `
+  // 2. Contact Form Submission - Send to Admin/Support
+  async sendContactFormNotification(
+    contact: ContactFormData
+  ): Promise<SentMessageInfo> {
+    const content = `
         <div class="content">
           <h2>New Contact Form Submission 📧</h2>
           <p>You have received a new message through your website's contact form.</p>
@@ -132,109 +133,147 @@ class EmailService {
           </p>
         </div>
       `;
+
+    // Send to your support email
+    const supportEmail = process.env.SUPPORT_EMAIL || process.env.EMAIL_USER;
+    return this.sendEmail(
+      supportEmail!,
+      `New Contact: ${contact.subject}`,
+      content,
+      "Contact Form Notification"
+    );
+  }
+
+  // Order Confirmation
+// Order Confirmation - Fixed to send to both user and admin
+async sendOrderConfirmation(
+  user: User,
+  order: Order
+): Promise<{ customerEmail?: SentMessageInfo; adminEmail?: SentMessageInfo }> {
+  const getItemPriceDisplay = (item) => {
+    const price = getItemPrice(item);
+    if (item.fixedPrice !== null && item.fixedPrice !== undefined) {
+      return `<p>Fixed Price: ₦${item.fixedPrice.toFixed(2)}</p>`;
+    } else {
+      const unitDisplay = getUnitDisplay(item);
+      return `<p>Quantity: ${item.quantity}${unitDisplay} × ₦${price.toFixed(
+        2
+      )} = ₦${(item.quantity * price).toFixed(2)}</p>`;
+    }
+  };
   
-      // Send to your support email
-      const supportEmail = process.env.SUPPORT_EMAIL || process.env.EMAIL_USER;
-      return this.sendEmail(
-        supportEmail!,
-        `New Contact: ${contact.subject}`,
-        content,
-        "Contact Form Notification"
+  // Customer email content
+  const customerContent = `
+    <div class="content">
+      <h2>Order Confirmed! 🎉</h2>
+      <p>Hi ${user.firstName} ${user.lastName},</p>
+      <p>Thank you for your order! We've received your order and are preparing it for shipment.</p>
+      <div class="order-details">
+        <h3>Order Details</h3>
+        <p><strong>Order Number:</strong> #${order.orderNumber}</p>
+        <p><strong>Order Date:</strong> ${new Date(
+          order.createdAt
+        ).toLocaleDateString()}</p>
+        <p><strong>Total Amount:</strong> ₦${order.totalPrice.toFixed(2)}</p>
+        <h4 style="margin-top: 20px;">Items Ordered:</h4>
+        ${order.items
+          .map(
+            (item) => `
+            <div style="border-bottom: 1px solid #eee; padding: 10px 0;">
+              <p><strong>${item.title}</strong></p>
+              ${getItemPriceDisplay(item)}
+              <p><strong>Item Total:</strong> ₦${item.totalPrice.toFixed(2)}</p>
+            </div>
+            `
+          )
+          .join("")}
+        <h4 style="margin-top: 20px;">Shipping Address:</h4>
+        <p>${order.shippingAddress.address}<br>
+        ${order.shippingAddress.city}, ${order.shippingAddress.state} ${order.shippingAddress.zip}</p>
+      </div>
+      <div style="text-align: center;">
+        <a href="${this.frontendUrl}/orders/${order.id}" class="button">Track Your Order</a>
+      </div>
+      <p>We'll send you another email when your order ships with tracking information.</p>
+    </div>
+  `;
+
+  // Admin email content
+  const adminContent = `
+    <div class="content">
+      <h2>New Order Received 📦</h2>
+      <p>A new order has been placed and payment confirmed.</p>
+      <div class="order-details">
+        <h3>Order Details</h3>
+        <p><strong>Order Number:</strong> #${order.orderNumber}</p>
+        <p><strong>Order Date:</strong> ${new Date(
+          order.createdAt
+        ).toLocaleDateString()}</p>
+        <p><strong>Customer:</strong> ${user.firstName} ${user.lastName}</p>
+        <p><strong>Customer Email:</strong> ${user.email}</p>
+        <p><strong>Total Amount:</strong> ₦${order.totalPrice.toFixed(2)}</p>
+        <h4 style="margin-top: 20px;">Items Ordered:</h4>
+        ${order.items
+          .map(
+            (item) => `
+            <div style="border-bottom: 1px solid #eee; padding: 10px 0;">
+              <p><strong>${item.title}</strong></p>
+              ${getItemPriceDisplay(item)}
+              <p><strong>Item Total:</strong> ₦${item.totalPrice.toFixed(2)}</p>
+            </div>
+            `
+          )
+          .join("")}
+        <h4 style="margin-top: 20px;">Shipping Address:</h4>
+        <p>${order.shippingAddress.address}<br>
+        ${order.shippingAddress.city}, ${order.shippingAddress.state} ${order.shippingAddress.zip}</p>
+      </div>
+      <div style="text-align: center;">
+        <a href="${this.frontendUrl}/orders/${order.id}" class="button">View Order Details</a>
+      </div>
+      <p>Please process this order for fulfillment.</p>
+    </div>
+  `;
+
+  const supportEmail = process.env.SUPPORT_EMAIL || process.env.EMAIL_USER;
+  const results: { customerEmail?: SentMessageInfo; adminEmail?: SentMessageInfo } = {};
+
+  try {
+    // Send email to customer
+    if (user.email) {
+      console.log("Sending order confirmation to customer:", user.email);
+      results.customerEmail = await this.sendEmail(
+        user.email,
+        `Order Confirmation - #${order.orderNumber}`,
+        customerContent,
+        "Order Confirmation"
       );
+      console.log("✅ Customer email sent successfully");
+    } else {
+      console.warn("⚠️ No customer email found");
     }
 
-  // 3. Password Reset
-  async sendPasswordResetEmail(
-    user: User,
-    resetToken: string
-  ): Promise<SentMessageInfo> {
-    const resetUrl = `${this.frontendUrl}/reset-password?token=${resetToken}`;
+    // Send email to admin
+    if (supportEmail) {
+      console.log("Sending order notification to admin:", supportEmail);
+      results.adminEmail = await this.sendEmail(
+        supportEmail,
+        `New Order Received - #${order.orderNumber}`,
+        adminContent,
+        "New Order Notification"
+      );
+      console.log("✅ Admin email sent successfully");
+    } else {
+      console.warn("⚠️ No support email configured");
+    }
 
-    const content = `
-        <div class="content">
-          <h2>Password Reset Request</h2>
-          <p>Hi ${user.firstName} ${user.lastName},</p>
-          <p>We received a request to reset your password. Click the button below to create a new password.</p>
-          <div style="text-align: center;">
-            <a href="${resetUrl}" class="button">Reset Password</a>
-          </div>
-          <p>This reset link will expire in 1 hour for security reasons.</p>
-          <p><strong>If you didn't request this reset, please ignore this email.</strong> Your password will remain unchanged.</p>
-          <hr style="margin: 20px 0; border: none; border-top: 1px solid #e9ecef;">
-          <p style="font-size: 12px; color: #666;">
-            If the button doesn't work, copy and paste this link into your browser:<br>
-            <a href="${resetUrl}" style="color: #667eea;">${resetUrl}</a>
-          </p>
-        </div>
-      `;
-
-    return this.sendEmail(
-      user.email,
-      "Password Reset Request",
-      content,
-      "Password Reset"
-    );
+    return results;
+  } catch (error) {
+    console.error("❌ Error in sendOrderConfirmation:", error);
+    throw error;
   }
+}
 
-  // 4. Order Confirmation
-  async sendOrderConfirmation(
-    user: User,
-    order: Order
-  ): Promise<SentMessageInfo> {
-    const content = `
-        <div class="content">
-          <h2>Order Confirmed! 🎉</h2>
-          <p>Hi ${user.firstName} ${user.lastName},</p>
-          <p>Thank you for your order! We've received your order and are preparing it for shipment.</p>
-          
-          <div class="order-details">
-            <h3>Order Details</h3>
-            <p><strong>Order Number:</strong> #${order.orderNumber}</p>
-            <p><strong>Order Date:</strong> ${new Date(
-              order.createdAt
-            ).toLocaleDateString()}</p>
-            <p><strong>Total Amount:</strong> $${order.totalPrice.toFixed(
-              2
-            )}</p>
-            
-            <h4 style="margin-top: 20px;">Items Ordered:</h4>
-            ${order.items
-              .map(
-                (item) => `
-              <div style="border-bottom: 1px solid #eee; padding: 10px 0;">
-                <p><strong>${item.title}</strong></p>
-                <p>Quantity: ${item.quantity} × $${item.price.toFixed(2)} = $${(
-                  item.quantity * item.price
-                ).toFixed(2)}</p>
-              </div>
-            `
-              )
-              .join("")}
-            
-            <h4 style="margin-top: 20px;">Shipping Address:</h4>
-            <p>${order.shippingAddress.address}<br>
-               ${order.shippingAddress.city}, ${order.shippingAddress.state} ${
-      order.shippingAddress.zip
-    }</p>
-          </div>
-          
-          <div style="text-align: center;">
-            <a href="${this.frontendUrl}/orders/${
-      order.id
-    }" class="button">Track Your Order</a>
-          </div>
-          
-          <p>We'll send you another email when your order ships with tracking information.</p>
-        </div>
-      `;
-
-    return this.sendEmail(
-      user.email,
-      `Order Confirmation - #${order.orderNumber}`,
-      content,
-      "Order Confirmation"
-    );
-  }
 
   // 8. Refund Processed
   async sendRefundProcessed(
@@ -368,17 +407,6 @@ class EmailService {
     title?: string
   ): Promise<SentMessageInfo> {
     return this.sendEmail(user.email, subject, content, title || subject);
-  }
-
-  // Test email connection
-  async testConnection(): Promise<boolean> {
-    try {
-      await this.transporter.verify();
-      return true;
-    } catch (error) {
-      console.error("Email connection test failed:", error);
-      return false;
-    }
   }
 }
 

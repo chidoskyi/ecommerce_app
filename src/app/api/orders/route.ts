@@ -19,8 +19,8 @@ export const GET = requireAuth(async (request: NextRequest) => {
 
     const skip = (page - 1) * limit
 
-    // Build where clause
-    const where: any = { userId: user.clerkId }
+    // Build where clause - use clerkId for direct filtering
+    const where: any = { clerkId: user.clerkId }
     if (status) where.status = status
     if (paymentStatus) where.paymentStatus = paymentStatus
 
@@ -36,6 +36,7 @@ export const GET = requireAuth(async (request: NextRequest) => {
           user: {
             select: {
               id: true,
+              clerkId: true,
               email: true,
               firstName: true,
               lastName: true,

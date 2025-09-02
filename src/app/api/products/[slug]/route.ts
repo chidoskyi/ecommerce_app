@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ProductWithReviews } from '@/types/products';
-import { Review } from '@/lib/types';
+import { Review } from '@/types';
 
 // GET - Fetch single product by Slug
 export async function GET(

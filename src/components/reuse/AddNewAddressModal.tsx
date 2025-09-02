@@ -9,7 +9,7 @@ import {
   createAddress,
   selectAddressLoading
 } from '@/app/store/slices/addressSlice';
-import { Address } from '@/lib/types';
+import { Address } from '@/types';
 
 export interface AddNewAddressModalProps {
   isOpen: boolean;

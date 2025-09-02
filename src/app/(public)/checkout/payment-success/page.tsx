@@ -12,7 +12,7 @@ import { useUser } from '@clerk/nextjs';
 import { ensureUserIdentification } from '@/utils/userIdentification';
 // import { toast } from 'react-hot-toast';
 
-interface OrderData {
+export interface OrderData {
   orderNumber: string;
   transactionId: string;
   amount: string;
@@ -36,7 +36,7 @@ interface OrderData {
   };
 }
 
-interface VerificationResult {
+export interface VerificationResult {
   success: boolean;
   verified: boolean;
   order?: OrderData;
@@ -100,98 +100,6 @@ export default function PaymentSuccess() {
     }
   }, [authLoading, isAuthenticated, reference, token]);
 
-  // const ensureUserIdentification = (): { userId: string | null; guestId: string | null } => {
-  //   // Get the most current values from storage and Redux
-  //   const storageUserId = StorageUtil.getUserId();
-  //   const storageGuestId = StorageUtil.getGuestIdForMerge() || StorageUtil.getGuestId();
-  //   const reduxUserId = userIdentification.userId;
-  //   const reduxGuestId = userIdentification.guestId;
-    
-  //   console.log("🔍 User identification check:", {
-  //     storageUserId,
-  //     storageGuestId,
-  //     reduxUserId,
-  //     reduxGuestId,
-  //     clerkUserId: clerkUser?.id,
-  //     isSignedIn
-  //   });
-
-  //   // Priority order: Clerk user > Storage > Redux
-  //   let finalUserId: string | null = null;
-  //   let finalGuestId: string | null = null;
-
-  //   if (isSignedIn && clerkUser?.id) {
-  //     // User is authenticated
-  //     finalUserId = clerkUser.id;
-  //     finalGuestId = null;
-      
-  //     // Ensure storage is in sync
-  //     if (storageUserId !== clerkUser.id) {
-  //       console.log("🔧 Syncing storage with authenticated user");
-  //       StorageUtil.setUserMode(clerkUser.id);
-  //     }
-      
-  //     // Ensure Redux is in sync
-  //     if (reduxUserId !== clerkUser.id) {
-  //       console.log("🔧 Syncing Redux with authenticated user");
-  //       dispatch(setAuthenticated({
-  //         isAuthenticated: true,
-  //         userId: clerkUser.id,
-  //       }));
-  //     }
-  //   } else {
-  //     // User is not authenticated - use guest mode
-  //     finalUserId = null;
-  //     finalGuestId = storageGuestId || reduxGuestId;
-      
-  //     // If no guest ID exists anywhere, create one
-  //     if (!finalGuestId) {
-  //       console.log("⚠️ Creating new guest ID for cart operation");
-  //       finalGuestId = StorageUtil.generateAndSetGuestId();
-  //       dispatch(setAuthenticated({
-  //         isAuthenticated: false,
-  //         userId: null,
-  //       }));
-  //     }
-  //   }
-
-  //   console.log("✅ Final user identification:", { 
-  //     userId: finalUserId, 
-  //     guestId: finalGuestId 
-  //   });
-
-  //   return { userId: finalUserId, guestId: finalGuestId };
-  // };
-
-  // const clearCartAfterPayment = async () => {
-  //   if (cartCleared) return;
-    
-  //   try {
-  //     console.log("🛒 Clearing entire cart after successful payment");
-  
-  //     const { userId, guestId } = ensureUserIdentification();
-  
-  //     if (!userId && !guestId) {
-  //       console.error("❌ Could not establish user identification for cart update");
-  //       toast.error("Unable to update cart. Please refresh the page.");
-  //       return;
-  //     }
-      
-  //     // Pass userId and guestId to the thunk
-  //     const result = await dispatch(clearEntireCart({ userId, guestId }));
-      
-  //     if (clearEntireCart.fulfilled.match(result)) {
-  //       setCartCleared(true);
-  //       console.log("✅ Cart cleared successfully:", result.payload);
-  //       toast.success("Cart cleared successfully");
-  //     } else if (clearEntireCart.rejected.match(result)) {
-  //       console.error("❌ Failed to clear cart:", result.payload);
-  //     }
-      
-  //   } catch (error) {
-  //     console.error("❌ Error clearing cart:", error);
-  //   }
-  // };
 
   const clearCartAfterPayment = async () => {
     if (cartCleared) return;

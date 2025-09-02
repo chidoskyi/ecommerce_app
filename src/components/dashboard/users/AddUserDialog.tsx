@@ -13,9 +13,9 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { NewUser, UserRole } from '@/lib/types';
+import { NewUser, UserRole } from '@/types/users';
 
-interface AddUserDialogProps {
+export interface AddUserDialogProps {
   onAddUser: (user: NewUser) => void;
 }
 

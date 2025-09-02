@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireAuth, AuthenticatedRequest } from "@/lib/auth";
-import { Address } from '@/lib/types';
+import { Address } from '@/types';
 
 export const GET = requireAuth(async (request: NextRequest) => {
   try {

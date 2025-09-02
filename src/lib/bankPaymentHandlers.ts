@@ -1,42 +1,44 @@
 // /api/checkout/route.ts (with internal handlers)
-import prisma from '@/lib/prisma'
-import { v4 as uuidv4 } from 'uuid'
-import { CheckoutStatus, PaymentStatus, OrderStatus } from '@prisma/client'
-import { calculateDeliveryFee } from './deliveryCalculator';
+import prisma from "@/lib/prisma";
+import { v4 as uuidv4 } from "uuid";
+import { CheckoutStatus, PaymentStatus, OrderStatus } from "@prisma/client";
+import EmailService from "@/lib/emailService";
+
+const emailService = new EmailService();
 
 // Shared validation and calculation function
 export async function validateAndCalculate(user: any, requestData: any) {
-  const { 
+  const {
     cartItems, // Expecting cartItems with product data
-    shippingAddress, 
+    shippingAddress,
     billingAddress,
     shippingMethod,
     couponId,
     subtotal,
     discountAmount = 0,
-    currency = 'NGN'
+    currency = "NGN",
   } = requestData;
 
   // Validate required fields
   if (!cartItems || cartItems.length === 0) {
-    throw new Error('Cart items are required');
+    throw new Error("Cart items are required");
   }
 
   if (!shippingAddress) {
-    throw new Error('Shipping address is required');
+    throw new Error("Shipping address is required");
   }
 
   if (!shippingAddress.city) {
-    throw new Error('Delivery city is required');
+    throw new Error("Delivery city is required");
   }
 
   // Get user details
   const userData = await prisma.user.findUnique({
-    where: { id: user.id }
+    where: { id: user.id },
   });
 
   if (!userData) {
-    throw new Error('User not found');
+    throw new Error("User not found");
   }
 
   // Calculate totals using cart item data directly
@@ -55,13 +57,15 @@ export async function validateAndCalculate(user: any, requestData: any) {
     }
 
     // Handle unit selection format (could be string or {unit, price} object)
-    const selectedUnit = typeof item.selectedUnit === 'object' 
-      ? item.selectedUnit.unit 
-      : item.selectedUnit;
+    const selectedUnit =
+      typeof item.selectedUnit === "object"
+        ? item.selectedUnit.unit
+        : item.selectedUnit;
 
-    const unitPrice = typeof item.selectedUnit === 'object'
-      ? item.selectedUnit.price
-      : item.unitPrice;
+    const unitPrice =
+      typeof item.selectedUnit === "object"
+        ? item.selectedUnit.price
+        : item.unitPrice;
 
     // Calculate item price
     let itemPrice = 0;
@@ -69,7 +73,7 @@ export async function validateAndCalculate(user: any, requestData: any) {
       fixedPrice: null as number | null,
       unitPrice: null as number | null,
       selectedUnit: null as string | null,
-      totalPrice: 0
+      totalPrice: 0,
     };
 
     // Case 1: Fixed price item
@@ -79,35 +83,45 @@ export async function validateAndCalculate(user: any, requestData: any) {
         fixedPrice: item.fixedPrice,
         unitPrice: null,
         selectedUnit: null,
-        totalPrice: item.fixedPrice * item.quantity
+        totalPrice: item.fixedPrice * item.quantity,
       };
-    } 
+    }
     // Case 2: Unit price item
     else if (unitPrice !== null && unitPrice !== undefined && selectedUnit) {
       // Validate the selected unit exists in product's unitPrices
-      if (item.product.unitPrices && !item.product.unitPrices.some(u => u.unit === selectedUnit)) {
-        throw new Error(`Selected unit "${selectedUnit}" is not valid for product ${item.product.name}`);
+      if (
+        item.product.unitPrices &&
+        !item.product.unitPrices.some((u) => u.unit === selectedUnit)
+      ) {
+        throw new Error(
+          `Selected unit "${selectedUnit}" is not valid for product ${item.product.name}`
+        );
       }
-      
+
       itemPrice = unitPrice;
       pricingInfo = {
         fixedPrice: null,
         unitPrice: unitPrice,
         selectedUnit: selectedUnit,
-        totalPrice: unitPrice * item.quantity
+        totalPrice: unitPrice * item.quantity,
       };
-    } 
+    }
     // Case 3: Fallback to product's fixed price
-    else if (item.product.fixedPrice !== null && item.product.fixedPrice !== undefined) {
+    else if (
+      item.product.fixedPrice !== null &&
+      item.product.fixedPrice !== undefined
+    ) {
       itemPrice = item.product.fixedPrice;
       pricingInfo = {
         fixedPrice: item.product.fixedPrice,
         unitPrice: null,
         selectedUnit: null,
-        totalPrice: item.product.fixedPrice * item.quantity
+        totalPrice: item.product.fixedPrice * item.quantity,
       };
     } else {
-      throw new Error(`Product ${item.product.name} has no valid pricing information`);
+      throw new Error(
+        `Product ${item.product.name} has no valid pricing information`
+      );
     }
 
     const itemWeight = Number(item.product.weight) * item.quantity;
@@ -121,17 +135,17 @@ export async function validateAndCalculate(user: any, requestData: any) {
       ...pricingInfo,
       weight: Number(item.product.weight),
       totalWeight: itemWeight,
-      price: itemPrice
+      price: itemPrice,
     });
   }
 
   // Calculate dynamic delivery fee
-  let deliveryFee = 0;
-  try {
-    deliveryFee = calculateDeliveryFee(totalWeight, shippingAddress.city);
-  } catch (error) {
-    throw new Error('Unable to calculate delivery fee for the specified location');
-  }
+  const deliveryFee = 4500;
+  // try {
+  //   deliveryFee = calculateDeliveryFee(totalWeight, shippingAddress.city);
+  // } catch (error) {
+  //   throw new Error('Unable to calculate delivery fee for the specified location');
+  // }
 
   // Use provided subtotal if available, otherwise use calculated one
   const finalSubtotal = subtotal || calculatedSubtotal;
@@ -149,12 +163,15 @@ export async function validateAndCalculate(user: any, requestData: any) {
     shippingMethod,
     couponId,
     discountAmount,
-    currency
+    currency,
   };
 }
 
 // Bank transfer payment handler
-export async function handleBankTransferPayment(user: any, calculatedData: any) {
+export async function handleBankTransferPayment(
+  user: any,
+  calculatedData: any
+) {
   const {
     userData,
     validatedItems,
@@ -167,48 +184,56 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
     shippingMethod,
     couponId,
     discountAmount,
-    currency
+    currency,
   } = calculatedData;
 
-   // Clean and format shipping address to match ShippingAddress type
-   const cleanShippingAddress = shippingAddress ? {
-    firstName: shippingAddress.firstName,
-    lastName: shippingAddress.lastName,
-    address: shippingAddress.address,
-    city: shippingAddress.city,
-    state: shippingAddress.state,
-    country: shippingAddress.country,
-    zip: shippingAddress.zip,
-    phone: shippingAddress.phone || null
-  } : null;
+  // Clean and format shipping address to match ShippingAddress type
+  const cleanShippingAddress = shippingAddress
+    ? {
+        firstName: shippingAddress.firstName,
+        lastName: shippingAddress.lastName,
+        address: shippingAddress.address,
+        city: shippingAddress.city,
+        state: shippingAddress.state,
+        country: shippingAddress.country,
+        zip: shippingAddress.zip,
+        phone: shippingAddress.phone || null,
+      }
+    : null;
 
   // Clean and format billing address to match BillingAddress type
   // If no billing address provided, use shipping address
-  const cleanBillingAddress = billingAddress ? {
-    firstName: billingAddress.firstName,
-    lastName: billingAddress.lastName,
-    address: billingAddress.address,
-    city: billingAddress.city,
-    state: billingAddress.state,
-    country: billingAddress.country,
-    zip: billingAddress.zip,
-    phone: billingAddress.phone || null
-  } : (cleanShippingAddress ? {
-    firstName: cleanShippingAddress.firstName,
-    lastName: cleanShippingAddress.lastName,
-    address: cleanShippingAddress.address,
-    city: cleanShippingAddress.city,
-    state: cleanShippingAddress.state,
-    country: cleanShippingAddress.country,
-    zip: cleanShippingAddress.zip,
-    phone: cleanShippingAddress.phone
-  } : null);
-
+  const cleanBillingAddress = billingAddress
+    ? {
+        firstName: billingAddress.firstName,
+        lastName: billingAddress.lastName,
+        address: billingAddress.address,
+        city: billingAddress.city,
+        state: billingAddress.state,
+        country: billingAddress.country,
+        zip: billingAddress.zip,
+        phone: billingAddress.phone || null,
+      }
+    : cleanShippingAddress
+    ? {
+        firstName: cleanShippingAddress.firstName,
+        lastName: cleanShippingAddress.lastName,
+        address: cleanShippingAddress.address,
+        city: cleanShippingAddress.city,
+        state: cleanShippingAddress.state,
+        country: cleanShippingAddress.country,
+        zip: cleanShippingAddress.zip,
+        phone: cleanShippingAddress.phone,
+      }
+    : null;
 
   try {
     // ===== COMPREHENSIVE EXISTING RECORDS CHECK =====
-    console.log('Checking for existing checkout, order, and invoice for user:', user.clerkId);
-    
+    console.log(
+      "Checking for existing checkout, order, and invoice for user:",
+      user.clerkId
+    );
+
     // Check for existing checkout
     const existingCheckout = await prisma.checkout.findFirst({
       where: {
@@ -223,31 +248,31 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
       include: {
         items: {
           include: {
-            product: true
-          }
-        }
-      }
+            product: true,
+          },
+        },
+      },
     });
 
     // Check for existing pending/failed orders
     const existingOrder = await prisma.order.findFirst({
-      where: { 
+      where: {
         clerkId: user.clerkId,
-        status: { 
-          in: ['PENDING', 'FAILED'] 
+        status: {
+          in: ["PENDING", "FAILED"],
         },
         paymentStatus: {
-          in: ['PENDING', 'FAILED', 'UNPAID']
-        }
+          in: ["PENDING", "FAILED", "UNPAID"],
+        },
       },
       include: {
         items: {
           include: {
-            product: true
-          }
-        }
+            product: true,
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' } // Get the most recent one
+      orderBy: { createdAt: "desc" }, // Get the most recent one
     });
 
     // Check for existing invoice linked to the order
@@ -256,24 +281,26 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
       existingInvoice = await prisma.invoice.findUnique({
         where: { orderId: existingOrder.id },
         include: {
-          items: true
-        }
+          items: true,
+        },
       });
     }
 
     // ===== PREVENT DUPLICATE PENDING ORDERS =====
-    
+
     // If we have a pending order that's still valid, don't create a new one
-    if (existingOrder && existingOrder.status === 'PENDING') {
-      console.log('Found existing pending order:', existingOrder.id);
-      
+    if (existingOrder && existingOrder.status === "PENDING") {
+      console.log("Found existing pending order:", existingOrder.id);
+
       const orderAge = Date.now() - existingOrder.createdAt.getTime();
       const maxOrderAge = 24 * 60 * 60 * 1000; // 24 hours
-      
+
       // If the pending order is still within 24 hours, return it instead of creating new
       if (orderAge <= maxOrderAge) {
-        console.log('Pending order is still valid, returning existing order details');
-        
+        console.log(
+          "Pending order is still valid, returning existing order details"
+        );
+
         // Get or create checkout for the existing order
         let existingCheckoutForPending = existingCheckout;
         if (!existingCheckoutForPending) {
@@ -283,7 +310,7 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
               clerkId: user.clerkId,
               orderId: existingOrder.id,
               sessionId: existingOrder.paymentId || uuidv4(),
-              status: 'COMPLETED',
+              status: "COMPLETED",
               totalAmount: existingOrder.totalPrice,
               subtotal: existingOrder.subtotalPrice,
               taxAmount: existingOrder.totalTax,
@@ -293,47 +320,48 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
               shippingAddress: cleanShippingAddress,
               billingAddress: cleanBillingAddress,
               shippingMethod,
-              paymentMethod: 'bank_transfer',
-              paymentStatus: 'UNPAID',
+              paymentMethod: "bank_transfer",
+              paymentStatus: "UNPAID",
               couponId,
               expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
               items: {
-                create: existingOrder.items.map(item => ({
+                create: existingOrder.items.map((item) => ({
                   productId: item.productId,
                   title: item.title,
                   quantity: item.quantity,
                   // Sync pricing fields properly
                   fixedPrice: item.fixedPrice !== null ? item.fixedPrice : null,
                   unitPrice: item.unitPrice !== null ? item.unitPrice : null,
-                  selectedUnit: item.selectedUnit !== null ? item.selectedUnit : null,
+                  selectedUnit:
+                    item.selectedUnit !== null ? item.selectedUnit : null,
                   totalPrice: item.totalPrice,
-                }))
-              }
+                })),
+              },
             },
             include: {
               items: {
                 include: {
-                  product: true
-                }
-              }
-            }
+                  product: true,
+                },
+              },
+            },
           });
         }
 
         // Bank account details
         const bankDetails = [
           {
-            bankName: process.env.BANK_ONE_NAME || '',
-            accountName: process.env.BANK_ONE_ACCOUNT_NAME || '',
-            accountNumber: process.env.BANK_ONE_ACCOUNT_NUMBER || '',
-            sortCode: process.env.BANK_ONE_SORT_CODE || ''
+            bankName: process.env.BANK_ONE_NAME || "",
+            accountName: process.env.BANK_ONE_ACCOUNT_NAME || "",
+            accountNumber: process.env.BANK_ONE_ACCOUNT_NUMBER || "",
+            sortCode: process.env.BANK_ONE_SORT_CODE || "",
           },
           {
-            bankName: process.env.BANK_TWO_NAME || '',
-            accountName: process.env.BANK_TWO_ACCOUNT_NAME || '',
-            accountNumber: process.env.BANK_TWO_ACCOUNT_NUMBER || '',
-            sortCode: process.env.BANK_TWO_SORT_CODE || ''
-          }
+            bankName: process.env.BANK_TWO_NAME || "",
+            accountName: process.env.BANK_TWO_ACCOUNT_NAME || "",
+            accountNumber: process.env.BANK_TWO_ACCOUNT_NUMBER || "",
+            sortCode: process.env.BANK_TWO_SORT_CODE || "",
+          },
         ];
 
         // Create or get existing invoice
@@ -347,15 +375,16 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
               orderId: existingOrder.id,
               userId: user.id,
               clerkId: user.clerkId,
-              status: 'SENT',
+              status: "SENT",
               customerName: `${userData.firstName} ${userData.lastName}`,
               customerEmail: userData.email,
-              customerPhone: userData.phone || '',
+              customerPhone: userData.phone || "",
               billingAddress: cleanBillingAddress,
-              companyName: process.env.COMPANY_NAME || 'Your Store Name',
-              companyAddress: process.env.COMPANY_ADDRESS || 'Your Business Address',
-              companyPhone: process.env.COMPANY_PHONE || '+234 XXX XXX XXXX',
-              companyEmail: process.env.COMPANY_EMAIL || 'info@yourstore.com',
+              companyName: process.env.COMPANY_NAME || "Your Store Name",
+              companyAddress:
+                process.env.COMPANY_ADDRESS || "Your Business Address",
+              companyPhone: process.env.COMPANY_PHONE || "+234 XXX XXX XXXX",
+              companyEmail: process.env.COMPANY_EMAIL || "info@yourstore.com",
               issueDate: new Date(),
               dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
               subtotal: existingOrder.subtotalPrice,
@@ -364,29 +393,33 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
               discountAmount: existingOrder.totalDiscount,
               totalAmount: existingOrder.totalPrice,
               balanceAmount: existingOrder.totalPrice,
-              paymentMethod: 'bank_transfer',
-              paymentStatus: 'UNPAID',
+              paymentMethod: "bank_transfer",
+              paymentStatus: "UNPAID",
               paymentReference: existingOrder.paymentId,
-              terms: 'Payment via bank transfer. Order will be processed once payment is verified.',
-              footer: `Thank you for your business! Contact us at ${process.env.COMPANY_EMAIL || 'info@yourstore.com'} for any questions.`,
+              terms:
+                "Payment via bank transfer. Order will be processed once payment is verified.",
+              footer: `Thank you for your business! Contact us at ${
+                process.env.COMPANY_EMAIL || "info@yourstore.com"
+              } for any questions.`,
               items: {
-                create: existingOrder.items.map(item => ({
+                create: existingOrder.items.map((item) => ({
                   productId: item.productId,
                   title: item.title,
                   quantity: item.quantity,
                   // Sync pricing fields properly for invoice
                   fixedPrice: item.fixedPrice !== null ? item.fixedPrice : null,
                   unitPrice: item.unitPrice !== null ? item.unitPrice : null,
-                  selectedUnit: item.selectedUnit !== null ? item.selectedUnit : null,
+                  selectedUnit:
+                    item.selectedUnit !== null ? item.selectedUnit : null,
                   totalPrice: item.totalPrice,
                   taxRate: 0,
-                  taxAmount: 0
-                }))
-              }
+                  taxAmount: 0,
+                })),
+              },
             },
             include: {
-              items: true
-            }
+              items: true,
+            },
           });
         }
 
@@ -400,13 +433,13 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
           customer: {
             name: `${userData.firstName} ${userData.lastName}`,
             email: userData.email,
-            phone: userData.phone
+            phone: userData.phone,
           },
-          items: existingOrder.items.map(item => ({
+          items: existingOrder.items.map((item) => ({
             name: item.title,
             quantity: item.quantity,
             price: item.price,
-            total: item.totalPrice
+            total: item.totalPrice,
           })),
           subtotal: existingOrder.subtotalPrice,
           tax: existingOrder.totalTax,
@@ -422,10 +455,12 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
           paymentInstructions: [
             `Transfer ₦${existingOrder.totalPrice.toLocaleString()} to any of the account details above`,
             `Use "${existingOrder.orderNumber}" as your payment reference/description`,
-            `Send payment confirmation screenshot/receipt to ${process.env.SUPPORT_EMAIL || 'support@yourstore.com'}`,
-            'Payment will be verified and your order confirmed within 24 hours',
-            'Your order status will be updated once payment is verified by our team'
-          ]
+            `Send payment confirmation screenshot/receipt to ${
+              process.env.SUPPORT_EMAIL || "support@yourstore.com"
+            }`,
+            "Payment will be verified and your order confirmed within 24 hours",
+            "Your order status will be updated once payment is verified by our team",
+          ],
         };
 
         return {
@@ -435,73 +470,86 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
           order: existingOrder,
           invoice: pendingInvoiceDisplay,
           showInvoice: true,
-          message: 'You already have a pending order! Please complete payment using the bank details below.',
+          message:
+            "You already have a pending order! Please complete payment using the bank details below.",
           deliveryInfo: {
             totalWeight,
             deliveryFee: existingOrder.totalShipping,
-          }
+          },
         };
       }
     }
 
     // ===== HANDLE EXISTING FAILED ORDERS =====
-    
+
     // If we have a failed order or expired pending order
-    if (existingOrder && (existingOrder.status === 'FAILED' || orderAge > maxOrderAge)) {
-      console.log('Found existing failed/expired order:', existingOrder.id, 'Status:', existingOrder.status);
-      
+    if (
+      existingOrder &&
+      (existingOrder.status === "FAILED" || orderAge > maxOrderAge)
+    ) {
+      console.log(
+        "Found existing failed/expired order:",
+        existingOrder.id,
+        "Status:",
+        existingOrder.status
+      );
+
       const orderAge = Date.now() - existingOrder.createdAt.getTime();
       const maxOrderAge = 24 * 60 * 60 * 1000; // 24 hours
-      
+
       // Check if order is expired or failed
-      if (orderAge > maxOrderAge || existingOrder.status === 'FAILED') {
-        console.log('Order is expired or failed, cancelling and cleaning up...');
-        
+      if (orderAge > maxOrderAge || existingOrder.status === "FAILED") {
+        console.log(
+          "Order is expired or failed, cancelling and cleaning up..."
+        );
+
         // Cancel expired order
         await prisma.order.update({
           where: { id: existingOrder.id },
-          data: { 
-            status: 'CANCELLED',
-            paymentStatus: 'CANCELLED'
-          }
+          data: {
+            status: "CANCELLED",
+            paymentStatus: "CANCELLED",
+          },
         });
 
         // Update related invoice if exists
         if (existingInvoice) {
           await prisma.invoice.update({
             where: { id: existingInvoice.id },
-            data: { 
-              status: 'CANCELLED',
-              paymentStatus: 'CANCELLED'
-            }
+            data: {
+              status: "CANCELLED",
+              paymentStatus: "CANCELLED",
+            },
           });
         }
 
         // Delete related checkout if exists
         if (existingCheckout) {
           await prisma.checkout.delete({
-            where: { id: existingCheckout.id }
+            where: { id: existingCheckout.id },
           });
         }
-        
-        console.log('Expired/failed records cleaned up');
+
+        console.log("Expired/failed records cleaned up");
       } else {
         // This should not happen now since we handle pending orders above
-        console.log('Unexpected order state, allowing retry');
-        
+        console.log("Unexpected order state, allowing retry");
+
         // For bank transfer, we simply return the existing order with bank details
-        console.log('Valid existing order found, returning bank transfer details');
-        
+        console.log(
+          "Valid existing order found, returning bank transfer details"
+        );
+
         // Generate new payment reference for retry
         const newPaymentReference = `PAY_${uuidv4()}_RETRY`;
-        
+
         // Update order with new payment reference
         await prisma.order.update({
           where: { id: existingOrder.id },
           data: {
             paymentId: newPaymentReference,
-            paymentStatus: 'UNPAID'
-          }
+            paymentStatus: "UNPAID",
+          },
         });
 
         // Update or create checkout
@@ -510,10 +558,10 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
           checkoutForRetry = await prisma.checkout.update({
             where: { id: existingCheckout.id },
             data: {
-              status: 'COMPLETED',
+              status: "COMPLETED",
               sessionId: newPaymentReference,
-              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
-            }
+              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
           });
         } else {
           // Create new checkout for existing order
@@ -523,7 +571,7 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
               clerkId: user.clerkId,
               orderId: existingOrder.id,
               sessionId: newPaymentReference,
-              status: 'COMPLETED',
+              status: "COMPLETED",
               totalAmount: existingOrder.totalPrice,
               subtotal: existingOrder.subtotalPrice,
               taxAmount: existingOrder.totalTax,
@@ -533,44 +581,48 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
               shippingAddress: cleanShippingAddress,
               billingAddress: cleanBillingAddress,
               shippingMethod,
-              paymentMethod: 'bank_transfer',
-              paymentStatus: 'UNPAID',
+              paymentMethod: "bank_transfer",
+              paymentStatus: "UNPAID",
               couponId,
               expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
               items: {
-                create: existingOrder.items.map(item => ({
+                create: existingOrder.items.map((item) => ({
                   productId: item.productId,
                   title: item.title,
                   quantity: item.quantity,
                   // Sync pricing fields properly
                   fixedPrice: item.fixedPrice !== null ? item.fixedPrice : null,
                   unitPrice: item.unitPrice !== null ? item.unitPrice : null,
-                  selectedUnit: item.selectedUnit !== null ? item.selectedUnit : null,
+                  selectedUnit:
+                    item.selectedUnit !== null ? item.selectedUnit : null,
                   totalPrice: item.totalPrice,
-                }))
-              }},
+                })),
+              },
+            },
             include: {
               items: {
                 include: {
-                  product: true
-                }
-              }
-            }
+                  product: true,
+                },
+              },
+            },
           });
         }
 
         // Bank account details from environment variables
         const bankDetails = [
           {
-            bankName: process.env.NEXT_PUBLIIC_BANK_ONE_NAME || '',
-            accountName: process.env.NEXT_PUBLIIC_BANK_ONE_ACCOUNT_NAME || '',
-            accountNumber: process.env.NEXT_PUBLIIC_BANK_ONE_ACCOUNT_NUMBER || '',
+            bankName: process.env.NEXT_PUBLIIC_BANK_ONE_NAME || "",
+            accountName: process.env.NEXT_PUBLIIC_BANK_ONE_ACCOUNT_NAME || "",
+            accountNumber:
+              process.env.NEXT_PUBLIIC_BANK_ONE_ACCOUNT_NUMBER || "",
           },
           {
-            bankName: process.env.NEXT_PUBLIIC_BANK_TWO_NAME || '',
-            accountName: process.env.NEXT_PUBLIIC_BANK_TWOE_ACCOUNT_NAME || '',
-            accountNumber: process.env.NEXT_PUBLIIC_BANK_TWO_ACCOUNT_NUMBER || '',
-          }
+            bankName: process.env.NEXT_PUBLIIC_BANK_TWO_NAME || "",
+            accountName: process.env.NEXT_PUBLIIC_BANK_TWOE_ACCOUNT_NAME || "",
+            accountNumber:
+              process.env.NEXT_PUBLIIC_BANK_TWO_ACCOUNT_NUMBER || "",
+          },
         ];
 
         // Update or create invoice in database
@@ -580,12 +632,12 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
             where: { id: existingInvoice.id },
             data: {
               paymentReference: newPaymentReference,
-              paymentStatus: 'UNPAID',
-              status: 'SENT'
+              paymentStatus: "UNPAID",
+              status: "SENT",
             },
             include: {
-              items: true
-            }
+              items: true,
+            },
           });
         } else {
           // Create invoice for existing order
@@ -595,15 +647,16 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
               orderId: existingOrder.id,
               userId: user.id,
               clerkId: user.clerkId,
-              status: 'SENT',
+              status: "SENT",
               customerName: `${userData.firstName} ${userData.lastName}`,
               customerEmail: userData.email,
-              customerPhone: userData.phone || '',
+              customerPhone: userData.phone || "",
               billingAddress: cleanBillingAddress,
-              companyName: process.env.COMPANY_NAME || 'Your Store Name',
-              companyAddress: process.env.COMPANY_ADDRESS || 'Your Business Address',
-              companyPhone: process.env.COMPANY_PHONE || '+234 XXX XXX XXXX',
-              companyEmail: process.env.COMPANY_EMAIL || 'info@yourstore.com',
+              companyName: process.env.COMPANY_NAME || "Your Store Name",
+              companyAddress:
+                process.env.COMPANY_ADDRESS || "Your Business Address",
+              companyPhone: process.env.COMPANY_PHONE || "+234 XXX XXX XXXX",
+              companyEmail: process.env.COMPANY_EMAIL || "info@yourstore.com",
               issueDate: new Date(),
               dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
               subtotal: existingOrder.subtotalPrice,
@@ -612,26 +665,29 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
               discountAmount: existingOrder.totalDiscount,
               totalAmount: existingOrder.totalPrice,
               balanceAmount: existingOrder.totalPrice,
-              paymentMethod: 'bank_transfer',
-              paymentStatus: 'UNPAID',
+              paymentMethod: "bank_transfer",
+              paymentStatus: "UNPAID",
               paymentReference: newPaymentReference,
-              terms: 'Payment via bank transfer. Order will be processed once payment is verified.',
-              footer: `Thank you for your business! Contact us at ${process.env.COMPANY_EMAIL || 'info@yourstore.com'} for any questions.`,
+              terms:
+                "Payment via bank transfer. Order will be processed once payment is verified.",
+              footer: `Thank you for your business! Contact us at ${
+                process.env.COMPANY_EMAIL || "info@yourstore.com"
+              } for any questions.`,
               items: {
-                create: existingOrder.items.map(item => ({
+                create: existingOrder.items.map((item) => ({
                   productId: item.productId,
                   name: item.title,
                   quantity: item.quantity,
                   unitPrice: item.price,
                   totalPrice: item.totalPrice,
                   taxRate: 0,
-                  taxAmount: 0
-                }))
-              }
+                  taxAmount: 0,
+                })),
+              },
             },
             include: {
-              items: true
-            }
+              items: true,
+            },
           });
         }
 
@@ -645,13 +701,13 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
           customer: {
             name: `${userData.firstName} ${userData.lastName}`,
             email: userData.email,
-            phone: userData.phone
+            phone: userData.phone,
           },
-          items: existingOrder.items.map(item => ({
+          items: existingOrder.items.map((item) => ({
             name: item.title,
             quantity: item.quantity,
             price: item.price,
-            total: item.totalPrice
+            total: item.totalPrice,
           })),
           subtotal: existingOrder.subtotalPrice,
           tax: existingOrder.totalTax,
@@ -667,10 +723,12 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
           paymentInstructions: [
             `Transfer ₦${existingOrder.totalPrice.toLocaleString()} to any of the account details above`,
             `Use "${existingOrder.orderNumber}" as your payment reference/description`,
-            `Send payment confirmation screenshot/receipt to ${process.env.SUPPORT_EMAIL || 'support@yourstore.com'}`,
-            'Payment will be verified and your order confirmed within 24 hours',
-            'Your order status will be updated once payment is verified by our team'
-          ]
+            `Send payment confirmation screenshot/receipt to ${
+              process.env.SUPPORT_EMAIL || "support@yourstore.com"
+            }`,
+            "Payment will be verified and your order confirmed within 24 hours",
+            "Your order status will be updated once payment is verified by our team",
+          ],
         };
 
         return {
@@ -681,32 +739,33 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
           invoice: retryInvoiceDisplay,
           showInvoice: true,
           paymentReference: newPaymentReference,
-          message: 'Order found! Please complete payment using the bank details below. Your order will be confirmed once payment is verified.',
+          message:
+            "Order found! Please complete payment using the bank details below. Your order will be confirmed once payment is verified.",
           deliveryInfo: {
             totalWeight,
             deliveryFee: existingOrder.totalShipping,
-          }
+          },
         };
       }
     }
 
     // Clean up any orphaned checkout without valid order
     if (existingCheckout && !existingOrder) {
-      console.log('Found orphaned checkout, cleaning up...');
+      console.log("Found orphaned checkout, cleaning up...");
       await prisma.checkout.delete({
-        where: { id: existingCheckout.id }
+        where: { id: existingCheckout.id },
       });
     }
 
     // ===== CREATE NEW CHECKOUT, ORDER & INVOICE =====
-    console.log('Creating new checkout, order, and invoice...');
+    console.log("Creating new checkout, order, and invoice...");
 
     // Create checkout session
     const checkout = await prisma.checkout.create({
       data: {
         userId: user.id,
         clerkId: user.clerkId,
-        sessionId: uuidv4(), 
+        sessionId: uuidv4(),
         status: CheckoutStatus.COMPLETED,
         totalAmount,
         subtotal: finalSubtotal,
@@ -717,12 +776,12 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
         shippingAddress: cleanShippingAddress,
         billingAddress: cleanBillingAddress,
         shippingMethod,
-        paymentMethod: 'bank_transfer',
+        paymentMethod: "bank_transfer",
         paymentStatus: PaymentStatus.UNPAID,
         couponId,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
         items: {
-          create: validatedItems.map(item => ({
+          create: validatedItems.map((item) => ({
             productId: item.productId,
             title: item.title,
             quantity: item.quantity,
@@ -733,22 +792,25 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
             totalPrice: item.totalPrice,
             // Include weight information if needed
             weight: item.weight,
-            totalWeight: item.totalWeight
-          }))
-        }
+            totalWeight: item.totalWeight,
+          })),
+        },
       },
       include: {
         items: {
           include: {
-            product: true
-          }
+            product: true,
+          },
         },
-        coupon: true
-      }
+        coupon: true,
+      },
     });
 
     // Generate unique identifiers
-    const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    const orderNumber = `ORD-${Date.now()}-${Math.random()
+      .toString(36)
+      .substr(2, 6)
+      .toUpperCase()}`;
     const paymentReference = `PAY_${uuidv4()}`;
 
     // Create order with PENDING status for bank transfer (will be updated by admin)
@@ -758,7 +820,7 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
         userId: user.id,
         clerkId: user.clerkId,
         email: userData.email,
-        phone: userData.phone || '',
+        phone: userData.phone || "",
         status: OrderStatus.PENDING,
         paymentStatus: PaymentStatus.UNPAID,
         subtotalPrice: finalSubtotal,
@@ -767,50 +829,78 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
         totalDiscount: discountAmount,
         totalPrice: totalAmount,
         shippingAddress: cleanShippingAddress,
-        paymentMethod: 'bank_transfer',
+        paymentMethod: "bank_transfer",
         paymentId: paymentReference,
         items: {
-          create: validatedItems.map(item => ({
-            product: { connect: { id: item.productId } }, // Connect to existing product
+          create: validatedItems.map((item) => ({
+            product: { connect: { id: item.productId } },
             title: item.title,
             quantity: item.quantity,
             fixedPrice: item.fixedPrice !== null ? item.fixedPrice : null,
             unitPrice: item.unitPrice !== null ? item.unitPrice : null,
             selectedUnit: item.selectedUnit !== null ? item.selectedUnit : null,
             totalPrice: item.totalPrice,
-          }))
-        }
+          })),
+        },
       },
       include: {
         items: {
           include: {
-            product: true
-          }
-        }
-      }
+            product: true,
+          },
+        },
+        user: true, // Include user data for email
+      },
     });
+
+    // Send confirmation email to customer
+    try {
+      if (order.email) {
+        // Use the email from order data directly
+        console.log("Sending order confirmation email to:", order.email);
+
+        // Create user object for email service if needed
+        const userForEmail = {
+          id: user.id,
+          clerkId: user.clerkId,
+          email: order.email,
+          firstName: userData.firstName || "",
+          lastName: userData.lastName || "",
+          // Add other required properties for email service
+        };
+
+        await emailService.sendOrderConfirmation(userForEmail, order);
+        console.log("Order confirmation email sent successfully");
+      } else {
+        console.warn("No email found for order:", order.id);
+      }
+    } catch (emailError) {
+      console.error("Failed to send order confirmation email:", emailError);
+      // Consider logging this to a monitoring service
+      // Don't throw error - payment was successful
+    }
 
     // Link checkout to order
     await prisma.checkout.update({
       where: { id: checkout.id },
-      data: { 
+      data: {
         orderId: order.id,
-        paymentStatus: 'UNPAID'
-      }
+        paymentStatus: "UNPAID",
+      },
     });
 
     // Bank account details from environment variables
     const bankDetails = [
       {
-        bankName: process.env.NEXT_PUBLIIC_BANK_ONE_NAME || '',
-        accountName: process.env.NEXT_PUBLIIC_BANK_ONE_ACCOUNT_NAME || '',
-        accountNumber: process.env.NEXT_PUBLIIC_BANK_ONE_ACCOUNT_NUMBER || '',
+        bankName: process.env.NEXT_PUBLIIC_BANK_ONE_NAME || "",
+        accountName: process.env.NEXT_PUBLIIC_BANK_ONE_ACCOUNT_NAME || "",
+        accountNumber: process.env.NEXT_PUBLIIC_BANK_ONE_ACCOUNT_NUMBER || "",
       },
       {
-        bankName: process.env.NEXT_PUBLIIC_BANK_TWO_NAME || '',
-        accountName: process.env.NEXT_PUBLIIC_BANK_TWOE_ACCOUNT_NAME || '',
-        accountNumber: process.env.NEXT_PUBLIIC_BANK_TWO_ACCOUNT_NUMBER || '',
-      }
+        bankName: process.env.NEXT_PUBLIIC_BANK_TWO_NAME || "",
+        accountName: process.env.NEXT_PUBLIIC_BANK_TWOE_ACCOUNT_NAME || "",
+        accountNumber: process.env.NEXT_PUBLIIC_BANK_TWO_ACCOUNT_NUMBER || "",
+      },
     ];
 
     // Create invoice in database
@@ -820,15 +910,15 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
         orderId: order.id,
         userId: user.id,
         clerkId: user.clerkId,
-        status: 'SENT',
+        status: "SENT",
         customerName: `${userData.firstName} ${userData.lastName}`,
         customerEmail: userData.email,
-        customerPhone: userData.phone || '',
+        customerPhone: userData.phone || "",
         billingAddress: cleanBillingAddress,
-        companyName: process.env.COMPANY_NAME || 'Your Store Name',
-        companyAddress: process.env.COMPANY_ADDRESS || 'Your Business Address',
-        companyPhone: process.env.COMPANY_PHONE || '+234 XXX XXX XXXX',
-        companyEmail: process.env.COMPANY_EMAIL || 'info@yourstore.com',
+        companyName: process.env.COMPANY_NAME || "Your Store Name",
+        companyAddress: process.env.COMPANY_ADDRESS || "Your Business Address",
+        companyPhone: process.env.COMPANY_PHONE || "+234 XXX XXX XXXX",
+        companyEmail: process.env.COMPANY_EMAIL || "info@yourstore.com",
         issueDate: new Date(),
         dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         subtotal: finalSubtotal,
@@ -837,13 +927,16 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
         discountAmount,
         totalAmount,
         balanceAmount: totalAmount,
-        paymentMethod: 'bank_transfer',
-        paymentStatus: 'UNPAID',
+        paymentMethod: "bank_transfer",
+        paymentStatus: "UNPAID",
         paymentReference,
-        terms: 'Payment via bank transfer. Order will be processed once payment is verified.',
-        footer: `Thank you for your business! Contact us at ${process.env.COMPANY_EMAIL || 'info@yourstore.com'} for any questions.`,
+        terms:
+          "Payment via bank transfer. Order will be processed once payment is verified.",
+        footer: `Thank you for your business! Contact us at ${
+          process.env.COMPANY_EMAIL || "info@yourstore.com"
+        } for any questions.`,
         items: {
-          create: validatedItems.map(item => ({
+          create: validatedItems.map((item) => ({
             productId: item.productId,
             title: item.title, // Changed from 'name' to 'title' to match field
             quantity: item.quantity,
@@ -853,13 +946,13 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
             selectedUnit: item.selectedUnit !== null ? item.selectedUnit : null,
             totalPrice: item.totalPrice,
             taxRate: 0,
-            taxAmount: 0
-          }))
-        }
+            taxAmount: 0,
+          })),
+        },
       },
       include: {
-        items: true
-      }
+        items: true,
+      },
     });
 
     // Create invoice display object with bank details
@@ -872,13 +965,13 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
       customer: {
         name: `${userData.firstName} ${userData.lastName}`,
         email: userData.email,
-        phone: userData.phone
+        phone: userData.phone,
       },
-      items: validatedItems.map(item => ({
+      items: validatedItems.map((item) => ({
         name: item.title,
         quantity: item.quantity,
         price: item.price,
-        total: item.totalPrice
+        total: item.totalPrice,
       })),
       subtotal: finalSubtotal,
       tax: 0,
@@ -894,15 +987,18 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
       paymentInstructions: [
         `Transfer ₦${totalAmount.toLocaleString()} to any of the account details above`,
         `Use "${orderNumber}" as your payment reference/description`,
-        `Send payment confirmation screenshot/receipt to ${process.env.SUPPORT_EMAIL || 'support@yourstore.com'}`,
-        'Payment will be verified and your order confirmed within 24 hours',
-        'Your order status will be updated once payment is verified by our team'
-      ]
+        `Send payment confirmation screenshot/receipt to ${
+          process.env.SUPPORT_EMAIL || "support@yourstore.com"
+        }`,
+        "Payment will be verified and your order confirmed within 24 hours",
+        "Your order status will be updated once payment is verified by our team",
+      ],
     };
 
     return {
       success: true,
-      message: 'Order created successfully! Please complete payment using the bank details below. Your order will be confirmed once payment is verified.',
+      message:
+        "Order created successfully! Please complete payment using the bank details below. Your order will be confirmed once payment is verified.",
       checkout,
       order,
       invoice: invoiceDisplay,
@@ -910,28 +1006,27 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
       deliveryInfo: {
         totalWeight,
         deliveryFee,
-      }
+      },
     };
-
   } catch (error) {
-    console.error('Error in handleBankTransferPayment:', error);
-    
+    console.error("Error in handleBankTransferPayment:", error);
+
     // Clean up any created records if there was an error
     try {
       // Check if we have a checkout that was created but the process failed
       const orphanedCheckout = await prisma.checkout.findFirst({
-        where: { 
+        where: {
           clerkId: user.clerkId,
-          status: { in: ['COMPLETED', 'PROCESSING'] },
-          orderId: null // Checkout without an order
+          status: { in: ["COMPLETED", "PROCESSING"] },
+          orderId: null, // Checkout without an order
         },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: "desc" },
       });
 
       if (orphanedCheckout) {
-        console.log('Cleaning up orphaned checkout:', orphanedCheckout.id);
+        console.log("Cleaning up orphaned checkout:", orphanedCheckout.id);
         await prisma.checkout.delete({
-          where: { id: orphanedCheckout.id }
+          where: { id: orphanedCheckout.id },
         });
       }
 
@@ -940,63 +1035,65 @@ export async function handleBankTransferPayment(user: any, calculatedData: any) 
         where: {
           clerkId: user.clerkId,
           createdAt: {
-            gte: new Date(Date.now() - 5 * 60 * 1000) // Last 5 minutes
+            gte: new Date(Date.now() - 5 * 60 * 1000), // Last 5 minutes
           },
-          status: { in: ['PENDING', 'FAILED'] },
-          paymentStatus: { in: ['PENDING', 'FAILED', 'UNPAID'] }
+          status: { in: ["PENDING", "FAILED"] },
+          paymentStatus: { in: ["PENDING", "FAILED", "UNPAID"] },
         },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: "desc" },
       });
 
       if (recentFailedOrder) {
-        console.log('Cleaning up recent failed order:', recentFailedOrder.id);
-        
+        console.log("Cleaning up recent failed order:", recentFailedOrder.id);
+
         // Update order status to failed
         await prisma.order.update({
           where: { id: recentFailedOrder.id },
           data: {
-            status: 'FAILED',
-            paymentStatus: 'FAILED'
-          }
+            status: "FAILED",
+            paymentStatus: "FAILED",
+          },
         });
 
         // Clean up associated checkout if exists
         const associatedCheckout = await prisma.checkout.findFirst({
-          where: { orderId: recentFailedOrder.id }
+          where: { orderId: recentFailedOrder.id },
         });
 
         if (associatedCheckout) {
           await prisma.checkout.update({
             where: { id: associatedCheckout.id },
             data: {
-              status: 'FAILED',
-              paymentStatus: 'FAILED'
-            }
+              status: "FAILED",
+              paymentStatus: "FAILED",
+            },
           });
         }
 
         // Clean up associated invoice if exists
         const associatedInvoice = await prisma.invoice.findUnique({
-          where: { orderId: recentFailedOrder.id }
+          where: { orderId: recentFailedOrder.id },
         });
 
         if (associatedInvoice) {
           await prisma.invoice.update({
             where: { id: associatedInvoice.id },
             data: {
-              status: 'CANCELLED',
-              paymentStatus: 'FAILED'
-            }
+              status: "CANCELLED",
+              paymentStatus: "FAILED",
+            },
           });
         }
       }
 
-      console.log('Cleanup completed successfully');
+      console.log("Cleanup completed successfully");
     } catch (cleanupError) {
-      console.error('Error during cleanup:', cleanupError);
+      console.error("Error during cleanup:", cleanupError);
       // Don't throw cleanup errors, just log them
     }
-    
-    throw new Error(`Failed to process bank transfer payment: ${error.message}`);
+
+    throw new Error(
+      `Failed to process bank transfer payment: ${error.message}`
+    );
   }
 }

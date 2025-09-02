@@ -1,186 +1,285 @@
 // pages/CategoriesPage.tsx
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { Search, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "react-toastify";
 import { CategoryForm } from "@/components/dashboard/categories/CategoryForm";
 import { CategoryTable } from "@/components/dashboard/categories/CategoryTable";
-import { Category, NewCategory, SortConfig } from "@/lib/types";
+import { Category, NewCategory, SortConfig } from "@/types/categories";
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch } from "@/app/store";
+import {
+  fetchCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  updateCategoryStatus,
+  selectCategories,
+  selectCurrentCategory,
+  selectLoading,
+  selectCreating,
+  selectUpdating,
+  selectDeleting,
+  selectError,
+  selectPagination,
+  selectFilters,
+  setCurrentCategory,
+  clearCurrentCategory,
+  clearError,
+  uploadCategoryImages,
+} from "@/app/store/slices/adminCategorySlice";
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState<boolean>(false);
-  const [isEditCategoryOpen, setIsEditCategoryOpen] = useState<boolean>(false);
-  const [currentCategory, setCurrentCategory] = useState<Category | null>(null);
-  const [sortConfig, setSortConfig] = useState<SortConfig>({ 
-    key: "name", 
-    direction: "asc" 
+  const dispatch = useDispatch<AppDispatch>();
+
+  // Redux selectors
+  const categories = useSelector(selectCategories);
+  const currentCategory = useSelector(selectCurrentCategory);
+  const loading = useSelector(selectLoading);
+  const creating = useSelector(selectCreating);
+  const updating = useSelector(selectUpdating);
+  const deleting = useSelector(selectDeleting);
+  const error = useSelector(selectError);
+  const pagination = useSelector(selectPagination);
+  const filters = useSelector(selectFilters);
+
+  // Add logging for Redux state
+  console.log("🔍 CategoriesPage: Redux state:", {
+    categories,
+    categoriesLength: categories?.length,
+    categoriesType: typeof categories,
+    categoriesIsArray: Array.isArray(categories),
+    currentCategory,
+    loading,
+    creating,
+    updating,
+    deleting,
+    error,
+    pagination,
+    filters,
   });
 
-  // Fetch categories on component mount
+  // Local state for UI
+  const [searchQuery, setSearchQuery] = React.useState<string>("");
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = React.useState<boolean>(false);
+  const [isEditCategoryOpen, setIsEditCategoryOpen] = React.useState<boolean>(false);
+  const [sortConfig, setSortConfig] = React.useState<SortConfig>({
+    key: "name",
+    direction: "asc",
+  });
+
+  // Debounced search function
+  // const debouncedSearch = useCallback(
+  //   (() => {
+  //     let timeoutId: NodeJS.Timeout;
+  //     return (query: string) => {
+  //       clearTimeout(timeoutId);
+  //       timeoutId = setTimeout(() => {
+  //         console.log('🔍 CategoriesPage: Searching with query:', query);
+  //         dispatch(fetchCategories({
+  //           search: query || undefined,
+  //           sortBy: sortConfig.key,
+  //           sortOrder: sortConfig.direction,
+  //           page: 1, // Reset to first page on search
+  //           limit: 10
+  //         }));
+  //       }, 300); // 300ms debounce
+  //     };
+  //   })(),
+  //   [dispatch] // Remove sortConfig and pagination from dependencies
+  // );
+
+  // Fetch categories on component mount only
   useEffect(() => {
-    fetchCategories();
-  }, []);
+    console.log("🚀 CategoriesPage: Initial fetchCategories");
+    dispatch(
+      fetchCategories({
+        sortBy: "name",
+        sortOrder: "asc",
+        page: 1,
+        limit: 10,
+      })
+    );
+  }, [dispatch]); // Only depend on dispatch
 
-  const fetchCategories = async (): Promise<void> => {
-    setLoading(true);
-    try {
-      // In a real app, you would fetch from your API
-      // const response = await api.getCategories()
-      // setCategories(response.data)
-
-      // Mock data for demonstration
-      const mockCategories: Category[] = [
-        {
-          id: 1,
-          name: "Clothing",
-          slug: "clothing",
-          image: "/lottuse.webp",
-          isActive: true,
-          productsCount: 120,
-          createdAt: "2023-01-15T10:30:00",
-          updatedAt: "2023-05-20T14:45:00",
-        },
-        {
-          id: 2,
-          name: "Electronics",
-          slug: "electronics",
-          image: "/lottuse.webp",          isActive: true,
-          productsCount: 85,
-          createdAt: "2023-01-19T10:15:00",
-          updatedAt: "2023-05-25T13:20:00",
-        },
-        {
-          id: 3,
-          name: "Home & Kitchen",
-          slug: "home-kitchen",
-          image: "/lottuse.webp",          isActive: false,
-          productsCount: 0,
-          createdAt: "2023-01-22T13:40:00",
-          updatedAt: "2023-05-28T10:30:00",
-        },
-        {
-          id: 4,
-          name: "Sports & Outdoors",
-          slug: "sports-outdoors",
-          image: "/lottuse.webp",          isActive: true,
-          productsCount: 67,
-          createdAt: "2023-02-01T09:20:00",
-          updatedAt: "2023-05-30T11:15:00",
-        },
-        {
-          id: 5,
-          name: "Books",
-          slug: "books",
-          image: "/lottuse.webp",          isActive: true,
-          productsCount: 234,
-          createdAt: "2023-02-05T14:30:00",
-          updatedAt: "2023-06-01T16:20:00",
-        },
-      ];
-
-      setCategories(mockCategories);
-    } catch (error) {
-      console.error("Error fetching categories:", error);
-      toast.error("Failed to load categories");
-    } finally {
-      setLoading(false);
+  // Handle sort changes separately
+  useEffect(() => {
+    if (sortConfig.key !== "name" || sortConfig.direction !== "asc") {
+      console.log("🚀 CategoriesPage: Sort changed, fetching with new sort");
+      dispatch(
+        fetchCategories({
+          search: searchQuery || undefined,
+          sortBy: sortConfig.key,
+          sortOrder: sortConfig.direction,
+          page: 1,
+          limit: 10,
+        })
+      );
     }
-  };
+  }, [sortConfig.key, sortConfig.direction, dispatch]);
 
-  const handleAddCategory = async (newCategory: NewCategory): Promise<void> => {
+  // Handle search query changes with ref to avoid dependency issues
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout>();
+
+  useEffect(() => {
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Set new timeout
+    searchTimeoutRef.current = setTimeout(() => {
+      console.log("🔍 CategoriesPage: Searching with query:", searchQuery);
+      dispatch(
+        fetchCategories({
+          search: searchQuery || undefined,
+          sortBy: sortConfig.key,
+          sortOrder: sortConfig.direction,
+          page: 1,
+          limit: 10,
+        })
+      );
+    }, 300);
+
+    // Cleanup on unmount
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery, dispatch]); // Only depend on searchQuery and dispatch
+
+  // Handle errors
+  useEffect(() => {
+    if (error) {
+      console.error("❌ CategoriesPage: Error occurred:", error);
+      toast.error(error);
+      dispatch(clearError());
+    }
+  }, [error, dispatch]);
+
+  const handleAddCategory = async (
+    category: Category | NewCategory
+  ): Promise<void> => {
     try {
-      // In a real app, you would call your API
-      // const response = await api.createCategory(newCategory)
+      console.log("🚀 CategoriesPage: Adding category:", category);
 
-      // Mock adding a category
-      const mockCategory: Category = {
-        id: categories.length + 1,
-        ...newCategory,
-        productsCount: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      const categoryData = category;
 
-      setCategories(prev => [...prev, mockCategory]);
+      // If there's an image file, we need to create category first, then upload image
+      if (category.image instanceof File) {
+        // First create category without image
+        const categoryWithoutImage = {
+          ...category,
+          image: null,
+        };
+
+        const createdCategory = await dispatch(
+          createCategory(categoryWithoutImage)
+        ).unwrap();
+
+        // Then upload image to the created category
+        const uploadResult = await dispatch(
+          uploadCategoryImages({
+            categoryId: createdCategory.id.toString(),
+            files: [category.image],
+          })
+        ).unwrap();
+
+        // Finally update the category with the image URL
+        await dispatch(
+          updateCategory({
+            id: createdCategory.id.toString(),
+            ...createdCategory,
+            image: uploadResult.url,
+          })
+        ).unwrap();
+      } else {
+        // No image file, just create the category
+        await dispatch(createCategory(categoryData)).unwrap();
+      }
+
       setIsAddCategoryOpen(false);
       toast.success("Category added successfully");
     } catch (error) {
       console.error("Error adding category:", error);
-      toast.error("Failed to add category");
     }
   };
 
-  const handleEditCategory = async (updatedCategory: Category): Promise<void> => {
+  const handleEditCategory = async (
+    updatedCategory: Category
+  ): Promise<void> => {
     try {
-      // In a real app, you would call your API
-      // await api.updateCategory(updatedCategory.id, updatedCategory)
-
-      // Mock updating a category
-      setCategories(prev =>
-        prev.map(category =>
-          category.id === updatedCategory.id ? updatedCategory : category
-        )
-      );
+      console.log("🚀 CategoriesPage: Updating category:", updatedCategory);
+      await dispatch(
+        updateCategory({
+          id: updatedCategory.id.toString(),
+          ...updatedCategory,
+        })
+      ).unwrap();
       setIsEditCategoryOpen(false);
-      setCurrentCategory(null);
+      dispatch(clearCurrentCategory());
       toast.success("Category updated successfully");
     } catch (error) {
       console.error("Error updating category:", error);
-      toast.error("Failed to update category");
     }
   };
 
-  const handleDeleteCategory = async (categoryId: number): Promise<void> => {
+  const handleDeleteCategory = async (categoryId: string): Promise<void> => {
     try {
-      const categoryToDelete = categories.find(cat => cat.id === categoryId);
-      
+      const categoryToDelete = categories.find((cat) => cat.id === categoryId);
+
       if (categoryToDelete && categoryToDelete.productsCount > 0) {
-        toast.error("Cannot delete a category with products. Please remove or reassign products first.");
+        toast.error(
+          "Cannot delete a category with products. Please remove or reassign products first."
+        );
         return;
       }
 
-      // In a real app, you would call your API
-      // await api.deleteCategory(categoryId)
-
-      // Mock deleting a category
-      setCategories(prev => prev.filter(category => category.id !== categoryId));
+      console.log("🚀 CategoriesPage: Deleting category:", categoryId);
+      await dispatch(deleteCategory(categoryId.toString())).unwrap();
       toast.success("Category deleted successfully");
     } catch (error) {
       console.error("Error deleting category:", error);
-      toast.error("Failed to delete category");
     }
   };
 
-  const handleStatusChange = async (categoryId: number, newStatus: boolean): Promise<void> => {
+  const handleStatusChange = async (
+    categoryId: string,
+    newStatus: boolean
+  ): Promise<void> => {
     try {
-      // In a real app, you would call your API
-      // await api.updateCategoryStatus(categoryId, newStatus)
-
-      // Mock updating category status
-      setCategories(prev =>
-        prev.map(category =>
-          category.id === categoryId 
-            ? { ...category, isActive: newStatus, updatedAt: new Date().toISOString() }
-            : category
-        )
+      console.log("🚀 CategoriesPage: Updating category status:", {
+        categoryId,
+        newStatus,
+      });
+      await dispatch(
+        updateCategoryStatus({
+          id: categoryId.toString(),
+          status: newStatus ? "ACTIVE" : "INACTIVE",
+        })
+      ).unwrap();
+      toast.success(
+        `Category ${newStatus ? "activated" : "deactivated"} successfully`
       );
-      toast.success(`Category ${newStatus ? "activated" : "deactivated"} successfully`);
     } catch (error) {
       console.error("Error updating category status:", error);
-      toast.error("Failed to update category status");
     }
   };
 
   const handleSort = (key: keyof Category): void => {
-    let direction: 'asc' | 'desc' = "asc";
+    let direction: "asc" | "desc" = "asc";
     if (sortConfig.key === key && sortConfig.direction === "asc") {
       direction = "desc";
     }
@@ -188,8 +287,18 @@ export default function CategoriesPage() {
   };
 
   const handleEditClick = (category: Category): void => {
-    setCurrentCategory(category);
+    console.log("🚀 CategoriesPage: Editing category:", category);
+    dispatch(setCurrentCategory(category));
     setIsEditCategoryOpen(true);
+  };
+
+  const handleCloseEditDialog = (): void => {
+    setIsEditCategoryOpen(false);
+    dispatch(clearCurrentCategory());
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
   };
 
   return (
@@ -200,15 +309,23 @@ export default function CategoriesPage() {
       </div>
 
       <div className="flex flex-col space-y-4">
-        <Card className="shadow-md  border-gray-300">
+        <Card className="shadow-md border-gray-300">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg md:text-2xl ">Product Categories</CardTitle>
-              <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
+              <CardTitle className="text-lg md:text-2xl">
+                Product Categories
+              </CardTitle>
+              <Dialog
+                open={isAddCategoryOpen}
+                onOpenChange={setIsAddCategoryOpen}
+              >
                 <DialogTrigger asChild>
-                  <Button className='flex cursor-pointer items-center px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 bg-gradient-to-r from-blue-600 to-cyan-500 hover:bg-gradient-to-r hover:from-blue-700 hover:to-cyan-600 text-white shadow-lg shadow-blue-500/25'>
+                  <Button
+                    className="flex cursor-pointer items-center px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 bg-gradient-to-r from-blue-600 to-cyan-500 hover:bg-gradient-to-r hover:from-blue-700 hover:to-cyan-600 text-white shadow-lg shadow-blue-500/25"
+                    disabled={creating}
+                  >
                     <Plus className="h-4 w-4" />
-                    <span>Add Category</span>
+                    <span>{creating ? "Adding..." : "Add Category"}</span>
                   </Button>
                 </DialogTrigger>
               </Dialog>
@@ -224,7 +341,7 @@ export default function CategoriesPage() {
                   placeholder="Search categories..."
                   className="pl-8"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={handleSearchChange}
                 />
               </div>
             </div>
@@ -232,13 +349,27 @@ export default function CategoriesPage() {
           <CardContent>
             <CategoryTable
               categories={categories}
-              loading={loading}
+              loading={loading || deleting}
               searchQuery={searchQuery}
               sortConfig={sortConfig}
               onSort={handleSort}
               onEdit={handleEditClick}
               onDelete={handleDeleteCategory}
               onStatusChange={handleStatusChange}
+              // Fix the pagination props to match your API response format
+              currentPage={pagination?.page || 1} // Use 'page' instead of 'currentPage'
+              totalPages={pagination?.pages || 1} // Use 'pages' instead of 'totalPages'
+              onPageChange={(page) => {
+                dispatch(
+                  fetchCategories({
+                    search: searchQuery || undefined,
+                    sortBy: sortConfig.key,
+                    sortOrder: sortConfig.direction,
+                    page: page,
+                    limit: 10,
+                  })
+                );
+              }}
             />
           </CardContent>
         </Card>
@@ -250,16 +381,14 @@ export default function CategoriesPage() {
         onClose={() => setIsAddCategoryOpen(false)}
         onSubmit={handleAddCategory}
         mode="add"
+        loading={creating}
       />
 
       {/* Edit Category Form */}
       <CategoryForm
         category={currentCategory || undefined}
         isOpen={isEditCategoryOpen}
-        onClose={() => {
-          setIsEditCategoryOpen(false);
-          setCurrentCategory(null);
-        }}
+        onClose={handleCloseEditDialog}
         onSubmit={(category) => {
           // Only proceed if category is a full Category (not NewCategory)
           if ("id" in category) {
@@ -267,9 +396,8 @@ export default function CategoriesPage() {
           }
         }}
         mode="edit"
+        loading={updating}
       />
     </div>
   );
-};
-
-
+}

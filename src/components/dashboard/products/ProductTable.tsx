@@ -1,11 +1,27 @@
-"use client"
+"use client";
 
-import { MoreHorizontal, ArrowUpDown, Eye, Edit, Copy, Check, X, Trash2 } from "lucide-react"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  MoreHorizontal,
+  ArrowUpDown,
+  Eye,
+  Edit,
+  Check,
+  X,
+  Trash2,
+  Loader2,
+} from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +29,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 import {
   Pagination,
   PaginationContent,
@@ -22,31 +38,15 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-} from "@/components/ui/pagination"
-import Link from "next/link"
-import { Category, Filters, Product } from "@/lib/types"
-import { PriceFormatter } from "@/components/reuse/FormatCurrency"
-import { getStatusBadgeColor, getStockStatus } from "./ProductBadge"
+} from "@/components/ui/pagination";
+import Link from "next/link";
+import { Product, ProductTableProps } from "@/types/products";
+import { PriceFormatter } from "@/components/reuse/FormatCurrency";
+import { getStatusBadgeColor } from "./ProductBadge";
 
-interface ProductTableProps {
-  products: Product[]
-  categories: Category[]
-  loading: boolean
-  selectedProducts: number[]
-  sortConfig: { key: string; direction: string }
-  currentPage: number
-  totalPages: number
-  searchQuery: string
-  filters: Filters
-  onSort: (key: string) => void
-  onSelectAll: (checked: boolean, products: Product[]) => void
-  onSelectProduct: (id: number) => void
-  onEdit: (product: Product) => void
-  onView: (product: Product) => void
-  onDelete: (id: number) => void
-  onStatusChange: (id: number, status: string) => void
-  onPaginate: (page: number) => void
-  onResetFilters: () => void
+export interface ExtendedProductTableProps
+  extends Omit<ProductTableProps, "onDuplicate"> {
+  bulkActionLoading?: boolean;
 }
 
 export function ProductTable({
@@ -66,29 +66,167 @@ export function ProductTable({
   onView,
   onDelete,
   onStatusChange,
-  // onDuplicate,
   onPaginate,
   onResetFilters,
-}: ProductTableProps) {
-
-
+  bulkActionLoading = false,
+}: ExtendedProductTableProps) {
   // Format date
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "-"
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) return "-"
+  const formatDate = (dateString: string | Date) => {
+    if (!dateString) return "-";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "-";
     return new Intl.DateTimeFormat("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
-    }).format(date)
-  }
+    }).format(date);
+  };
 
   // Get category name by ID
-  const getCategoryName = (categoryId: number | string) => {
-    const category = categories.find((cat) => cat.id === categoryId)
-    return category ? category.name : "Uncategorized"
-  }
+  // In ProductTable.tsx - Replace the existing getCategoryName function
+
+  const getCategoryName = (product: Product) => {
+    // First check if product has embedded category data
+    if (
+      product.category &&
+      typeof product.category === "object" &&
+      product.category.name
+    ) {
+      return product.category.name;
+    }
+
+    // Fallback to looking up by ID if no embedded data
+    if (!product.categoryId) return "Uncategorized";
+
+    if (!categories || !Array.isArray(categories) || categories.length === 0) {
+      return "Loading...";
+    }
+
+    const category = categories.find(
+      (cat) =>
+        cat && cat.id && cat.id.toString() === product.categoryId?.toString()
+    );
+
+    return category ? category.name : "Uncategorized";
+  };
+
+  // Get sort indicator
+  const getSortIcon = (column: string) => {
+    if (sortConfig?.key !== column) {
+      return <ArrowUpDown className="h-4 w-4 opacity-50" />;
+    }
+    return (
+      <ArrowUpDown
+        className={`h-4 w-4 ${
+          sortConfig.direction === "asc" ? "rotate-180" : ""
+        } transition-transform`}
+      />
+    );
+  };
+
+  // Check if filters are active
+  const hasActiveFilters =
+    searchQuery ||
+    Object.values(filters).some((val) => {
+      if (val === "all" || val == null || val === "") return false;
+      if (typeof val === "object" && val !== null) {
+        const min = (val as { min?: string | null }).min;
+        const max = (val as { max?: string | null }).max;
+        return (min && min !== "") || (max && max !== "");
+      }
+      return true;
+    });
+
+  // Handle pagination bounds
+  const renderPaginationItems = () => {
+    const items = [];
+    const showEllipsis = totalPages > 5;
+  
+    // Always show first page
+    items.push(
+      <PaginationItem key={1}>
+        <PaginationLink
+          isActive={currentPage === 1}
+          onClick={() => !loading && onPaginate(1)}
+          className={loading ? "pointer-events-none opacity-50" : "cursor-pointer"}
+        >
+          1
+        </PaginationLink>
+      </PaginationItem>
+    );
+  
+    if (showEllipsis) {
+      // Show ellipsis if current page is far from start
+      if (currentPage > 3) {
+        items.push(
+          <PaginationItem key="start-ellipsis">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+  
+      // Show pages around current page
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+  
+      for (let page = start; page <= end; page++) {
+        if (page !== 1 && page !== totalPages) {
+          items.push(
+            <PaginationItem key={page}>
+              <PaginationLink
+                isActive={page === currentPage}
+                onClick={() => !loading && onPaginate(page)}
+                className={loading ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              >
+                {page}
+              </PaginationLink>
+            </PaginationItem>
+          );
+        }
+      }
+  
+      // Show ellipsis if current page is far from end
+      if (currentPage < totalPages - 2) {
+        items.push(
+          <PaginationItem key="end-ellipsis">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+    } else {
+      // Show all pages if total is small
+      for (let page = 2; page < totalPages; page++) {
+        items.push(
+          <PaginationItem key={page}>
+            <PaginationLink
+              isActive={page === currentPage}
+              onClick={() => !loading && onPaginate(page)}
+              className={loading ? "pointer-events-none opacity-50" : "cursor-pointer"}
+            >
+              {page}
+            </PaginationLink>
+          </PaginationItem>
+        );
+      }
+    }
+  
+    // Always show last page if it's not the first page
+    if (totalPages > 1) {
+      items.push(
+        <PaginationItem key={totalPages}>
+          <PaginationLink
+            isActive={currentPage === totalPages}
+            onClick={() => !loading && onPaginate(totalPages)}
+            className={loading ? "pointer-events-none opacity-50" : "cursor-pointer"}
+          >
+            {totalPages}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    }
+  
+    return items;
+  };
 
   return (
     <>
@@ -98,35 +236,56 @@ export function ProductTable({
             <TableRow>
               <TableHead className="w-[40px]">
                 <Checkbox
-                  checked={products.length > 0 && selectedProducts.length === products.length}
-                  onCheckedChange={(checked) => onSelectAll(Boolean(checked), products)}
+                  checked={
+                    products.length > 0 &&
+                    selectedProducts.length === products.length
+                  }
+                  indeterminate={
+                    selectedProducts.length > 0 &&
+                    selectedProducts.length < products.length
+                  }
+                  onCheckedChange={(checked) =>
+                    onSelectAll(Boolean(checked), products)
+                  }
+                  disabled={loading || bulkActionLoading}
                 />
               </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => onSort("name")}>
+              <TableHead
+                className="cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => !loading && onSort("name")}
+              >
                 <div className="flex items-center gap-1">
                   Product
-                  <ArrowUpDown className="h-4 w-4" />
+                  {getSortIcon("name")}
                 </div>
               </TableHead>
-              <TableHead>SKU</TableHead>
-              <TableHead className="cursor-pointer" onClick={() => onSort("price")}>
+              {/* <TableHead>SKU</TableHead> */}
+              <TableHead
+                className="cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => !loading && onSort("fixedPrice")}
+              >
                 <div className="flex items-center gap-1">
                   Price
-                  <ArrowUpDown className="h-4 w-4" />
+                  {getSortIcon("fixedPrice")}
                 </div>
               </TableHead>
               <TableHead>Category</TableHead>
-              <TableHead className="cursor-pointer" onClick={() => onSort("quantity")}>
+              <TableHead
+                className="cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => !loading && onSort("status")}
+              >
                 <div className="flex items-center gap-1">
-                  Stock
-                  <ArrowUpDown className="h-4 w-4" />
+                  Status
+                  {getSortIcon("status")}
                 </div>
               </TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="cursor-pointer" onClick={() => onSort("updatedAt")}>
+              <TableHead
+                className="cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => !loading && onSort("updatedAt")}
+              >
                 <div className="flex items-center gap-1">
                   Updated
-                  <ArrowUpDown className="h-4 w-4" />
+                  {getSortIcon("updatedAt")}
                 </div>
               </TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -135,39 +294,42 @@ export function ProductTable({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-10">
-                  <div className="flex justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                <TableCell colSpan={8} className="text-center py-10">
+                  <div className="flex justify-center items-center gap-2">
+                    <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                    <span className="text-gray-600">Loading products...</span>
                   </div>
                 </TableCell>
               </TableRow>
             ) : products.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-10">
-                  {searchQuery ||
-                  Object.values(filters).some((val) => {
-                    if (val === "all" || val == null) return false;
-                    if (typeof val === "object" && val !== null) {
-                      // Check for min/max only if they exist and are not null/undefined
-                      const min = (val as { min?: number | null }).min;
-                      const max = (val as { max?: number | null }).max;
-                      return (min != null) || (max != null);
-                    }
-                    return true;
-                  }) ? (
-                    <div>
-                      <p>No products found matching your criteria</p>
-                      <Button variant="link" onClick={onResetFilters}>
-                        Reset filters
+                <TableCell colSpan={8} className="text-center py-10">
+                  {hasActiveFilters ? (
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-gray-600 font-medium">
+                          No products found
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          No products match your current filters
+                        </p>
+                      </div>
+                      <Button variant="outline" onClick={onResetFilters}>
+                        Clear all filters
                       </Button>
                     </div>
                   ) : (
-                    <div>
-                      <p>No products found</p>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-gray-600 font-medium">
+                          No products yet
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Get started by adding your first product
+                        </p>
+                      </div>
                       <Link href="/admin/add-products">
-                      <Button variant="link"  className="mt-2">
-                        Add your first product
-                      </Button>
+                        <Button className="mt-2">Add Product</Button>
                       </Link>
                     </div>
                   )}
@@ -175,109 +337,203 @@ export function ProductTable({
               </TableRow>
             ) : (
               products.map((product) => {
-                const stockStatus = getStockStatus(product.quantity)
+                const isSelected = selectedProducts.includes(product.id);
+
                 return (
-                  <TableRow key={product.id}>
+                  <TableRow
+                    key={product.id}
+                    className={`
+                      hover:bg-gray-50 transition-colors
+                      ${isSelected ? "bg-blue-50 border-blue-200" : ""}
+                      ${bulkActionLoading && isSelected ? "opacity-60" : ""}
+                    `}
+                  >
                     <TableCell>
                       <Checkbox
-                        checked={selectedProducts.includes(product.id)}
+                        checked={isSelected}
                         onCheckedChange={() => onSelectProduct(product.id)}
+                        disabled={loading || bulkActionLoading}
                       />
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9 rounded-sm">
                           <AvatarImage
-                            src={product.images[0] || "/placeholder.svg?height=36&width=36"}
+                            src={
+                              product.images?.[0] ||
+                              "/placeholder.svg?height=36&width=36"
+                            }
                             alt={product.name}
+                            className="object-cover"
                           />
-                          <AvatarFallback className="rounded-sm">
+                          <AvatarFallback className="rounded-sm bg-purple-100 text-purple-700">
                             {product.name.substring(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        <div>
-                          <div className="font-medium">{product.name}</div>
-                          {product.isFeatured || product.isTrending || product.isDealOfTheDay || product.isNewArrival  && (
-                            <Badge variant="outline" className="mt-1">
-                              Featured
-                            </Badge>
-                          )}
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className="font-medium truncate"
+                            title={product.name}
+                          >
+                            {product.name}
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {product.isFeatured && (
+                              <Badge
+                                variant="secondary"
+                                className="text-xs bg-yellow-100 text-yellow-800"
+                              >
+                                Featured
+                              </Badge>
+                            )}
+                            {product.isTrending && (
+                              <Badge
+                                variant="secondary"
+                                className="text-xs bg-green-100 text-green-800"
+                              >
+                                Trending
+                              </Badge>
+                            )}
+                            {product.isDealOfTheDay && (
+                              <Badge
+                                variant="secondary"
+                                className="text-xs bg-red-100 text-red-800"
+                              >
+                                Deal
+                              </Badge>
+                            )}
+                            {product.isNewArrival && (
+                              <Badge
+                                variant="secondary"
+                                className="text-xs bg-blue-100 text-blue-800"
+                              >
+                                New
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>{product.sku}</TableCell>
-                    
+                    {/* <TableCell>
+                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                        {product.sku || '-'}
+                      </code>
+                    </TableCell> */}
+
                     <TableCell>
-                      {product.priceType === "fixed"
-                        ? <PriceFormatter amount={product.fixedPrice  } showDecimals={true} />
-                        : product.unitPrices && product.unitPrices.length > 0
-                          ? product.unitPrices.map((unitPrice, idx) => (
-                              <span key={unitPrice.unit}>
-                                {unitPrice.unit}: <PriceFormatter amount={unitPrice.price} showDecimals={true} />
-                                {idx < product.unitPrices.length - 1 ? ", " : ""}
-                              </span>
-                            ))
-                          : "-"}
+                      {product.hasFixedPrice ? (
+                        <PriceFormatter
+                          amount={product.fixedPrice}
+                          showDecimals={true}
+                        />
+                      ) : product.unitPrices &&
+                        product.unitPrices.length > 0 ? (
+                        <div className="space-y-1">
+                          {product.unitPrices
+                            .slice(0, 2)
+                            .map((unitPrice, idx) => (
+                              <div key={unitPrice.unit} className="text-sm">
+                                <span className="font-medium">
+                                  {unitPrice.unit}:
+                                </span>{" "}
+                                <PriceFormatter
+                                  amount={unitPrice.price}
+                                  showDecimals={true}
+                                />
+                              </div>
+                            ))}
+                          {product.unitPrices.length > 2 && (
+                            <div className="text-xs text-gray-500">
+                              +{product.unitPrices.length - 2} more
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
                     </TableCell>
-                    <TableCell>{getCategoryName(product.categoryId ?? "")}</TableCell>
                     <TableCell>
-                      <Badge className={stockStatus.color} variant="outline">
-                        {product.quantity} in stock
+                      <span className="text-sm">
+                        {getCategoryName(product)}{" "}
+                        {/* Pass the full product object instead of just categoryId */}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={`${getStatusBadgeColor(
+                          product.status
+                        )} text-xs`}
+                        variant="outline"
+                      >
+                        {product.status === "ACTIVE"
+                          ? "Active"
+                          : product.status === "INACTIVE"
+                          ? "Inactive"
+                          : "Draft"}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStatusBadgeColor(product.status)} variant="outline">
-                        {product.status === "active" ? "Active" : product.status === "draft" ? "Draft" : "Out of Stock"}
-                      </Badge>
+                      <span className="text-sm text-gray-600">
+                        {formatDate(product.updatedAt)}
+                      </span>
                     </TableCell>
-                    <TableCell>{formatDate(product.updatedAt)}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="cursor-pointer">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 cursor-pointer"
+                            disabled={bulkActionLoading}
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                             <span className="sr-only">Open menu</span>
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-white">
+                        <DropdownMenuContent
+                          align="end"
+                          className="w-48 bg-white"
+                        >
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem className="cursor-pointer" onClick={() => onView(product)}>
+                          <DropdownMenuItem
+                            onClick={() => onView(product)}
+                            className="cursor-pointer"
+                          >
                             <Eye className="mr-2 h-4 w-4" />
                             View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="cursor-pointer" onClick={() => onEdit(product)}>
+                          <DropdownMenuItem
+                            onClick={() => onEdit(product)}
+                            className="cursor-pointer"
+                          >
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
-                          {/* <DropdownMenuItem onClick={() => onDuplicate(product)}>
-                            <Copy className="mr-2 h-4 w-4" />
-                            Duplicate
-                          </DropdownMenuItem> */}
                           <DropdownMenuSeparator />
                           <DropdownMenuLabel>Change Status</DropdownMenuLabel>
-                          <DropdownMenuItem className="cursor-pointer"
-                            onClick={() => onStatusChange(product.id, "active")}
-                            disabled={product.status === "active"}
+                          <DropdownMenuItem
+                            onClick={() => onStatusChange(product.id, "ACTIVE")}
+                            disabled={product.status === "ACTIVE"}
+                            className="cursor-pointer"
                           >
                             <Check className="mr-2 h-4 w-4" />
                             Mark as Active
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="cursor-pointer"
-                            onClick={() => onStatusChange(product.id, "draft")}
-                            disabled={product.status === "draft"}
-                          >
-                            <Edit className="mr-2 h-4 w-4" />
-                            Mark as Draft
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="cursor-pointer"
-                            onClick={() => onStatusChange(product.id, "out_of_stock")}
-                            disabled={product.status === "out_of_stock"}
+                          <DropdownMenuItem
+                            onClick={() =>
+                              onStatusChange(product.id, "INACTIVE")
+                            }
+                            disabled={product.status === "INACTIVE"}
+                            className="cursor-pointer"
                           >
                             <X className="mr-2 h-4 w-4" />
-                            Mark as Out of Stock
+                            Mark as Inactive
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600 cursor-pointer" onClick={() => onDelete(product.id)}>
+                          <DropdownMenuItem
+                            className="text-red-600 cursor-pointer"
+                            onClick={() => onDelete(product.id)}
+                          >
                             <Trash2 className="mr-2 h-4 w-4" />
                             Delete
                           </DropdownMenuItem>
@@ -285,60 +541,68 @@ export function ProductTable({
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                )
+                );
               })
             )}
           </TableBody>
         </Table>
       </div>
 
+      {/* Pagination */}
       {totalPages > 1 && (
-        <div className="mt-4 flex justify-center">
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            Showing {(currentPage - 1) * 10 + 1} to{" "}
+            {Math.min(currentPage * 10, products.length)} of {products.length}{" "}
+            results
+          </div>
           <Pagination>
             <PaginationContent>
               <PaginationItem>
                 <PaginationPrevious
                   onClick={() => onPaginate(Math.max(1, currentPage - 1))}
-                  aria-disabled={currentPage === totalPages}
-                  tabIndex={currentPage === totalPages ? -1 : 0}
-                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                  aria-disabled={currentPage === 1 || loading}
+                  className={`
+                    ${
+                      currentPage === 1 || loading
+                        ? "pointer-events-none opacity-50"
+                        : "cursor-pointer"
+                    }
+                  `}
                 />
               </PaginationItem>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
-                  return (
-                    <PaginationItem key={page}>
-                      <PaginationLink isActive={page === currentPage} onClick={() => onPaginate(page)}>
-                        {page}
-                      </PaginationLink>
-                    </PaginationItem>
-                  )
-                }
-                if ((page === 2 && currentPage > 3) || (page === totalPages - 1 && currentPage < totalPages - 2)) {
-                  return (
-                    <PaginationItem key={page}>
-                      <PaginationEllipsis />
-                    </PaginationItem>
-                  )
-                }
-                return null
-              })}
+              {renderPaginationItems()}
               <PaginationItem>
                 <PaginationNext
-                  onClick={() => {
-                    if (currentPage !== totalPages) {
-                      onPaginate(Math.min(totalPages, currentPage + 1))
+                  onClick={() =>
+                    onPaginate(Math.min(totalPages, currentPage + 1))
+                  }
+                  aria-disabled={currentPage === totalPages || loading}
+                  className={`
+                    ${
+                      currentPage === totalPages || loading
+                        ? "pointer-events-none opacity-50"
+                        : "cursor-pointer"
                     }
-                  }}
-                  aria-disabled={currentPage === totalPages}
-                  tabIndex={currentPage === totalPages ? +1 : 0}
-                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                  `}
                 />
               </PaginationItem>
             </PaginationContent>
           </Pagination>
         </div>
       )}
+
+      {/* Loading overlay for bulk actions */}
+      {bulkActionLoading && selectedProducts.length > 0 && (
+        <div className="fixed inset-0 bg-black/50 bg-opacity-20 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-4 shadow-lg flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
+            <span>
+              Processing {selectedProducts.length} selected products...
+            </span>
+          </div>
+        </div>
+      )}
     </>
-  )
+  );
 }

@@ -292,8 +292,45 @@ export async function handlePaystackPayment(user: any, calculatedData: any) {
               });
             } else {
               // Create new checkout for existing order
-              checkoutForRetry = await prisma.checkout.create({
-                data: {
+              checkoutForRetry = await prisma.checkout.upsert({
+                where: {
+                  orderId: existingOrder.id // This is the unique constraint field
+                },
+                update: {
+                  // Update all fields that should be refreshed for retry
+                  updatedAt: new Date(),
+                  sessionId: paymentResponse.data.reference,
+                  status: "PROCESSING",
+                  totalAmount: existingOrder.totalPrice,
+                  subtotal: existingOrder.subtotalPrice,
+                  taxAmount: existingOrder.totalTax,
+                  shippingAmount: existingOrder.totalShipping,
+                  discountAmount: existingOrder.totalDiscount,
+                  currency,
+                  shippingAddress: cleanShippingAddress,
+                  billingAddress: cleanBillingAddress,
+                  shippingMethod,
+                  paymentMethod: "paystack",
+                  paymentStatus: "PENDING",
+                  couponId,
+                  expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  userId: user.id,
+                  clerkId: user.clerkId,
+                  // Also update items by deleting old ones and creating new ones
+                  items: {
+                    deleteMany: {}, // Remove all existing items
+                    create: existingOrder.items.map((item) => ({
+                      productId: item.productId,
+                      title: item.title,
+                      quantity: item.quantity,
+                      fixedPrice: item.fixedPrice || null,
+                      unitPrice: item.unitPrice || null,
+                      selectedUnit: item.selectedUnit || null,
+                      totalPrice: item.totalPrice || item.price * item.quantity,
+                    })),
+                  },
+                },
+                create: {
                   userId: user.id,
                   clerkId: user.clerkId,
                   orderId: existingOrder.id,
@@ -323,6 +360,8 @@ export async function handlePaystackPayment(user: any, calculatedData: any) {
                       totalPrice: item.totalPrice || item.price * item.quantity,
                     })),
                   },
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
                 },
                 include: {
                   items: {

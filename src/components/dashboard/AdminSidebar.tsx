@@ -12,17 +12,14 @@ import {
   LogOut,
   X,
   ChevronDown,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { SidebarProps } from "@/types";
 
-export interface SidebarProps {
-  onClose?: () => void;
-  onNavigate: (path: string) => void;
-  currentPage: string;
-  onLogout: () => void;
-}
+
 
 export function Sidebar({
   onClose,
@@ -75,21 +72,21 @@ export function Sidebar({
       path: "orders",
       icon: ClipboardList,
     },
+    {
+      name: "Reviews",
+      path: "reviews",
+      icon: MessageSquare,
+    },
     // {
-    //   name: "Report",
-    //   path: "report",
-    //   icon: BarChart3,
+    //   name: "Invoices",
+    //   path: "invoices",
+    //   icon: FileText,
     // },
-    {
-      name: "Invoices",
-      path: "invoices",
-      icon: FileText,
-    },
-    {
-      name: "Settings",
-      path: "settings",
-      icon: Settings,
-    },
+    // {
+    //   name: "Settings",
+    //   path: "settings",
+    //   icon: Settings,
+    // },
   ];
 
   const handleNavigation = (path: string) => {

@@ -1,5 +1,5 @@
 // hooks/useInvoiceSort.ts
-import { UseInvoiceSortParams } from "@/lib/types";
+import { UseInvoiceSortParams } from "@/types";
 import { useMemo } from "react";
 
 

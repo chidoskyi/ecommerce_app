@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "react-toastify"
 import { Bell, Shield } from "lucide-react"
-import { NotificationSettings, SecurityData } from "@/lib/types"
+import { NotificationSettings, SecurityData } from "@/types"
 
 
 

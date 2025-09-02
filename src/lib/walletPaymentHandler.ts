@@ -2,6 +2,9 @@
 import prisma from "@/lib/prisma";
 import { walletService } from "@/lib/wallet";
 import { v4 as uuidv4 } from "uuid";
+import EmailService from "@/lib/emailService";
+
+const emailService = new EmailService();
 
 // Wallet payment handler with transaction management
 export async function handleWalletPayment(user: any, calculatedData: any) {
@@ -117,7 +120,6 @@ export async function handleWalletPayment(user: any, calculatedData: any) {
         paymentStatus: {
           in: ["PENDING", "FAILED", "UNPAID"],
         },
-
       },
       include: {
         items: {
@@ -266,15 +268,14 @@ export async function handleWalletPayment(user: any, calculatedData: any) {
               reconciled: true,
               reconciledAt: new Date(),
               metadata: {
-                set: {
+                set: { // Use 'set' as shown in the error message
                   orderId: existingOrder.id,
                   orderNumber: existingOrder.orderNumber,
                   customerEmail: userData.email,
                   paymentMethod: "wallet",
                   isRetry: true,
-                  walletTransactionId:
-                    walletPayment.paymentTransaction.transactionId,
-                },
+                  walletTransactionId: walletPayment.paymentTransaction.transactionId,
+                }
               },
               providerData: JSON.stringify({
                 walletPayment: walletPayment.paymentTransaction,
@@ -295,6 +296,29 @@ export async function handleWalletPayment(user: any, calculatedData: any) {
               paymentMethod: "wallet",
             },
           });
+
+          // Send confirmation email to customer
+          try {
+            if (updatedOrder.user && updatedOrder.user.email) {
+              console.log(
+                "Sending order confirmation email to:",
+                updatedOrder.user.email
+              );
+              await emailService.sendOrderConfirmation(
+                updatedOrder.user,
+                updatedOrder
+              );
+              console.log("Order confirmation email sent successfully");
+            } else {
+              console.warn("No user email found for order:", updatedOrder.id);
+            }
+          } catch (emailError) {
+            console.error(
+              "Failed to send order confirmation email:",
+              emailError
+            );
+            // Don't throw error here - payment was successful, email failure shouldn't break the flow
+          }
 
           // Update or create checkout
           let checkoutForRetry;
@@ -736,7 +760,7 @@ export async function handleWalletPayment(user: any, calculatedData: any) {
         data: {
           status: "FAILED",
           paymentStatus: "FAILED",
-          isActive: false
+          isActive: false,
         },
       });
 

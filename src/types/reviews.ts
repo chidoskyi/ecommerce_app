@@ -21,8 +21,15 @@ export interface Review {
     date: string;
     product: Product
     author?: string;
-    createdAt: Date;
-    updatedAt: Date;
+    createdAt: string;
+    updatedAt: string;
+  }
+
+  export interface ReviewsTableProps {
+    reviews: Review[];
+    loading: boolean;
+    error: string | null;
+    onRefresh: () => void;
   }
   
   export interface ReviewFormData {
@@ -46,12 +53,7 @@ export interface Review {
     isVerified?: boolean
     action?: 'approve' | 'reject'
   }
-  
-  export interface ReviewFilters {
-    status: ReviewStatus | 'all'
-    productId?: string
-    userId?: string
-  }
+
   
   export interface PaginationParams {
     page: number
@@ -163,3 +165,86 @@ export interface ReviewModalProps {
   error?: string | null;
 }
   
+
+
+export interface ReviewFilters {
+  productId?: string
+  userId?: string
+  page: number;
+  limit: number;
+  search?: string;
+  status: ReviewStatus | 'all'
+}
+
+export interface ReviewsResponse {
+  reviews: Review[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+  };
+  statusCounts: {
+    [key: string]: number;
+  };
+}
+
+export interface UpdateReviewPayload {
+  id: string;
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  isVerified?: boolean;
+  action?: 'approve' | 'reject';
+}
+
+export interface BulkReviewPayload {
+  action: 'approve' | 'reject' | 'delete';
+  reviewIds: string[];
+}
+
+export interface AdminReviewState {
+  reviews: Review[];
+  currentReview: Review | null;
+  loading: boolean;
+  error: string | null;
+  filters: ReviewFilters;
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+  };
+  statusCounts: {
+    [key: string]: number;
+  };
+  actionLoading: {
+    updating: string | null;
+    deleting: string | null;
+    bulkOperation: boolean;
+  };
+  selectedReviews: string[];
+}
+
+export const initialState: AdminReviewState = {
+  reviews: [],
+  currentReview: null,
+  loading: false,
+  error: null,
+  filters: {
+    page: 1,
+    limit: 20,
+    status: 'PENDING',
+  },
+  pagination: {
+    page: 1,
+    limit: 20,
+    totalCount: 0,
+    totalPages: 0,
+  },
+  statusCounts: {},
+  actionLoading: {
+    updating: null,
+    deleting: null,
+    bulkOperation: false,
+  },
+  selectedReviews: [],
+};

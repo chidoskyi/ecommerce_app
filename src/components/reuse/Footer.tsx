@@ -6,34 +6,39 @@ import { Facebook, Twitter, Instagram, MessageSquare } from "lucide-react";
 import React from "react";
 import { categoriesData } from "../../data/categories";
 import Link from "next/link";
+import Image from "next/image";
 
 function Footer() {
   return (
     // <div className=''>÷
-    <footer className="bg-white border-t border-gray-200 pt-12 pb-20 md:pb-12">
-      <Container>
+    <footer className="bg-orange-600 border-t border-gray-200 pt-12 pb-20 md:pb-12">
+      <Container >
         <div className="mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
             {/* Logo */}
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-orange-600 rounded flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">f</span>
-                </div>
-                <span className="text-xl font-bold text-gray-900">eedMe</span>
+              <Link href="/">
+              <div className="flex items-center gap-2 mb-4 bg-">
+              <Image
+                  src="/shop-grocery.png"
+                  alt="shop grocery"
+                  width={300}
+                  height={50}
+                />
               </div>
-              <p className="text-gray-600 text-sm">Real Food. Real Fast.</p>
+              </Link>
+              <p className="text-white text-sm">Real Food. Real Fast.</p>
             </div>
 
             {/* Categories */}
             <div>
-              <h3 className="font-bold text-gray-900 mb-4">CATEGORIES</h3>
-              <ul className="space-y-2 text-sm text-gray-600">
+              <h3 className="font-bold text-white mb-4">CATEGORIES</h3>
+              <ul className="space-y-2 text-sm text-white">
                 {categoriesData.map((category, index) => (
                   <li key={index}>
                     <Link
                       href={`/category/${category.slug}`}
-                      className="hover:text-orange-600"
+                      className=""
                     >
                       {category.name}
                     </Link>
@@ -42,28 +47,27 @@ function Footer() {
               </ul>
             </div>
 
-
             {/* Company */}
             <div>
-              <h3 className="font-bold text-gray-900 mb-4">COMPANY</h3>
-              <ul className="space-y-2 text-sm text-gray-600">
+              <h3 className="font-bold text-white mb-4">COMPANY</h3>
+              <ul className="space-y-2 text-sm text-white">
                 <li>
-                  <a href="#" className="hover:text-green-600">
+                  <a href="#" className="hover:text-gray-300">
                     Community
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-green-600">
+                  <a href="#" className="hover:text-gray-300">
                     Career
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-green-600">
+                  <a href="#" className="hover:text-gray-300">
                     Press Releases
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-green-600">
+                  <a href="#" className="hover:text-gray-300">
                     Contact Us
                   </a>
                 </li>
@@ -72,20 +76,20 @@ function Footer() {
 
             {/* Get Help */}
             <div>
-              <h3 className="font-bold text-gray-900 mb-4">GET HELP</h3>
-              <ul className="space-y-2 text-sm text-gray-600">
+              <h3 className="font-bold text-white mb-4">GET HELP</h3>
+              <ul className="space-y-2 text-sm text-white">
                 <li>
-                  <a href="#" className="hover:text-green-600">
+                  <a href="#" className="hover:text-gray-300">
                     Help Center
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-green-600">
+                  <a href="#" className="hover:text-gray-300">
                     Send An Email
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-green-600">
+                  <a href="#" className="hover:text-gray-300">
                     Account & Logistics
                   </a>
                 </li>
@@ -94,15 +98,15 @@ function Footer() {
 
             {/* Legal */}
             <div>
-              <h3 className="font-bold text-gray-900 mb-4">LEGAL</h3>
-              <ul className="space-y-2 text-sm text-gray-600">
+              <h3 className="font-bold text-white mb-4">LEGAL</h3>
+              <ul className="space-y-2 text-sm text-white">
                 {/* <li>
                   <a href="#" className="hover:text-green-600">
                     Terms
                   </a>
                 </li> */}
                 <li>
-                  <a href="/privacy-policy" className="hover:text-green-600">
+                  <a href="/privacy-policy" className="hover:text-gray-300">
                     Privacy Policy
                   </a>
                 </li>
@@ -110,8 +114,8 @@ function Footer() {
             </div>
           </div>
 
-          <div className="border-t border-gray-200 mt-8 pt-8 flex flex-col md:flex-row items-center justify-between pb-0">
-            <p className="text-center text-sm text-gray-500 mb-4 md:mb-0">
+          <div className="border-t border-white mt-8 pt-8 flex flex-col md:flex-row items-center justify-between pb-0">
+            <p className="text-center text-sm text-white mb-4 md:mb-0">
               &copy; {new Date().getFullYear()} Francis Online Store. All rights
               reserved.
             </p>
@@ -119,28 +123,28 @@ function Footer() {
               <a
                 href="#"
                 aria-label="Facebook"
-                className="text-gray-400 hover:text-orange-600 transition-colors"
+                className="text-white hover:text-gray-300 transition-colors"
               >
                 <Facebook className="w-6 h-6" />
               </a>
               <a
                 href="#"
                 aria-label="Twitter"
-                className="text-gray-400 hover:text-orange-600 transition-colors"
+                className="text-white hover:text-gray-300 transition-colors"
               >
                 <Twitter className="w-6 h-6" />
               </a>
               <a
                 href="#"
                 aria-label="Instagram"
-                className="text-gray-400 hover:text-orange-600 transition-colors"
+                className="text-white hover:text-gray-300 transition-colors"
               >
                 <Instagram className="w-6 h-6" />
               </a>
               <a
                 href="#"
                 aria-label="WhatsApp"
-                className="text-gray-400 hover:text-orange-600 transition-colors"
+                className="text-white hover:text-gray-300 transition-colors"
               >
                 <MessageSquare className="w-6 h-6" />
               </a>

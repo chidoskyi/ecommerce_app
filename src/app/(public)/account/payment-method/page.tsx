@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PaymentMethod } from "@/lib/types";
+import { PaymentMethod } from "@/types";
 import { Badge, Trash2 } from "lucide-react";
 
 

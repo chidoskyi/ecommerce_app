@@ -12,9 +12,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 
-interface ProductActionsProps {
-  selectedProducts: number[]
+export interface ProductActionsProps {
+  selectedProducts: string[]
   onBulkAction: (action: string) => void
+  disabled?: boolean;
 }
 
 export function ProductActions({ selectedProducts, onBulkAction }: ProductActionsProps) {
@@ -34,14 +35,14 @@ export function ProductActions({ selectedProducts, onBulkAction }: ProductAction
               <Check className="mr-2 h-4 w-4" />
               Mark as Active
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onBulkAction("draft")}>
+            <DropdownMenuItem onClick={() => onBulkAction("inactive")}>
               <Edit className="mr-2 h-4 w-4" />
-              Mark as Draft
+              Mark as Inactive
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onBulkAction("out_of_stock")}>
+            {/* <DropdownMenuItem onClick={() => onBulkAction("out_of_stock")}>
               <X className="mr-2 h-4 w-4" />
               Mark as Out of Stock
-            </DropdownMenuItem>
+            </DropdownMenuItem> */}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-red-600" onClick={() => onBulkAction("delete")}>
               <Trash2 className="mr-2 h-4 w-4" />
@@ -52,7 +53,7 @@ export function ProductActions({ selectedProducts, onBulkAction }: ProductAction
       )}
 
       <Link href="/admin/add-products">
-        <Button className="cursor-pointer flex items-center gap-1">
+        <Button className="cursor-pointer flex items-center gap-1 bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/25">
           <Plus className="h-4 w-4" />
           <span>Add Product</span>
         </Button>

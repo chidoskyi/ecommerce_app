@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { HeaderProps } from "@/lib/types";
+import { HeaderProps } from "@/types";
 import { DesktopHeader, MobileHeader, MobileSidebar } from "./NavBar";
 import TopBanner from "./TopBanner";
 import Container from "./Container";
@@ -103,15 +103,6 @@ const Header: React.FC<HeaderProps> = () => {
       prevAuthState.isSignedIn !== isSignedIn ||
       prevAuthState.userId !== userId;
 
-    console.log("🔐 Authentication state:", {
-      isAuthenticated,
-      userId,
-      authStateChanged,
-      prevAuthState,
-      currentItems: cartItems.length,
-      currentUserIdentification: userIdentification,
-    });
-
     // Update Redux authentication state
     dispatch(
       setAuthenticated({
@@ -122,7 +113,6 @@ const Header: React.FC<HeaderProps> = () => {
 
     if (isAuthenticated && userId && authStateChanged) {
       // User just logged in
-      console.log("🔄 User logged in - handling cart merge");
       
       // FIXED: Get guest ID BEFORE any storage changes
       const currentGuestId = StorageUtil.getGuestIdForMerge();
@@ -158,14 +148,10 @@ const Header: React.FC<HeaderProps> = () => {
         dispatch(fetchCart({ userId, guestId: null }));
       }
     } else if (!isAuthenticated && prevAuthState.isSignedIn) {
-      // User just signed out
-      console.log("👋 User signed out, switching to guest mode");
       
       const newGuestId = StorageUtil.switchToGuestMode();
       dispatch(fetchCart({ userId: null, guestId: newGuestId }));
     } else if (!isAuthenticated && !userIdentification.guestId) {
-      // First time visitor or missing guest ID
-      console.log("🆕 Setting up guest session");
       
       const guestId = StorageUtil.getGuestId(); // This will generate if needed
       dispatch(fetchCart({ userId: null, guestId }));
@@ -185,23 +171,13 @@ const Header: React.FC<HeaderProps> = () => {
     const storedUserId = StorageUtil.getUserId();
     const storedGuestId = StorageUtil.getGuestId();
 
-    console.log("🔍 Syncing storage with Redux:", {
-      storedUserId,
-      storedGuestId,
-      reduxUserId: userIdentification.userId,
-      reduxGuestId: userIdentification.guestId,
-      isSignedIn,
-    });
-
     // Only sync if there's a clear mismatch
     if (isSignedIn && clerkUser?.id) {
       if (storedUserId !== clerkUser.id) {
-        console.log("🔧 Fixing userId storage mismatch");
         StorageUtil.switchToUserMode(clerkUser.id);
       }
     } else if (!isSignedIn) {
       if (storedUserId || !storedGuestId) {
-        console.log("🔧 Fixing guest storage setup");
         StorageUtil.switchToGuestMode();
       }
     }
@@ -211,7 +187,6 @@ const Header: React.FC<HeaderProps> = () => {
   useEffect(() => {
     const handleCartRefresh = () => {
       if (isSignedIn && clerkUser?.id) {
-        console.log("🔄 Manual cart refresh triggered");
         StorageUtil.switchToUserMode(clerkUser.id);
         dispatch(fetchCart({ userId: clerkUser.id, guestId: null }));
       }
@@ -353,15 +328,6 @@ const Header: React.FC<HeaderProps> = () => {
     const storageGuestId = StorageUtil.getGuestIdForMerge() || StorageUtil.getGuestId();
     const reduxUserId = userIdentification.userId;
     const reduxGuestId = userIdentification.guestId;
-    
-    console.log("🔍 User identification check:", {
-      storageUserId,
-      storageGuestId,
-      reduxUserId,
-      reduxGuestId,
-      clerkUserId: clerkUser?.id,
-      isSignedIn
-    });
 
     // Priority order: Clerk user > Storage > Redux
     let finalUserId: string | null = null;
@@ -374,13 +340,11 @@ const Header: React.FC<HeaderProps> = () => {
       
       // Ensure storage is in sync
       if (storageUserId !== clerkUser.id) {
-        console.log("🔧 Syncing storage with authenticated user");
         StorageUtil.setUserMode(clerkUser.id);
       }
       
       // Ensure Redux is in sync
       if (reduxUserId !== clerkUser.id) {
-        console.log("🔧 Syncing Redux with authenticated user");
         dispatch(setAuthenticated({
           isAuthenticated: true,
           userId: clerkUser.id,
@@ -393,7 +357,6 @@ const Header: React.FC<HeaderProps> = () => {
       
       // If no guest ID exists anywhere, create one
       if (!finalGuestId) {
-        console.log("⚠️ Creating new guest ID for cart operation");
         finalGuestId = StorageUtil.generateAndSetGuestId();
         dispatch(setAuthenticated({
           isAuthenticated: false,
@@ -402,22 +365,10 @@ const Header: React.FC<HeaderProps> = () => {
       }
     }
 
-    console.log("✅ Final user identification:", { 
-      userId: finalUserId, 
-      guestId: finalGuestId 
-    });
-
     return { userId: finalUserId, guestId: finalGuestId };
   };
 
   const handleUpdateQuantity = (itemId: string, newQuantity: number): void => {
-    console.log("🛒 handleUpdateQuantity called:", {
-      itemId,
-      newQuantity,
-      currentUserIdentification: userIdentification,
-      isSignedIn,
-      clerkUserId: clerkUser?.id
-    });
 
     if (!itemId || newQuantity < 0) {
       console.error("❌ Invalid parameters for updateQuantity");

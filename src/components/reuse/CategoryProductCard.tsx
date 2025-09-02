@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { ProductCardProps } from "../../lib/types";
+import { ProductCardProps } from "../../types";
 import { Heart, Minus, ShoppingCart } from "lucide-react";
 import React, { useState } from "react";
 import Link from "next/link";

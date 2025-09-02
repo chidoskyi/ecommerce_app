@@ -12,6 +12,7 @@ import {
   User,
   ChevronDown,
   UserCog,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,20 +25,57 @@ import {
   DesktopHeaderProps,
   MobileHeaderProps,
   WishButtonProps,
-} from "@/lib/types";
+} from "@/types";
 import { CartButtonProps } from "@/types/carts";
 import { UserDropdownProps } from "@/types/users";
 import SearchDropdown from "./SearchDropDown";
 import { useProducts } from "@/app/store/slices/productSlice";
+import { useDispatch, useSelector } from 'react-redux'
+import { selectIsAdmin, selectUser, selectIsLoading, selectError, fetchUser, clearUser } from '@/app/store/slices/userSlice';
+import Image from "next/image";
+
+interface UserLink {
+  icon: React.ReactNode;
+  text: string;
+  link: string;
+  isAdmin?: boolean;
+}
+
+const userLinks = [
+  {
+    icon: <User className="w-5 h-5" />,
+    text: "Account Settings",
+    link: "/account/profile",
+  },
+  {
+    icon: <Package className="w-5 h-5" />,
+    text: "My Orders",
+    link: "/account/orders",
+  },
+  {
+    icon: <Wallet className="w-5 h-5" />,
+    text: "Wallet",
+    link: "/account/wallet",
+  },
+  {
+    icon: <Heart className="w-5 h-5" />,
+    text: "Favorites",
+    link: "/account/wishlist",
+  },
+];
 
 // Logo Component
 export const Logo: React.FC = () => (
   <div className="flex items-center gap-2">
     <Link href="/" className="flex items-center gap-2">
-      <div className="w-8 h-8 bg-green-600 rounded flex items-center justify-center">
-        <span className="text-white font-bold text-sm">f</span>
+      <div className="w-40 h-8 rounded flex items-center justify-center">
+        <Image
+        src="/shop-grocery.png"
+        alt="shop grocery"
+        width={300}
+        height={50}
+        />
       </div>
-      <span className="text-xl font-bold text-gray-900">eedMe</span>
     </Link>
   </div>
 );
@@ -178,16 +216,76 @@ export const WishButton: React.FC<WishButtonProps> = ({
   </>
 );
 
-// User Dropdown Component
 export const UserDropdown: React.FC<UserDropdownProps> = ({
   isSignedIn,
   showDropdown,
   setShowDropdown,
   handleSignIn,
-  handleLogout,
-  user,
+  handleLogout: originalHandleLogout,
+  user: propUser,
 }) => {
   const [mouseLeaveTimeout, setMouseLeaveTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [lastSignInState, setLastSignInState] = useState<boolean>(false);
+  
+  // Redux selectors for admin status and user data
+  const dispatch = useDispatch();
+  const isAdmin = useSelector(selectIsAdmin);
+  const reduxUser = useSelector(selectUser);
+  const isUserLoading = useSelector(selectIsLoading);
+  const userError = useSelector(selectError);
+  
+  // Use Redux user data if available, fallback to props
+  const user = reduxUser || propUser;
+
+  // Enhanced logout handler that clears Redux state
+  const handleLogout = () => {
+    // Clear Redux user state first
+    dispatch(clearUser());
+    // Then call the original logout handler
+    originalHandleLogout();
+    // Reset local state
+    setLastSignInState(false);
+  };
+
+  // Enhanced sign-in handler that clears previous user data
+  const handleSignInWithCleanup = () => {
+    // Clear any existing user data to prevent state conflicts
+    dispatch(clearUser());
+    // Call the original sign-in handler
+    handleSignIn();
+  };
+
+  // Detect sign-in state changes and handle user switching
+  useEffect(() => {
+    // If user just signed in (state changed from false to true)
+    if (isSignedIn && !lastSignInState) {
+      dispatch(clearUser()); // Clear any stale user data
+      setLastSignInState(true);
+    }
+    // If user signed out (state changed from true to false)
+    else if (!isSignedIn && lastSignInState) {
+      dispatch(clearUser());
+      setLastSignInState(false);
+    }
+  }, [isSignedIn, lastSignInState, dispatch]);
+
+  // Fetch user data when signed in
+  useEffect(() => {
+    if (isSignedIn && !reduxUser && !isUserLoading && !userError) {
+      dispatch(fetchUser() as any);
+    }
+  }, [isSignedIn, reduxUser, isUserLoading, userError, dispatch]);
+
+  // Alternative: Force refetch on every sign-in state change (more aggressive approach)
+  // Uncomment this and comment out the above useEffect if you want to always refetch
+  /*
+  useEffect(() => {
+    if (isSignedIn && !isUserLoading) {
+      console.log('🔐 UserDropdown: Force fetching user data...');
+      dispatch(fetchUser() as any);
+    }
+  }, [isSignedIn, dispatch]);
+  */
 
   const handleMouseEnter = () => {
     if (mouseLeaveTimeout) {
@@ -200,13 +298,13 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
   const handleMouseLeave = () => {
     const timeout = setTimeout(() => {
       setShowDropdown(false);
-    }, 100); // Small delay
+    }, 100);
     setMouseLeaveTimeout(timeout);
   };
 
   // Define user links with conditional admin link
-  const getUserLinks = () => {
-    const baseLinks = [
+  const getUserLinks = (): UserLink[] => {
+    const baseLinks: UserLink[] = [
       {
         icon: <User className="w-5 h-5" />,
         text: "Account Settings",
@@ -229,15 +327,14 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
       },
     ];
 
-    // Check if user is admin - adjust this condition based on your user object structure
-    const isAdmin = user?.role === "ADMIN" || user?.isAdmin === true || user?.email === "admin@yoursite.com";
-
+    // Add admin link if user is admin
     if (isAdmin) {
       return [
         {
-          icon: <UserCog className="w-5 h-5" />,
-          text: "Admin",
+          icon: <UserCog className="w-5 h-5 text-orange-600" />,
+          text: "Admin Dashboard",
           link: "/admin",
+          isAdmin: true, // Flag for special styling
         },
         ...baseLinks,
       ];
@@ -246,13 +343,25 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
     return baseLinks;
   };
 
+  // Show loading state while fetching user data
+  if (isSignedIn && isUserLoading) {
+    return (
+      <motion.div
+        className="w-12 h-12 bg-gray-200 rounded-full animate-pulse"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      />
+    );
+  }
+
+  // Show sign-in button for non-authenticated users
   if (!isSignedIn) {
     return (
       <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
         <Button
           variant="outline"
           className="rounded-full text-gray-100 bg-transparent cursor-pointer"
-          onClick={handleSignIn}
+          onClick={handleSignInWithCleanup}
         >
           Sign In
         </Button>
@@ -260,12 +369,9 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
     );
   }
 
-  const displayName = user?.name || "User";
-  const displayInitial = user?.initial || "U";
+  const displayName = user?.firstName || "User";
+  const displayInitial = user?.initial || user?.name?.charAt(0)?.toUpperCase() || "U";
   const userLinks = getUserLinks();
-
-  // Console log the user object for debugging
-  console.log("User object:", user);
 
   return (
     <motion.div
@@ -279,18 +385,33 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
         whileHover={{ backgroundColor: "#16a34a" }}
       >
         <motion.div
-          className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center"
+          className={`w-8 h-8 ${isAdmin ? 'bg-purple-600' : 'bg-purple-600'} rounded-full flex items-center justify-center relative`}
           whileHover={{ rotate: 10 }}
           whileTap={{ rotate: -10 }}
         >
           <span className="text-white font-bold text-sm">{displayInitial}</span>
+          {isAdmin && (
+            <motion.div
+              className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full border border-white"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Shield className="w-2 h-2 text-orange-600 m-0.5" />
+            </motion.div>
+          )}
         </motion.div>
 
-        {/* 👇 User Icon (visible below md) */}
+        {/* User Icon (visible below md) */}
         <User className="block lg:hidden w-5 h-5 text-white" />
 
-        {/* 👇 Display name (hidden below md) */}
-        <span className="hidden lg:inline text-sm">Hello, {displayName}</span>
+        {/* Display name with admin indicator (hidden below md) */}
+        <div className="hidden lg:flex flex-col items-start">
+          <span className="text-sm">Hello, {displayName}</span>
+          {isAdmin && (
+            <span className="text-xs text-green-200">Administrator</span>
+          )}
+        </div>
 
         <motion.div
           animate={{ rotate: showDropdown ? 180 : 0 }}
@@ -324,10 +445,11 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
             >
+              {/* User Info Header */}
               <div className="px-6 py-4 border-b border-gray-100">
                 <div className="flex flex-col items-center">
                   <motion.div
-                    className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mb-3"
+                    className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mb-3 relative"
                     initial={{ scale: 0.8 }}
                     animate={{ scale: 1 }}
                     transition={{ delay: 0.1 }}
@@ -335,7 +457,18 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
                     <span className="text-white font-bold text-xl">
                       {displayInitial}
                     </span>
+                    {isAdmin && (
+                      <motion.div
+                        className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full border-2 border-white flex items-center justify-center"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: 0.3 }}
+                      >
+                        <Shield className="w-3 h-3 text-orange-600" />
+                      </motion.div>
+                    )}
                   </motion.div>
+                  
                   <motion.h3
                     className="text-lg font-semibold text-gray-900"
                     initial={{ y: 5, opacity: 0 }}
@@ -344,9 +477,33 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
                   >
                     {displayName}
                   </motion.h3>
+                  
+                  {user?.email && (
+                    <motion.p
+                      className="text-sm text-gray-500"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.18 }}
+                    >
+                      {user.email}
+                    </motion.p>
+                  )}
+                  
+                  {isAdmin && (
+                    <motion.span 
+                      className="mt-2 px-3 py-1 bg-orange-100 text-orange-800 text-xs rounded-full font-medium flex items-center gap-1"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      <Shield className="w-3 h-3" />
+                      Administrator
+                    </motion.span>
+                  )}
                 </div>
               </div>
 
+              {/* Navigation Links */}
               <div className="py-2">
                 {userLinks.map((item, index) => (
                   <motion.div
@@ -358,18 +515,28 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
                   >
                     <Link
                       href={item.link}
-                      className="flex items-center gap-3 px-6 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
+                      className={`flex items-center gap-3 px-6 py-3 text-gray-700 hover:bg-gray-100 transition-colors ${
+                        item.isAdmin ? 'bg-orange-50 border-l-4 border-orange-500' : ''
+                      }`}
                       onClick={(e) => {
                         e.stopPropagation();
                         setShowDropdown(false);
                       }}
                     >
                       {item.icon}
-                      <span>{item.text}</span>
+                      <span className={item.isAdmin ? 'font-medium text-orange-700' : ''}>
+                        {item.text}
+                      </span>
+                      {item.isAdmin && (
+                        <span className="ml-auto text-xs bg-orange-200 text-orange-700 px-2 py-1 rounded">
+                          Admin
+                        </span>
+                      )}
                     </Link>
                   </motion.div>
                 ))}
 
+                {/* Logout Button */}
                 <div className="border-t border-gray-100 mt-2 pt-2">
                   <motion.button
                     onClick={(e) => {
@@ -378,7 +545,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
                       setShowDropdown(false);
                       setTimeout(() => handleLogout(), 100);
                     }}
-                    className="cursor-pointer flex items-center gap-3 px-6 py-3 text-gray-700 hover:bg-gray-50 transition-colors w-full text-left"
+                    className="cursor-pointer flex items-center gap-3 px-6 py-3 text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors w-full text-left"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.3 }}

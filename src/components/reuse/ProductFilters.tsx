@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import Slider from "rc-slider";
 import "rc-slider/assets/index.css";
 import { Button } from "@/components/ui/button";
-import { ProductFiltersMobileProps, ProductFiltersProps } from "@/lib/types";
+import { ProductFiltersMobileProps, ProductFiltersProps } from "@/types";
 import { useProducts } from "@/app/store/slices/productSlice";
 import { useCategories } from "@/app/store/slices/categorySlice";
 import { debounce } from "lodash";

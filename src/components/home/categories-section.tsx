@@ -33,14 +33,17 @@ export default function CategoriesSection() {
   const swiperRef = useRef<any>(null);
 
   // Memoized retry handler
-  const handleRetry = useCallback(() => {
-    dispatch(fetchCategories({ 
-      limit: 14, 
-      status: CategoryStatus.ACTIVE,
-      sortBy: 'name',
-      sortOrder: 'asc'
-    }));
-  }, [dispatch]);
+  useEffect(() => {
+    console.log("🚀 CategoriesPage: Initial fetchCategories");
+    dispatch(
+      fetchCategories({
+        sortBy: "name",
+        sortOrder: "asc",
+        page: 1,
+        limit: 10,
+      })
+    );
+  }, [dispatch]); // Only depend on dispatch
 
   // Fetch categories on component mount
   useEffect(() => {
@@ -186,18 +189,19 @@ export default function CategoriesSection() {
                      ''
                     } rounded-2xl bg-gray-100 p-2 mb-3 hover:shadow-md transition-all duration-300 cursor-pointer group-hover:scale-105`}
                   >
-                    <Image
-                      src={category.image || '/placeholder-category.svg'}
-                      loading="lazy"
-                      alt={category.name}
-                      width={200}
-                      height={130}
-                      className="mx-auto object-contain transition-transform duration-300 group-hover:scale-110"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = '/placeholder-category.svg';
-                      }}
-                    />
+<Image
+  src={category.image || '/placeholder-category.svg'}
+  loading="lazy"
+  alt={category.name}
+  width={200}
+  height={130}
+  className="mx-auto h-[130px] w-[200px] object-cover transition-transform duration-300 group-hover:scale-110"
+  onError={(e) => {
+    const target = e.target as HTMLImageElement
+    target.src = '/placeholder-category.svg'
+  }}
+/>
+
                   </div>
                   <h3 className="text-sm font-medium text-gray-900 group-hover:text-orange-600 transition-colors duration-200">
                     {category.name}

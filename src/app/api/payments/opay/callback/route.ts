@@ -173,14 +173,16 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const reference = searchParams.get('reference')
+    const reference = searchParams.get("reference");
+    const trxref = searchParams.get("trxref");
+    const paymentReference = reference || trxref;
 
     if (!reference) {
       return NextResponse.json({ error: 'Payment reference is required' }, { status: 400 })
     }
 
     // Verify payment with Opay
-    const paymentVerification = await opayService.verifyPayment(reference)
+    const paymentVerification = await opayService.verifyPayment(paymentReference)
     
     if (!paymentVerification.success) {
       return NextResponse.json({ 

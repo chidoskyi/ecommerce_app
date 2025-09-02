@@ -2,12 +2,6 @@
 import prisma from "@/lib/prisma";
 import { opayService } from "@/lib/opay";
 import { v4 as uuidv4 } from "uuid";
-import {
-  CheckoutStatus,
-  PaymentStatus,
-  OrderStatus,
-  InvoiceStatus,
-} from "@prisma/client";
 
 // Opay payment handler with transaction management
 export async function handleOpayPayment(user: any, calculatedData: any) {
@@ -250,12 +244,12 @@ export async function handleOpayPayment(user: any, calculatedData: any) {
                 status: "PENDING",
                 description: `Opay payment retry for order ${existingOrder.orderNumber}`,
                 metadata: {
-                  orderId: existingOrder.id,
+                 orderId: existingOrder.id,
                   orderNumber: existingOrder.orderNumber,
                   customerEmail: userData.email,
                   paymentMethod: "opay",
-                  opayOrderNo: paymentResponse.data.orderNo,
                   isRetry: true,
+                  
                 },
                 providerData: JSON.stringify({
                   cashierUrl: paymentResponse.data.cashierUrl,
@@ -619,11 +613,10 @@ export async function handleOpayPayment(user: any, calculatedData: any) {
           status: "PENDING",
           description: `Opay payment for order ${orderNumber}`,
           metadata: {
-            orderId: order.id,
+              orderId: order.id,
             orderNumber: orderNumber,
             customerEmail: userData.email,
             paymentMethod: "opay",
-            opayOrderNo: paymentResponse.data.orderNo,
             isRetry: false,
           },
           providerData: JSON.stringify({

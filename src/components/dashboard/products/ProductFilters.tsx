@@ -12,21 +12,22 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
+import { 
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
-import { Category, Filters, Product } from "@/lib/types";
+import { Category } from "@/types/categories";
+import {  Product, ProductFilters as ProductFiltersType } from "@/types/products";
 import { useState } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import type { DateRange } from "react-day-picker";
 
-interface ProductFiltersProps {
+export interface ProductFiltersProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  filters: Filters & { priceType?: string };
+  filters: ProductFiltersType & { priceType?: string };
   categories: Category[];
   products: Product[];
   activeTab: string;
@@ -86,14 +87,14 @@ export function ProductFilters({
               {Object.values(filters).some(
                 (val) =>
                   val !== "all" &&
-                  (typeof val === "object" ? val.min || val.max : true)
+                  (typeof val === "object" ? val.minPrice || val.maxPrice : true)
               ) && (
                 <Badge variant="secondary" className="ml-1 px-1 py-0 h-5">
                   {
                     Object.values(filters).filter(
                       (val) =>
                         val !== "all" &&
-                        (typeof val === "object" ? val.min || val.max : true)
+                        (typeof val === "object" ? val.minPrice || val.maxPrice : true)
                     ).length
                   }
                 </Badge>
@@ -131,8 +132,7 @@ export function ProductFilters({
                     <SelectContent className="cursor-pointer bg-white">
                       <SelectItem value="all">All Statuses</SelectItem>
                       <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -164,32 +164,6 @@ export function ProductFilters({
                           {category.name}
                         </SelectItem>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid gap-1">
-                  <Label
-                    htmlFor="filter-stock"
-                    className="text-sm font-medium text-gray-700"
-                  >
-                    Stock Status
-                  </Label>
-                  <Select
-                    value={filters.stock}
-                    onValueChange={(value) => onFilterChange("stock", value)}
-                  >
-                    <SelectTrigger
-                      id="filter-stock"
-                      className="cursor-pointer border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                    >
-                      <SelectValue placeholder="Filter by stock" />
-                    </SelectTrigger>
-                    <SelectContent className="cursor-pointer bg-white">
-                      <SelectItem value="all">All Stock Statuses</SelectItem>
-                      <SelectItem value="in_stock">In Stock</SelectItem>
-                      <SelectItem value="low_stock">Low Stock</SelectItem>
-                      <SelectItem value="out_of_stock">Out of Stock</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -231,7 +205,7 @@ export function ProductFilters({
                       type="number"
                       min="0"
                       placeholder="Min"
-                      value={filters.price.min}
+                      value={filters.minPrice}
                       onChange={(e) =>
                         onPriceFilterChange("min", e.target.value)
                       }
@@ -242,7 +216,7 @@ export function ProductFilters({
                       type="number"
                       min="0"
                       placeholder="Max"
-                      value={filters.price.max}
+                      value={filters.maxPrice}
                       onChange={(e) =>
                         onPriceFilterChange("max", e.target.value)
                       }
@@ -296,19 +270,13 @@ export function ProductFilters({
     <TabsTrigger value="active" className="cursor-pointer">
       Active
       <Badge variant="secondary" className="ml-2">
-        {products.filter((p) => p.status === "active").length}
+        {products.filter((p) => p.status === "ACTIVE").length}
       </Badge>
     </TabsTrigger>
-    <TabsTrigger value="draft" className="cursor-pointer">
-      Draft
+    <TabsTrigger value="inactive" className="cursor-pointer">
+      Inactive
       <Badge variant="secondary" className="ml-2">
-        {products.filter((p) => p.status === "draft").length}
-      </Badge>
-    </TabsTrigger>
-    <TabsTrigger value="out_of_stock" className="cursor-pointer">
-      Out of Stock
-      <Badge variant="secondary" className="ml-2">
-        {products.filter((p) => p.status === "out_of_stock").length}
+        {products.filter((p) => p.status === "INACTIVE").length}
       </Badge>
     </TabsTrigger>
     <TabsTrigger value="featured" className="cursor-pointer"  >

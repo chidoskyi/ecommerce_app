@@ -1,4 +1,4 @@
-// app/api/admin/reviews/route.js
+// app/api/admin/reviews/bulk/route.js
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireAdmin, AuthenticatedRequest } from '@/lib/middleware'

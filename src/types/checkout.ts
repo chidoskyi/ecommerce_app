@@ -1,4 +1,4 @@
-import { Address } from "@/lib/types";
+import { Address } from "@/types";
 import { Order, OrderItem } from "./orders";
 import { Product } from "./products";
 import { Invoice } from "./invoice";

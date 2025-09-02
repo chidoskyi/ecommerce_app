@@ -3,9 +3,6 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || '/api',
-  headers: {
-    'Content-Type': 'application/json',
-  },
 })
 
 // Enhanced token getter with debugging
@@ -45,12 +42,24 @@ const getAuthHeaders = async () => {
   }
 }
 
-// Request interceptor
+// Request interceptor with FormData support
 api.interceptors.request.use(
   async (config) => {
     console.log(`📤 API Request: ${config.method?.toUpperCase()} ${config.url}`)
     
-    // Skip if headers are already set
+    // Handle FormData requests - don't set Content-Type
+    if (config.data instanceof FormData) {
+      console.log('📁 Detected FormData - letting browser handle Content-Type')
+      // Remove any existing Content-Type header for FormData
+      if (config.headers) {
+        delete config.headers['Content-Type'];
+      }
+    } else if (config.data && typeof config.data === 'object' && !config.headers['Content-Type']) {
+      // For JSON objects, set Content-Type if not already set
+      config.headers['Content-Type'] = 'application/json';
+    }
+
+    // Skip auth headers if already set
     if (config.headers.Authorization) {
       console.log('ℹ️ Authorization header already exists')
       return config
@@ -111,5 +120,3 @@ api.interceptors.response.use(
 )
 
 export default api
-
-

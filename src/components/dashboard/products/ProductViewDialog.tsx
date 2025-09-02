@@ -5,26 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
 import Image from "next/image"
-import { Category, Product } from "@/lib/types"
 import { PriceFormatter } from "@/components/reuse/FormatCurrency"
+import { Product, ProductViewDialogProps } from "@/types/products"
+import { getStatusBadgeColor } from "./ProductBadge"
 
-interface ProductViewDialogProps {
-  product: Product;
-  categories: Category[]
-}
+
 
 export function ProductViewDialog({ product, categories }: ProductViewDialogProps) {
-  // Format currency
-  // const formatCurrency = (amount) => {
-  //   if (!amount) return "N/A"
-  //   return new Intl.NumberFormat("en-US", {
-  //     style: "currency",
-  //     currency: "USD",
-  //   }).format(amount)
-  // }
-
   // Format date
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -38,37 +26,34 @@ export function ProductViewDialog({ product, categories }: ProductViewDialogProp
   }
 
   // Get category name by ID
-  const getCategoryName = (categoryId: string | number) => {
-    const category = categories.find((cat) => cat.id === categoryId)
-    return category ? category.name : "Uncategorized"
-  }
-
-  // Get status badge color
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-      case "draft":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
-      case "out_of_stock":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
+  const getCategoryName = (product: Product) => {
+    // First check if product has embedded category data
+    if (
+      product.category &&
+      typeof product.category === "object" &&
+      product.category.name
+    ) {
+      return product.category.name;
     }
-  }
 
-  // Get stock status
-  const getStockStatus = (quantity: number) => {
-    if (quantity <= 0) {
-      return { label: "Out of stock", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300" }
-    } else if (quantity <= 10) {
-      return { label: "Low stock", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300" }
-    } else {
-      return { label: "In stock", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" }
+    // Fallback to looking up by ID if no embedded data
+    if (!product.categoryId) return "Uncategorized";
+
+    if (!categories || !Array.isArray(categories) || categories.length === 0) {
+      return "Loading...";
     }
-  }
 
-  const stockStatus = getStockStatus(product.quantity)
+    const category = categories.find(
+      (cat) =>
+        cat && cat.id && cat.id.toString() === product.categoryId?.toString()
+    );
+
+    return category ? category.name : "Uncategorized";
+  };
+// Add this to see what's actually in priceType
+console.log('priceType value:', product.priceType);
+console.log('priceType type:', typeof product.priceType);
+console.log('hasFixedPrice:', product.hasFixedPrice);
 
   return (
     <>
@@ -113,30 +98,25 @@ export function ProductViewDialog({ product, categories }: ProductViewDialogProp
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <div className="text-sm font-medium text-muted-foreground">Category</div>
-                    <div className="text-base">{product.categoryId != null ? getCategoryName(product.categoryId) : "—"}</div>
+                    <div className="text-base">{product.categoryId != null ? getCategoryName(product) : "—"}</div>
                   </div>
 
                   <div className="grid gap-2">
                     <div className="text-sm font-medium text-muted-foreground">Status</div>
                     <Badge className={getStatusBadgeColor(product.status)} variant="outline">
-                      {product.status === "active" ? "Active" : product.status === "draft" ? "Draft" : "Out of Stock"}
+                      {product.status === "ACTIVE" ? "Active" : product.status === "INACTIVE" ? "Inactive" : "Draft"}
                     </Badge>
                   </div>
                 </div>
 
-                {/* <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <div className="text-sm font-medium text-muted-foreground">SKU</div>
-                    <div className="text-base font-mono">{product.sku}</div>
+                    <div className="text-base font-mono">                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                        {product.sku || '-'}
+                      </code></div>
                   </div>
-
-                      {product.barcode && (
-                        <div className="grid gap-2">
-                          <div className="text-sm font-medium text-muted-foreground">Barcode</div>
-                          <div className="text-base font-mono">{product.barcode}</div>
-                        </div>
-                      )}
-                    </div> */}
+                    </div> 
               </CardContent>
             </Card>
 
@@ -150,9 +130,9 @@ export function ProductViewDialog({ product, categories }: ProductViewDialogProp
                     <div className="text-sm font-medium text-muted-foreground">Quantity in Stock</div>
                     <div className="flex items-center gap-2">
                       <span className="text-2xl font-bold">{product.quantity}</span>
-                      <Badge className={stockStatus.color} variant="outline">
+                      {/* <Badge className={stockStatus.color} variant="outline">
                         {stockStatus.label}
-                      </Badge>
+                      </Badge> */}
                     </div>
                   </div>
                 </div>
@@ -167,13 +147,13 @@ export function ProductViewDialog({ product, categories }: ProductViewDialogProp
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <div className="text-sm font-medium text-muted-foreground">Created</div>
-                    <div className="text-base">{formatDate(product.createdAt)}</div>
+                    <div className="text-base">{formatDate(product.createdAt.toString())}</div>
                   </div>
 
                   {product.updatedAt && (
                     <div className="grid gap-2">
                       <div className="text-sm font-medium text-muted-foreground">Last Updated</div>
-                      <div className="text-base">{formatDate(product.updatedAt)}</div>
+                      <div className="text-base">{formatDate(product.updatedAt.toString())}</div>
                     </div>
                   )}
                 </div>
@@ -181,7 +161,7 @@ export function ProductViewDialog({ product, categories }: ProductViewDialogProp
             </Card>
           </div>
         </TabsContent>
-
+        
         <TabsContent value="pricing" className="space-y-4 py-4">
           <Card>
             <CardHeader>
@@ -190,10 +170,10 @@ export function ProductViewDialog({ product, categories }: ProductViewDialogProp
             <CardContent className="space-y-4">
               <div className="grid gap-2">
                 <div className="text-sm font-medium text-muted-foreground">Pricing Type</div>
-                <Badge variant="outline">{product.priceType === "fixed" ? "Fixed Price" : "Variable Price"}</Badge>
+                <Badge variant="outline" className="p-2">{product.priceType?.toLowerCase() === "fixed" ? "Fixed Price" : "Variable Price"}</Badge>
               </div>
 
-              {product.priceType === "fixed" ? (
+              {product.hasFixedPrice === true ? (
                 <div className="grid gap-2">
                   <div className="text-sm font-medium text-muted-foreground">Fixed Price</div>
                   <div className="text-3xl font-bold text-green-600">
@@ -214,42 +194,6 @@ export function ProductViewDialog({ product, categories }: ProductViewDialogProp
                 </div>
               )}
 
-              <Separator />
-
-              <div className="grid grid-cols-2 gap-4">
-                {product.compareAtPrice && (
-                  <div className="grid gap-2">
-                    <div className="text-sm font-medium text-muted-foreground">Compare at Price</div>
-                    <div className="text-lg line-through text-muted-foreground">
-                    <PriceFormatter amount={product.compareAtPrice} showDecimals />
-                    </div>
-                  </div>
-                )}
-
-                {product.cost && (
-                  <div className="grid gap-2">
-                    <div className="text-sm font-medium text-muted-foreground">Cost per Item</div>
-                    <div className="text-lg"><PriceFormatter amount={product.cost} showDecimals /></div>
-                  </div>
-                )}
-              </div>
-
-              {/* {product.compareAtPrice && product.fixedPrice && (
-                <div className="grid gap-2">
-                  <div className="text-sm font-medium text-muted-foreground">Savings</div>
-                  <div className="text-lg font-bold text-green-600">
-                    {formatCurrency(product.compareAtPrice - (product.fixedPrice))}
-                    <span className="text-sm font-normal ml-2">
-                      (
-                      {Math.round(
-                        ((product.compareAtPrice - (product.fixedPrice )) / product.compareAtPrice) *
-                          100,
-                      )}
-                      % off)
-                    </span>
-                  </div>
-                </div>
-              )} */}
             </CardContent>
           </Card>
         </TabsContent>
@@ -261,10 +205,38 @@ export function ProductViewDialog({ product, categories }: ProductViewDialogProp
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
-                {product.isFeatured && <Badge variant="secondary">Featured</Badge>}
-                {product.isTrending && <Badge variant="secondary">Trending</Badge>}
-                {product.isDealOfTheDay && <Badge variant="secondary">Deal of the Day</Badge>}
-                {product.isNewArrival && <Badge variant="secondary">New Arrival</Badge>}
+              {product.isFeatured && (
+                              <Badge
+                                variant="secondary"
+                                className="text-xs bg-yellow-100 text-yellow-800"
+                              >
+                                Featured
+                              </Badge>
+                            )}
+                {product.isTrending && (
+                              <Badge
+                                variant="secondary"
+                                className="text-xs bg-green-100 text-green-800"
+                              >
+                                Trending
+                              </Badge>
+                            )}
+                            {product.isDealOfTheDay && (
+                              <Badge
+                                variant="secondary"
+                                className="text-xs bg-red-100 text-red-800"
+                              >
+                                Deal of the Day
+                              </Badge>
+                            )}
+                            {product.isNewArrival && (
+                              <Badge
+                                variant="secondary"
+                                className="text-xs bg-blue-100 text-blue-800"
+                              >
+                                New Arrival
+                              </Badge>
+                            )}
                 {!product.isFeatured && !product.isTrending && !product.isDealOfTheDay && !product.isNewArrival && (
                   <div className="text-muted-foreground">No special flags set</div>
                 )}
@@ -272,37 +244,18 @@ export function ProductViewDialog({ product, categories }: ProductViewDialogProp
             </CardContent>
           </Card>
 
-          {(product.weight || product.dimensions) && (
+          {(product.weight ) && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Additional Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* {product.tags && (
-                  <div className="grid gap-2">
-                    <div className="text-sm font-medium text-muted-foreground">Tags</div>
-                    <div className="flex flex-wrap gap-1">
-                      {product.tags.split(",").map((tag, index) => (
-                        <Badge key={index} variant="outline">
-                          {tag.trim()}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )} */}
 
                 <div className="grid grid-cols-2 gap-4">
                   {product.weight && (
                     <div className="grid gap-2">
                       <div className="text-sm font-medium text-muted-foreground">Weight</div>
-                      <div className="text-base">{product.weight}g</div>
-                    </div>
-                  )}
-
-                  {product.dimensions && (
-                    <div className="grid gap-2">
-                      <div className="text-sm font-medium text-muted-foreground">Dimensions</div>
-                      <div className="text-base">{product.dimensions} cm</div>
+                      <div className="text-base">{product.weight}kg</div>
                     </div>
                   )}
                 </div>

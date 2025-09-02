@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -11,46 +12,80 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { User, UserRole, UserStatus } from '@/lib/types';
+import { User, UserRole, UserStatus } from '@/types/users';
+import {
+  selectSelectedUser,
+  updateUser,
+  setSelectedUser,
+} from '@/app/store/slices/adminUsersSlice';
+import { AppDispatch } from '@/app/store';
 
-interface EditUserDialogProps {
+export interface EditUserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  user: User | null;
-  onSave: (user: User) => void;
 }
 
 export const EditUserDialog: React.FC<EditUserDialogProps> = ({
   open,
   onOpenChange,
-  user,
-  onSave,
 }) => {
+  const dispatch = useDispatch<AppDispatch>();
+  const selectedUser = useSelector(selectSelectedUser);
   const [editUser, setEditUser] = useState<User | null>(null);
 
   useEffect(() => {
-    if (user) {
-      setEditUser({ ...user });
+    if (selectedUser && open) {
+      setEditUser({ ...selectedUser });
     }
-  }, [user]);
+  }, [selectedUser, open]);
 
-  const handleSave = () => {
-    if (editUser) {
-      onSave(editUser);
-      onOpenChange(false);
+  const handleSave = async () => {
+    if (editUser && selectedUser) {
+      try {
+        // Prepare the user data for update
+        const userData: Partial<User> = {
+          firstName: editUser.firstName,
+          lastName: editUser.lastName,
+          email: editUser.email,
+          role: editUser.role,
+          status: editUser.status,
+        };
+
+        await dispatch(updateUser({
+          userId: selectedUser.id,
+          userData
+        })).unwrap();
+
+        // Close dialog and clear selected user
+        onOpenChange(false);
+        dispatch(setSelectedUser(null));
+        setEditUser(null);
+      } catch (error) {
+        console.error('Failed to update user:', error);
+        // You might want to show an error toast here
+      }
     }
   };
 
   const handleCancel = () => {
-    setEditUser(user ? { ...user } : null);
+    setEditUser(selectedUser ? { ...selectedUser } : null);
     onOpenChange(false);
+    dispatch(setSelectedUser(null));
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      dispatch(setSelectedUser(null));
+      setEditUser(null);
+    }
+    onOpenChange(open);
   };
 
   if (!editUser) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-white rounded-lg shadow-xl h-[550px] w-[500px] p-6">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="bg-white rounded-lg shadow-xl h-[600px] w-[500px] p-6">
         <DialogHeader>
           <DialogTitle className="text-gray-900 font-semibold">Edit User</DialogTitle>
           <DialogDescription className="text-gray-600">
@@ -59,14 +94,25 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="edit-name" className="text-gray-700 font-medium">
-              Full Name
+            <Label htmlFor="edit-firstName" className="text-gray-700 font-medium">
+              First Name
             </Label>
             <Input
-              id="edit-name"
-              value={editUser.name}
+              id="edit-firstName"
+              value={editUser.firstName || ''}
               className="bg-white border-gray-300 text-gray-900 rounded-md focus:ring-2 focus:ring-[#1B6013] focus:border-[#1B6013]"
-              onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
+              onChange={(e) => setEditUser({ ...editUser, firstName: e.target.value })}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-lastName" className="text-gray-700 font-medium">
+              Last Name
+            </Label>
+            <Input
+              id="edit-lastName"
+              value={editUser.lastName || ''}
+              className="bg-white border-gray-300 text-gray-900 rounded-md focus:ring-2 focus:ring-[#1B6013] focus:border-[#1B6013]"
+              onChange={(e) => setEditUser({ ...editUser, lastName: e.target.value })}
             />
           </div>
           <div className="grid gap-2">
@@ -93,14 +139,14 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
               <SelectContent className="bg-white border border-gray-200 rounded-md shadow-lg">
-                <SelectItem value="admin" className="hover:bg-gray-100 cursor-pointer">
+                <SelectItem value="ADMIN" className="hover:bg-gray-100 cursor-pointer">
                   Admin
                 </SelectItem>
-                <SelectItem value="manager" className="hover:bg-gray-100 cursor-pointer">
-                  Manager
+                <SelectItem value="MODERATOR" className="hover:bg-gray-100 cursor-pointer">
+                  Moderator
                 </SelectItem>
-                <SelectItem value="customer" className="hover:bg-gray-100 cursor-pointer">
-                  Customer
+                <SelectItem value="USER" className="hover:bg-gray-100 cursor-pointer">
+                  User
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -117,14 +163,14 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({
                 <SelectValue placeholder="Select a status" />
               </SelectTrigger>
               <SelectContent className="bg-white border border-gray-200 rounded-md shadow-lg">
-                <SelectItem value="active" className="hover:bg-gray-100 cursor-pointer">
-                  Active
+                <SelectItem value="ACTIVE" className="hover:bg-gray-100 cursor-pointer">
+                  ACTIVE
                 </SelectItem>
-                <SelectItem value="inactive" className="hover:bg-gray-100 cursor-pointer">
-                  Inactive
+                <SelectItem value="INACTIVE" className="hover:bg-gray-100 cursor-pointer">
+                  INACTIVE
                 </SelectItem>
-                <SelectItem value="suspended" className="hover:bg-gray-100 cursor-pointer">
-                  Suspended
+                <SelectItem value="SUSPENDED" className="hover:bg-gray-100 cursor-pointer">
+                  SUSPENDED
                 </SelectItem>
               </SelectContent>
             </Select>

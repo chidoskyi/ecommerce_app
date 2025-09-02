@@ -1,5 +1,5 @@
 // hooks/useInvoiceFilters.ts
-import { UseInvoiceFiltersParams } from "@/lib/types";
+import { UseInvoiceFiltersParams } from "@/types";
 import { useMemo } from "react";
 
 export function useInvoiceFilters({

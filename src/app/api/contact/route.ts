@@ -1,7 +1,7 @@
 // app/api/contact/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma'
-import { ContactFormData } from '@/lib/types';
+import { ContactFormData } from '@/types';
 import EmailService from '@/lib/emailService';
 
 const emailService = new EmailService()

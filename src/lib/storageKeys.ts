@@ -15,7 +15,6 @@ export const StorageUtil = {
     if (!isClientSide()) return;
     try {
       localStorage.setItem(STORAGE_KEYS.USER_ID, userId);
-      console.log("🆔 User ID stored:", userId);
     } catch (error) {
       console.warn("Failed to store user ID:", error);
     }
@@ -35,7 +34,6 @@ export const StorageUtil = {
     if (!isClientSide()) return;
     try {
       localStorage.removeItem(STORAGE_KEYS.USER_ID);
-      console.log("🗑️ User ID cleared");
     } catch (error) {
       console.warn("Failed to clear user ID:", error);
     }
@@ -46,7 +44,6 @@ export const StorageUtil = {
     if (!isClientSide()) return;
     try {
       localStorage.setItem(STORAGE_KEYS.GUEST_ID_KEY, guestId);
-      console.log("🆔 Guest ID stored:", guestId);
     } catch (error) {
       console.warn("Failed to store guest ID:", error);
     }
@@ -105,7 +102,6 @@ export const StorageUtil = {
     if (!isClientSide()) return;
     try {
       localStorage.removeItem(STORAGE_KEYS.GUEST_ID_KEY);
-      console.log("🗑️ Guest ID cleared");
     } catch (error) {
       console.warn("Failed to clear guest ID:", error);
     }
@@ -114,19 +110,16 @@ export const StorageUtil = {
   // FIXED: State transitions - don't clear guest ID immediately
   setUserMode: function(userId: string): void {
     this.setUserId(userId);
-    console.log("🔄 Set user mode (preserving guest ID for merge):", userId);
   },
 
   switchToUserMode: function(userId: string): void {
     this.setUserId(userId);
     this.clearGuestId();
-    console.log("🔄 Switched to user mode:", userId);
   },
 
   switchToGuestMode: function(): string {
     this.clearUserId();
     const guestId = this.generateAndSetGuestId();
-    console.log("🔄 Switched to guest mode:", guestId);
     return guestId;
   },
 
@@ -146,7 +139,6 @@ export const StorageUtil = {
   // Debugging
   debugStorage: function(): void {
     if (!isClientSide()) {
-      console.log("🔍 Storage Debug: Not on client side");
       return;
     }
     
@@ -176,7 +168,6 @@ export const StorageUtil = {
       for (const oldKey of oldGuestKeys) {
         const value = localStorage.getItem(oldKey);
         if (value && value !== currentGuestId) {
-          console.log(`🔄 Migrating ${oldKey} to guest-cart-id`);
           this.setGuestId(value);
           localStorage.removeItem(oldKey);
         }

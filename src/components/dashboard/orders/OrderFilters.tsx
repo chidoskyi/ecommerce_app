@@ -1,5 +1,6 @@
-// components/OrderFilters.tsx
+// components/OrderFilters.tsx - Redux Connected - Fixed
 import React, { useState } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import {
   Search,
   Calendar,
@@ -7,7 +8,6 @@ import {
   CheckCircle2,
   Clock,
   Truck,
-  Package,
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,28 +24,97 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
-import { OrderFiltersProps } from '@/lib/types';
-import type { DateRange } from "react-day-picker";
+import { OrderStatus, OrderFilters as filterOrders } from '@/types/orders';
+import {
+  selectOrdersFilters,
+  setFilters,
+  fetchOrders,
+  bulkUpdateOrderStatus
+} from '@/app/store/slices/adminOrderSlice';
+
+interface OrderFiltersProps {
+  selectedOrdersCount: number;
+  selectedOrders: string[];
+  onFiltersChange?: (filters: Partial<filterOrders>) => void;
+  onBulkStatusChange?: (status: OrderStatus) => void;
+}
 
 export const OrderFilters: React.FC<OrderFiltersProps> = ({
-  filters,
-  onSearchChange,
-  onStatusFilterChange,
-  onDateRangeChange,
   selectedOrdersCount,
+  selectedOrders,
+  onFiltersChange,
   onBulkStatusChange,
 }) => {
+  const dispatch = useDispatch();
+  const filters = useSelector(selectOrdersFilters);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  const handleDateRangeSelect = (range: { from: Date | null; to: Date | null }) => {
-    onDateRangeChange(range);
-    if (range?.to) {
-      setIsCalendarOpen(false);
+  // Convert stored ISO strings back to Date objects for the calendar UI
+  const dateRangeForUI = {
+    from: filters.dateRange?.from ? new Date(filters.dateRange.from) : null,
+    to: filters.dateRange?.to ? new Date(filters.dateRange.to) : null,
+  };
+
+  const handleSearchChange = (searchQuery: string) => {
+    const newFilters = { searchQuery, page: 1 };
+    dispatch(setFilters(newFilters));
+    
+    // Also call the parent callback if provided
+    if (onFiltersChange) {
+      onFiltersChange(newFilters);
+    }
+  };
+
+  const handleStatusFilterChange = (statusFilter: string) => {
+    const newFilters = { statusFilter, page: 1 };
+    dispatch(setFilters(newFilters));
+    
+    // Also call the parent callback if provided
+    if (onFiltersChange) {
+      onFiltersChange(newFilters);
+    }
+  };
+
+  const handleDateRangeChange = (range: { from: Date | null; to: Date | null }) => {
+    // Store as ISO strings in Redux
+    const serializedRange = {
+      from: range.from ? range.from.toISOString() : null,
+      to: range.to ? range.to.toISOString() : null,
+    };
+    
+    const newFilters = {
+      dateRange: serializedRange,
+      page: 1,
+    };
+    
+    dispatch(setFilters(newFilters));
+    
+    // Also call the parent callback if provided
+    if (onFiltersChange) {
+      onFiltersChange(newFilters);
+    }
+  };
+
+  const handleBulkStatusChange = (status: OrderStatus) => {
+    if (onBulkStatusChange) {
+      onBulkStatusChange(status);
+    } else {
+      dispatch(bulkUpdateOrderStatus({ orderIds: selectedOrders, status }));
     }
   };
 
   const clearDateRange = () => {
-    onDateRangeChange({ from: null, to: null });
+    const newFilters = { 
+      dateRange: { from: null, to: null },
+      page: 1
+    };
+    
+    dispatch(setFilters(newFilters));
+    
+    if (onFiltersChange) {
+      onFiltersChange(newFilters);
+    }
+    
     setIsCalendarOpen(false);
   };
 
@@ -63,20 +132,20 @@ export const OrderFilters: React.FC<OrderFiltersProps> = ({
               </DropdownMenuTrigger>
               <DropdownMenuContent className='bg-white'>
                 <DropdownMenuLabel>Change Status</DropdownMenuLabel>
-                <DropdownMenuItem className='cursor-pointer' onClick={() => onBulkStatusChange("processing")}>
+                <DropdownMenuItem className='cursor-pointer' onClick={() => handleBulkStatusChange("PROCESSING")}>
                   <Clock className="mr-2 h-4 w-4" />
                   Mark as Processing
                 </DropdownMenuItem>
-                <DropdownMenuItem className='cursor-pointer' onClick={() => onBulkStatusChange("shipped")}>
+                <DropdownMenuItem className='cursor-pointer' onClick={() => handleBulkStatusChange("SHIPPED")}>
                   <Truck className="mr-2 h-4 w-4" />
                   Mark as Shipped
                 </DropdownMenuItem>
-                <DropdownMenuItem className='cursor-pointer' onClick={() => onBulkStatusChange("completed")}>
+                <DropdownMenuItem className='cursor-pointer' onClick={() => handleBulkStatusChange("CONFIRMED")}>
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                   Mark as Completed
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className='cursor-pointer' onClick={() => onBulkStatusChange("cancelled")}>
+                <DropdownMenuItem className='cursor-pointer' onClick={() => handleBulkStatusChange("CANCELLED")}>
                   <XCircle className="mr-2 h-4 w-4" />
                   Mark as Cancelled
                 </DropdownMenuItem>
@@ -87,12 +156,12 @@ export const OrderFilters: React.FC<OrderFiltersProps> = ({
 
         <div className="flex items-center gap-2">
           <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-            <PopoverTrigger asChild >
+            <PopoverTrigger asChild>
               <Button variant="outline" className="gap-1 cursor-pointer">
                 <Calendar className="h-4 w-4" />
-                {filters.dateRange.from && filters.dateRange.to ? (
+                {dateRangeForUI.from && dateRangeForUI.to ? (
                   <span>
-                    {format(filters.dateRange.from, "LLL dd, y")} - {format(filters.dateRange.to, "LLL dd, y")}
+                    {format(dateRangeForUI.from, "LLL dd, y")} - {format(dateRangeForUI.to, "LLL dd, y")}
                   </span>
                 ) : (
                   <span>Date Range</span>
@@ -103,14 +172,13 @@ export const OrderFilters: React.FC<OrderFiltersProps> = ({
               <CalendarComponent
                 initialFocus
                 mode="range"
-                defaultMonth={filters.dateRange.from ?? undefined}
+                defaultMonth={dateRangeForUI.from ?? undefined}
                 selected={{
-                  from: filters.dateRange.from ?? undefined,
-                  to: filters.dateRange.to ?? undefined
+                  from: dateRangeForUI.from ?? undefined,
+                  to: dateRangeForUI.to ?? undefined
                 }}
                 onSelect={(range) => {
-                  // Accepts DateRange | undefined, but we want to always pass {from, to} with null fallback
-                  handleDateRangeSelect({
+                  handleDateRangeChange({
                     from: range?.from ?? null,
                     to: range?.to ?? null,
                   });
@@ -118,12 +186,16 @@ export const OrderFilters: React.FC<OrderFiltersProps> = ({
                 numberOfMonths={2}
                 className='cursor-pointer'
               />
-              {filters.dateRange.from && filters.dateRange.to && (
+              {dateRangeForUI.from && dateRangeForUI.to && (
                 <div className="flex items-center justify-end gap-2 p-3 border-t">
                   <Button className='cursor-pointer' variant="outline" size="sm" onClick={clearDateRange}>
                     Clear
                   </Button>
-                  <Button size="sm" className='cursor-pointer bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/25 hover:bg-gradient-to-r hover:from-blue-700 hover:to-cyan-600' onClick={() => setIsCalendarOpen(false)} >
+                  <Button 
+                    size="sm" 
+                    className='cursor-pointer bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/25 hover:bg-gradient-to-r hover:from-blue-700 hover:to-cyan-600' 
+                    onClick={() => setIsCalendarOpen(false)}
+                  >
                     Apply
                   </Button>
                 </div>
@@ -131,17 +203,17 @@ export const OrderFilters: React.FC<OrderFiltersProps> = ({
             </PopoverContent>
           </Popover>
 
-          <Select  value={filters.statusFilter} onValueChange={onStatusFilterChange}>
+          <Select value={filters.statusFilter} onValueChange={handleStatusFilterChange}>
             <SelectTrigger className="w-[180px] cursor-pointer">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent className='bg-white'>
               <SelectItem className='cursor-pointer' value="all">All Statuses</SelectItem>
-              <SelectItem className='cursor-pointer' value="pending">Pending</SelectItem>
-              <SelectItem className='cursor-pointer' value="processing">Processing</SelectItem>
-              <SelectItem className='cursor-pointer' value="shipped">Shipped</SelectItem>
-              <SelectItem className='cursor-pointer' value="completed">Completed</SelectItem>
-              <SelectItem className='cursor-pointer' value="cancelled">Cancelled</SelectItem>
+              <SelectItem className='cursor-pointer' value="PENDING">Pending</SelectItem>
+              <SelectItem className='cursor-pointer' value="PROCESSING">Processing</SelectItem>
+              <SelectItem className='cursor-pointer' value="SHIPPED">Shipped</SelectItem>
+              <SelectItem className='cursor-pointer' value="CONFIRMED">Confirmed</SelectItem>
+              <SelectItem className='cursor-pointer' value="CANCELLED">Cancelled</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -154,7 +226,7 @@ export const OrderFilters: React.FC<OrderFiltersProps> = ({
           placeholder="Search orders by ID, customer name, or email..."
           className="pl-8 focus:border-blue-500 focus:ring-blue-500 focus:ring-1"
           value={filters.searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
         />
       </div>
     </div>
