@@ -11,12 +11,14 @@ const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dgxsqjeun";
 const slides = [
 
   { src: "v1752761850/banner2_uegfoo.webp", link: "/"},
-  { src: "v1752761841/banner1_lfgq3i.webp", link: "/"},
-  { src: "v1752761851/banner3_yriwbu.webp", link: "/"},
+  { src: "v1756822951/payday_deals_xc1r4b.jpg", link: "/"},
+  { src: "v1756822520/fresh-clean_banner_q8obtw.jpg", link: "/"},
 ];
+// { src: "v1752761841/banner1_lfgq3i.webp", link: "/"},
 
+// { src: "v1752761851/banner4_sb3r5a.webp", title: "LOCAL GOODS", link: "/" },
 const sideBanners = [
-  { src: "v1752761851/banner4_sb3r5a.webp", title: "LOCAL GOODS", link: "/" },
+  { src: "v1752761841/banner1_lfgq3i.webp", title: "LOCAL GOODS", link: "/" },
   {
     src: "v1752761851/banner5_tcuozl.webp",
     title: "Order Your Groceries Now!",

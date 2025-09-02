@@ -1,16 +1,52 @@
 "use client";
 
 import { Menu, ChevronDown, ChevronUp } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Container from "./Container";
-import { categoriesData } from "../../data/categories";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 import Link from "next/link";
+import Image from "next/image";
+import {
+  fetchCategories,
+  selectCategories,
+  selectLoading,
+  selectError,
+  selectCategoriesByStatus
+} from "@/app/store/slices/categorySlice";
+import { CategoryStatus } from "@/types/categories";
 
 function Category() {
   const [showDropdown, setShowDropdown] = useState(false);
+  const [dropdownTop, setDropdownTop] = useState(0);
+  const dispatch = useAppDispatch();
+  const categories = useAppSelector(selectCategories);
+  const loading = useAppSelector(selectLoading);
+  const error = useAppSelector(selectError);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
 
-  const toggleDropdown = () => setShowDropdown(!showDropdown);
+  const toggleDropdown = () => {
+    if (!showDropdown && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownTop(rect.bottom);
+    }
+    setShowDropdown(!showDropdown);
+  };
+    // Memoized retry handler
+    useEffect(() => {
+      console.log("🚀 CategoriesPage: Initial fetchCategories");
+      dispatch(
+        fetchCategories({
+          sortBy: "name",
+          status: CategoryStatus.ACTIVE,
+          sortOrder: "asc",
+          page: 1,
+          limit: 10,
+        })
+      );
+    }, [dispatch]); // Only depend on dispatch
+
+    const activeCategories = useAppSelector(selectCategoriesByStatus(CategoryStatus.ACTIVE));
 
   const handleCategoryClick = (category: string) => {
     console.log(`Selected category: ${category}`);
@@ -47,6 +83,7 @@ const navLinks = [
             {/* Categories Dropdown */}
             <div className="relative">
               <button
+                ref={buttonRef}
                 onClick={toggleDropdown}
                 className="flex items-center gap-2 text-sm md:text-lg h-7 rounded-md hover:bg-gray-100 transition-colors cursor-pointer px-2"
               >
@@ -66,26 +103,70 @@ const navLinks = [
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute z-50 mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg origin-top"
+                    className="fixed left-0 z-50 w-full bg-white border-b border-gray-200 shadow-lg"
+                    style={{ top: `${dropdownTop}px` }}
                   >
-                    <ul className="py-1">
-                      {categoriesData.map((category) => (
-                        <motion.li
-                          key={category.name}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                        >
-                            <Link href={`/category/${category.slug}`} key={category.name}>
-                          <button
-                            onClick={() => handleCategoryClick(category.name)}
-                            className="block px-4 py-2 cursor-pointer text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                    {/* Mobile view - Simple list */}
+                    <div className="block md:hidden">
+                      <ul className="py-1">
+                        {activeCategories.map((category) => (
+                          <motion.li
+                            key={category.name}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
                           >
-                            {category.name}
-                          </button>
-                          </Link>
-                        </motion.li>
-                      ))}
-                    </ul>
+                            <Link href={`/category/${category.slug}`}>
+                              <button
+                                onClick={() => handleCategoryClick(category.name)}
+                                className="block px-4 py-2 cursor-pointer text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                              >
+                                {category.name}
+                              </button>
+                            </Link>
+                          </motion.li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Desktop view - Grid with images */}
+                    <div className="hidden md:block max-w-7xl mx-auto px-2 py-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-4">
+                        {activeCategories.map((category) => (
+                          <motion.div
+                            key={category.name}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            className="group"
+                          >
+                            <Link 
+                              href={`/category/${category.slug}`} 
+                              onClick={() => handleCategoryClick(category.name)}
+                              className="block p-2 sm:p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                            >
+                              <div className="text-center">
+                                <div className="mb-2 sm:mb-3 overflow-hidden rounded-lg">
+                                  <Image
+                                    src={category.image || '/placeholder-category.svg'}
+                                    loading="lazy"
+                                    alt={category.name}
+                                    width={200}
+                                    height={130}
+                                    className="mx-auto h-[80px] w-[120px] sm:h-[100px] sm:w-[160px] md:h-[130px] md:w-[200px] object-cover transition-transform duration-300 group-hover:scale-110"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement
+                                      target.src = '/placeholder-category.svg'
+                                    }}
+                                  />
+                                </div>
+                                <h3 className="text-xs sm:text-sm font-medium text-gray-900 group-hover:text-orange-600 transition-colors">
+                                  {category.name}
+                                </h3>
+                              </div>
+                            </Link>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>

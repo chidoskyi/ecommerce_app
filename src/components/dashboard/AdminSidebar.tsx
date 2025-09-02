@@ -13,11 +13,13 @@ import {
   X,
   ChevronDown,
   MessageSquare,
+  Home,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { SidebarProps } from "@/types";
+import Image from "next/image";
 
 
 
@@ -100,26 +102,13 @@ export function Sidebar({
     <div className="w-80 h-screen bg-slate-900 border-r border-slate-700 flex flex-col shadow-2xl">
       <div className="p-6 border-b border-slate-700 bg-slate-800">
         <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <div className="w-10 h-10 mr-3 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-lg flex items-center justify-center shadow-lg">
-              <svg viewBox="0 0 24 24" className="w-6 h-6">
-                <path
-                  d="M12 2L13.09 8.26L22 9L13.09 9.74L12 16L10.91 9.74L2 9L10.91 8.26L12 2Z"
-                  fill="white"
-                />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-white tracking-wide">
-                FeedMe
-              </h1>
-              <p className="text-xs text-slate-400 font-medium">INDUSTRIAL</p>
-            </div>
+          <div className="flex items-center justify-between">
             <Link
               href="/"
-              className="ml-4 text-sm text-blue-400 hover:underline"
+              className="ml-2 text-lg font-bold text-blue-400 hover:underline flex gap-2"
             >
-              Home
+             <span><Home/></span> 
+             <span>Home</span>
             </Link>
           </div>
 

@@ -80,7 +80,7 @@ export function RecentProductsTable({ orders }: OrdersTableProps) {
                 </TableCell>
                 <TableCell>
                   <PriceFormatter 
-                    amount={order.totalPrice || order.subtotalPrice} 
+                    amount={order.totalPrice} 
                     showDecimals 
                   />
                 </TableCell>

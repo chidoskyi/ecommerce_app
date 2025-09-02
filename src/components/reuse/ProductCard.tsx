@@ -227,14 +227,14 @@ export default function ProductCard({
   return (
     <div
       className={`bg-white rounded-lg shadow-sm p-4 border border-gray-200 hover:shadow-md transition-all relative overflow-hidden cursor-pointer ${
-        showQuantity ? "h-auto" : ""
+        showQuantity ? "h-auto" : "h-[380px] flex flex-col"
       }`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleCardClick}
     >
       {/* Image Container with Action Buttons */}
-      <div className="aspect-square bg-gray-50 rounded-lg mb-3 overflow-hidden relative">
+      <div className={`aspect-square bg-gray-50 rounded-lg mb-3 overflow-hidden relative ${showQuantity ? "" : "flex-shrink-0"}`}>
         <Image
           src={images?.[0] || "/placeholder.svg?height=200&width=200"}
           alt={name}
@@ -301,7 +301,7 @@ export default function ProductCard({
       </div>
 
       {/* Mobile Action Buttons */}
-      <div className="md:hidden flex justify-between mb-3">
+      <div className={`md:hidden flex justify-between mb-3 ${showQuantity ? "" : "flex-shrink-0"}`}>
         {onRemove ? (
           <button
             onClick={handleRemoveFromWishlist}
@@ -348,198 +348,203 @@ export default function ProductCard({
         </button>
       </div>
 
-      {/* Product Info */}
-      <h3 className="font-medium text-gray-900 mb-1 text-sm line-clamp-2">
-        {name}
-      </h3>
+      {/* Scrollable Content Area - Takes remaining space */}
+      <div className={showQuantity ? "" : "flex-1 flex flex-col min-h-0"}>
+        {/* Product Info */}
+        <h3 className={`font-medium text-gray-900 mb-1 text-sm line-clamp-2 ${showQuantity ? "" : "flex-shrink-0"}`}>
+          {name}
+        </h3>
 
-      {/* Show unit info for variable pricing */}
-      {!hasFixedPrice && unitPrices && unitPrices.length > 0 && !showQuantity && (
-        <p className="text-xs text-gray-500 mb-2">
-          From {unitPrices[0].unit}
-        </p>
-      )}
+        {/* Show unit info for variable pricing */}
+        {!hasFixedPrice && unitPrices && unitPrices.length > 0 && !showQuantity && (
+          <p className="text-xs text-gray-500 mb-2 flex-shrink-0">
+            From {unitPrices[0].unit}
+          </p>
+        )}
 
-      {/* Default Price Display (when not showing quantity) */}
-      {!showQuantity && (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-orange-600 text-sm">
-              <PriceFormatter amount={displayPrice} />
-            </span>
-          </div>
-          <Button
-            size="sm"
-            className={`text-white text-xs h-6 transition-colors cursor-pointer ${
-              (!userId && !guestId) 
-                ? "bg-gray-400 cursor-not-allowed" 
-                : "bg-orange-500 hover:bg-orange-600"
-            } ${(cartLoading || isAddingToCart) ? "opacity-50 cursor-not-allowed" : ""}`}
-            onClick={handleAddToCart}
-            disabled={cartLoading || isAddingToCart || (!userId && !guestId)}
-          >
-            {(!userId && !guestId) ? "Login" : "Add"}
-          </Button>
-        </div>
-      )}
-
-      {/* Quantity Selection Section */}
-      {showQuantity && (
-        <div 
-          ref={quantityRef}
-          className="quantity-section border-t pt-4 mt-3"
-          onClick={(e) => e.stopPropagation()} // Prevent event bubbling
-        >
-          {/* Unit Selection (for variable pricing) */}
-          {!hasFixedPrice && unitPrices && unitPrices.length > 0 && (
-            <div className="mb-4">
-              <h4 className="text-sm font-medium mb-2">Select Unit:</h4>
-              <div className="space-y-1">
-                {unitPrices.map((unit, index) => (
-                  <label
-                    key={index}
-                    className={`flex items-center justify-between p-2 border rounded cursor-pointer transition-colors text-sm ${
-                      selectedUnit?.unit === unit.unit
-                        ? "border-orange-500 bg-orange-50"
-                        : "border-gray-200 hover:border-orange-300"
-                    }`}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name={`unit-selection-${id}`}
-                        value={unit.unit}
-                        checked={selectedUnit?.unit === unit.unit}
-                        onChange={() => setSelectedUnit(unit)}
-                        className="text-orange-500 w-3 h-3"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <span className="text-xs">{unit.unit}</span>
-                    </div>
-                    <span className="font-bold text-orange-600 text-xs">
-                      <PriceFormatter amount={unit.price} />
-                    </span>
-                  </label>
-                ))}
-              </div>
+        {/* Default Price Display (when not showing quantity) */}
+        {!showQuantity && (
+          <div className="flex items-center justify-between mt-auto flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-orange-600 text-sm">
+                <PriceFormatter amount={displayPrice} />
+              </span>
             </div>
-          )}
+            <Button
+              size="sm"
+              className={`text-white text-xs h-6 transition-colors cursor-pointer ${
+                (!userId && !guestId) 
+                  ? "bg-gray-400 cursor-not-allowed" 
+                  : "bg-orange-500 hover:bg-orange-600"
+              } ${(cartLoading || isAddingToCart) ? "opacity-50 cursor-not-allowed" : ""}`}
+              onClick={handleAddToCart}
+              disabled={cartLoading || isAddingToCart || (!userId && !guestId)}
+            >
+              {(!userId && !guestId) ? "Login" : "Add"}
+            </Button>
+          </div>
+        )}
 
-          {/* Fixed Price Display */}
-          {hasFixedPrice && (
-            <div className="mb-4">
-              <div className="p-2 border border-gray-200 rounded bg-gray-50">
+        {/* Quantity Selection Section - Scrollable */}
+        {showQuantity && (
+          <div 
+            ref={quantityRef}
+            className="quantity-section border-t pt-4 mt-3"
+            onClick={(e) => e.stopPropagation()} // Prevent event bubbling
+          >
+            <div className="space-y-4">
+              {/* Unit Selection (for variable pricing) */}
+              {!hasFixedPrice && unitPrices && unitPrices.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Select Unit:</h4>
+                  <div className="space-y-1">
+                    {unitPrices.map((unit, index) => (
+                      <label
+                        key={index}
+                        className={`flex items-center justify-between p-2 border rounded cursor-pointer transition-colors text-sm ${
+                          selectedUnit?.unit === unit.unit
+                            ? "border-orange-500 bg-orange-50"
+                            : "border-gray-200 hover:border-orange-300"
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name={`unit-selection-${id}`}
+                            value={unit.unit}
+                            checked={selectedUnit?.unit === unit.unit}
+                            onChange={() => setSelectedUnit(unit)}
+                            className="text-orange-500 w-3 h-3"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <span className="text-xs">{unit.unit}</span>
+                        </div>
+                        <span className="font-bold text-orange-600 text-xs">
+                          <PriceFormatter amount={unit.price} />
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Fixed Price Display */}
+              {hasFixedPrice && (
+                <div>
+                  <div className="p-2 border border-gray-200 rounded bg-gray-50">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Price:</span>
+                      <span className="text-sm font-bold text-orange-600">
+                        <PriceFormatter amount={fixedPrice || 0} />
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Quantity Controls */}
+              <div>
+                <h4 className="text-sm font-medium mb-2">Quantity:</h4>
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      decrementQuantity();
+                    }}
+                    className={`p-1 text-gray-500 hover:text-gray-700 ${
+                      quantity <= 1 ? "cursor-not-allowed pointer-events-none opacity-50" : ""
+                    }`}
+                    disabled={quantity <= 1}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+
+                  {quantity > 1 && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        decrementQuantity();
+                      }}
+                      className="w-6 h-6 bg-orange-600 text-white rounded-full flex items-center justify-center hover:bg-orange-700"
+                    >
+                      <Minus size={12} />
+                    </button>
+                  )}
+
+                  <span className="text-sm font-medium min-w-[2rem] text-center bg-gray-100 px-2 py-1 rounded">
+                    {quantity}
+                  </span>
+
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      incrementQuantity();
+                    }}
+                    className="w-6 h-6 bg-orange-600 text-white rounded-full flex items-center justify-center hover:bg-orange-700"
+                  >
+                    <Plus size={12} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Total Price */}
+              <div className="p-2 rounded bg-green-50">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Price:</span>
-                  <span className="text-sm font-bold text-orange-600">
-                    <PriceFormatter amount={fixedPrice || 0} />
+                  <div>
+                    <span className="text-sm font-medium">Total:</span>
+                    {!hasFixedPrice && selectedUnit && (
+                      <div className="text-xs text-gray-600">
+                        {quantity} × {selectedUnit.unit}
+                      </div>
+                    )}
+                    {hasFixedPrice && (
+                      <div className="text-xs text-gray-600">
+                        {quantity} items
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-lg font-bold text-green-600">
+                    <PriceFormatter amount={currentPrice * quantity} />
                   </span>
                 </div>
               </div>
             </div>
-          )}
 
-          {/* Quantity Controls */}
-          <div className="mb-4">
-            <h4 className="text-sm font-medium mb-2">Quantity:</h4>
-            <div className="flex items-center space-x-3">
-              <button
+            {/* Action Buttons - Fixed at bottom */}
+            <div className="flex gap-2 mt-4">
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  decrementQuantity();
+                  handleCancel();
                 }}
-                className={`p-1 text-gray-500 hover:text-gray-700 ${
-                  quantity <= 1 ? "cursor-not-allowed pointer-events-none opacity-50" : ""
-                }`}
-                disabled={quantity <= 1}
+                className="flex-1 text-xs h-7 hover:bg-gray-200 cursor-pointer"
+                disabled={isAddingToCart}
               >
-                <Trash2 size={14} />
-              </button>
-
-              {quantity > 1 && (
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    decrementQuantity();
-                  }}
-                  className="w-6 h-6 bg-orange-600 text-white rounded-full flex items-center justify-center hover:bg-orange-700"
-                >
-                  <Minus size={12} />
-                </button>
-              )}
-
-              <span className="text-sm font-medium min-w-[2rem] text-center bg-gray-100 px-2 py-1 rounded">
-                {quantity}
-              </span>
-
-              <button
+                Cancel
+              </Button>
+              <Button
+                size="sm"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  incrementQuantity();
+                  handleConfirmAdd();
                 }}
-                className="w-6 h-6 bg-orange-600 text-white rounded-full flex items-center justify-center hover:bg-orange-700"
+                className="flex-1 bg-orange-600 hover:bg-orange-700 text-xs h-7 text-white cursor-pointer"
+                disabled={(!hasFixedPrice && !selectedUnit) || isAddingToCart}
               >
-                <Plus size={12} />
-              </button>
+                {isAddingToCart ? "Adding..." : "Add to Cart"}
+              </Button>
             </div>
           </div>
-
-          {/* Total Price */}
-          <div className="mb-4 p-2 rounded bg-green-50">
-            <div className="flex justify-between items-center">
-              <div>
-                <span className="text-sm font-medium">Total:</span>
-                {!hasFixedPrice && selectedUnit && (
-                  <div className="text-xs text-gray-600">
-                    {quantity} × {selectedUnit.unit}
-                  </div>
-                )}
-                {hasFixedPrice && (
-                  <div className="text-xs text-gray-600">
-                    {quantity} items
-                  </div>
-                )}
-              </div>
-              <span className="text-lg font-bold text-green-600">
-                <PriceFormatter amount={currentPrice * quantity} />
-              </span>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleCancel();
-              }}
-              className="flex-1 text-xs h-7 hover:bg-gray-200 cursor-pointer"
-              disabled={isAddingToCart}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleConfirmAdd();
-              }}
-              className="flex-1 bg-orange-600 hover:bg-orange-700 text-xs h-7 text-white cursor-pointer"
-              disabled={(!hasFixedPrice && !selectedUnit) || isAddingToCart}
-            >
-              {isAddingToCart ? "Adding..." : "Add to Cart"}
-            </Button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

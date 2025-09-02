@@ -138,7 +138,7 @@ const CustomerSupportPage = () => {
               Speak directly with our support team
             </p>
             <div className="text-lg font-semibold text-gray-800 mb-2">
-              +234 808 828 2487
+              +234 704 642 8747
             </div>
             <div className="text-sm text-gray-500">
               ⏱ Mon-Fri: 8am-6pm, Sat: 9am-4pm
@@ -154,7 +154,7 @@ const CustomerSupportPage = () => {
               <h3 className="text-xl font-semibold">Email Support</h3>
             </div>
             <p className="text-gray-600 mb-4">
-              Send us an email and we'll respond promptly
+              Send us an email and we&apos;ll respond promptly
             </p>
             <div className="text-lg font-semibold text-gray-800 mb-2">
               seedspikelimited@gmail.com
