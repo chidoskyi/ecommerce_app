@@ -20,7 +20,7 @@ const initialState: CategoryState = {
 }
 
 // Helper function to generate temporary IDs for optimistic updates
-const generateId = () => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+// const generateId = () => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
 // Async thunks for API calls
 export const fetchCategories = createAsyncThunk(

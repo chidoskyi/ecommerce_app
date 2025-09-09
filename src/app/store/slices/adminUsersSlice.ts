@@ -2,7 +2,7 @@
 import api from '@/lib/api';
 import { AdminUsersState, initialState, User, UserFilters, UserQueryParams } from '@/types/users';
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { handleApiError } from '@/lib/error';
+// import { handleApiError } from '@/lib/error';
 
 
 // Helper function to build query string
@@ -165,9 +165,12 @@ const adminUsersSlice = createSlice({
       state.activeFilters = action.payload;
     },
     
-    addFilter: (state, action: PayloadAction<{ key: keyof UserFilters; value: any }>) => {
+    addFilter: (state, action: PayloadAction<{ 
+      key: keyof UserFilters; 
+      value: UserFilters[keyof UserFilters] 
+    }>) => {
       const { key, value } = action.payload;
-      if (!state.currentQuery.filters) state.currentQuery.filters = {};
+      if (!state.currentQuery.filters) state.currentQuery.filters = {} as UserFilters;
       state.currentQuery.filters[key] = value;
       state.activeFilters[key] = value;
     },
@@ -250,9 +253,9 @@ const adminUsersSlice = createSlice({
     },
     
     // Reset state
-    resetUsersState: (state) => {
-      return { ...initialState };
-    },
+    // resetUsersState: (state) => {
+    //   return { ...initialState };
+    // },
   },
   
   extraReducers: (builder) => {
@@ -418,7 +421,7 @@ export const {
   clearErrors,
   clearError,
   clearCache,
-  resetUsersState,
+  // resetUsersState,
 } = adminUsersSlice.actions;
 
 // Selectors

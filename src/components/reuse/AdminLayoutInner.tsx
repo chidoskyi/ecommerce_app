@@ -3,23 +3,23 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/context/AuthContext"
-import { useDispatch, useSelector } from 'react-redux'
 import { fetchUser, selectUser, selectIsLoading, selectError, selectIsAdmin } from '@/app/store/slices/userSlice'
 import AdminLayoutClient from "@/app/admin/AdminLayoutClient"
 import { ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks"
 
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { isAuthenticated, isLoading: authLoading, token, userId } = useAuth()
-  const dispatch = useDispatch()
+  const dispatch = useAppDispatch()
   
   // Redux state
-  const user = useSelector(selectUser)
-  const isUserLoading = useSelector(selectIsLoading)
-  const userError = useSelector(selectError)
-  const isAdmin = useSelector(selectIsAdmin)
+  const user = useAppSelector(selectUser)
+  const isUserLoading = useAppSelector(selectIsLoading)
+  const userError = useAppSelector(selectError)
+  const isAdmin = useAppSelector(selectIsAdmin)
   
   const [hasCheckedAccess, setHasCheckedAccess] = useState(false)
 
@@ -61,7 +61,7 @@ console.log('Redux State Debug:', {
       // If we don't have user data yet, fetch it
       if (!user && !isUserLoading && !userError) {
         console.log('🔐 Fetching user data from Redux...');
-        dispatch(fetchUser() as any);
+        dispatch(fetchUser());
         return;
       }
 
@@ -131,7 +131,7 @@ console.log('Redux State Debug:', {
         <button 
           onClick={() => {
             setHasCheckedAccess(false);
-            dispatch(fetchUser() as any);
+            dispatch(fetchUser());
           }}
           className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 mr-2"
         >

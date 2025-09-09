@@ -1,6 +1,6 @@
 // store/slices/wishlistSlice.ts - Fixed with proper authentication
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
-import { WishlistState } from "@/types";
+import { WishlistItem, WishlistState } from "@/types";
 import api from "@/lib/api";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/lib/error";
@@ -122,7 +122,8 @@ export const clearWishlist = createAsyncThunk(
         await api.delete("/api/wishlist");
         console.log("✅ Wishlist cleared via bulk endpoint");
         return true;
-      } catch (bulkError) {
+      } catch (error) {
+        console.log(error)
         // Option 2: Fallback to individual deletions
         console.log("⚠️ Bulk clear failed, trying individual deletions...");
         await Promise.all(
@@ -207,9 +208,9 @@ const wishlistSlice = createSlice({
     },
 
     // Reset wishlist to initial state
-    resetWishlist: (state) => {
-      return initialState;
-    },
+    // resetWishlist: (state) => {
+    //   return initialState;
+    // },
 
     // Update pagination
     setPagination: (
@@ -220,7 +221,7 @@ const wishlistSlice = createSlice({
     },
 
     // Optimistic add (for immediate UI feedback)
-    optimisticAdd: (state, action: PayloadAction<any>) => {
+    optimisticAdd: (state, action: PayloadAction<WishlistItem>) => {
       const exists = state.items.some(
         (item) => item.product.id === action.payload.product.id
       );
@@ -386,7 +387,7 @@ const wishlistSlice = createSlice({
         //   autoClose: 1000,
         // });
       })
-      .addCase(toggleItem.fulfilled, (state, action) => {
+      .addCase(toggleItem.fulfilled, (state) => {
         state.loading = false;
         // The actual toast will be shown by add/remove actions
       })
@@ -399,7 +400,7 @@ const wishlistSlice = createSlice({
       })
 
       // Check Item Exists
-      .addCase(checkItemExists.fulfilled, (state, action) => {
+      .addCase(checkItemExists.fulfilled, () => {
         // Optional: Show toast if needed
         // toast.info(action.payload ? 'Item in wishlist' : 'Item not in wishlist')
       });
@@ -410,7 +411,7 @@ const wishlistSlice = createSlice({
 export const {
   clearError,
   setLoading,
-  resetWishlist,
+  // resetWishlist,
   setPagination,
   optimisticAdd,
   optimisticRemove,
@@ -421,7 +422,7 @@ export const wishlistActions = {
   // Synchronous actions
   clearError,
   setLoading,
-  resetWishlist,
+  // resetWishlist,
   setPagination,
   optimisticAdd,
   optimisticRemove,

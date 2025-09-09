@@ -10,6 +10,7 @@ import {
 import Container from "@/components/reuse/Container";
 import Breadcrumb from "@/components/reuse/Breadcrumb";
 import axios from "axios";
+import { AxiosError } from "axios";
 
 const CustomerSupportPage = () => {
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
@@ -94,13 +95,21 @@ const CustomerSupportPage = () => {
           errors: response.data.data?.errors,
         });
       }
-    } catch (error: any) {
-      console.error('Form submission error:', error);
+    } catch (error) {
+      const err = error as AxiosError<{ message?: string; data?: { errors?: unknown } }>;
+      console.error("Form submission error:", err);
+    
       setSubmitStatus({
         success: false,
-        message: error.response?.data?.message || 'An unexpected error occurred. Please try again.',
-        errors: error.response?.data?.data?.errors,
+        message:
+          err.response?.data?.message ||
+          err.message ||
+          "An unexpected error occurred. Please try again.",
+        errors: Array.isArray(err.response?.data?.data?.errors)
+          ? (err.response?.data?.data?.errors as string[])
+          : undefined,
       });
+      
     } finally {
       setIsSubmitting(false);
     }
@@ -119,7 +128,7 @@ const CustomerSupportPage = () => {
             Customer Service
           </h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            We're here to help you with any questions or concerns you may have
+            We&apos;re here to help you with any questions or concerns you may have
             about your orders or our services.
           </p>
         </div>

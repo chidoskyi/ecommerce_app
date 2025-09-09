@@ -1,8 +1,22 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import api from '@/lib/api';
 import { AdminReviewState, BulkReviewPayload, initialState, Review, ReviewFilters, ReviewStatus } from '@/types/reviews';
+import { AppDispatch, RootState } from '..';
 
-// Types
+// Types for API error responses
+interface ApiError {
+  response?: {
+    data?: {
+      error?: string;
+    };
+  };
+  message?: string;
+}
+
+// Type guard for API errors
+function isApiError(error: unknown): error is ApiError {
+  return typeof error === 'object' && error !== null;
+}
 
 
 
@@ -43,8 +57,11 @@ export const fetchReviews = createAsyncThunk<ReviewsResponse, Partial<ReviewFilt
 
       const response = await api.get(`/api/admin/reviews?${params.toString()}`);
       return response.data;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.error || error.message || 'Failed to fetch reviews');
+    } catch (error: unknown) {
+      if (isApiError(error)) {
+        return rejectWithValue(error.response?.data?.error || error.message || 'Failed to fetch reviews');
+      }
+      return rejectWithValue('Failed to fetch reviews');
     }
   }
 );
@@ -61,8 +78,11 @@ export const updateReview = createAsyncThunk<
       
       const response = await api.put(`/api/admin/reviews?${params.toString()}`, data);
       return response.data;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.error || error.message || 'Failed to update review');
+    } catch (error: unknown) {
+      if (isApiError(error)) {
+        return rejectWithValue(error.response?.data?.error || error.message || 'Failed to update review');
+      }
+      return rejectWithValue('Failed to update review');
     }
   }
 );
@@ -77,8 +97,11 @@ export const deleteReview = createAsyncThunk<
       const params = new URLSearchParams({ id: reviewId });
       const response = await api.delete(`/api/admin/reviews?${params.toString()}`);
       return { ...response.data, reviewId };
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.error || error.message || 'Failed to delete review');
+    } catch (error: unknown) {
+      if (isApiError(error)) {
+        return rejectWithValue(error.response?.data?.error || error.message || 'Failed to delete review');
+      }
+      return rejectWithValue('Failed to delete review');
     }
   }
 );
@@ -95,8 +118,11 @@ export const bulkUpdateReviews = createAsyncThunk<
         reviewIds,
       });
       return response.data;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.error || error.message || 'Failed to perform bulk operation');
+    } catch (error: unknown) {
+      if (isApiError(error)) {
+        return rejectWithValue(error.response?.data?.error || error.message || 'Failed to perform bulk operation');
+      }
+      return rejectWithValue('Failed to perform bulk operation');
     }
   }
 );
@@ -281,7 +307,7 @@ const adminReviewSlice = createSlice({
         state.actionLoading.bulkOperation = true;
         state.error = null;
       })
-      .addCase(bulkUpdateReviews.fulfilled, (state, action) => {
+      .addCase(bulkUpdateReviews.fulfilled, (state) => {
         state.actionLoading.bulkOperation = false;
         
         // Clear selected reviews after successful bulk operation
@@ -365,68 +391,72 @@ export const selectIsAllReviewsSelected = (state: { adminReviews: AdminReviewSta
 
 export default adminReviewSlice.reducer;
 
+// Thunk action creator types
+type ThunkAction<R = void> = (dispatch: AppDispatch, getState: () => RootState) => R;
+
 // Helper action creators
-export const refreshReviews = (filters?: Partial<ReviewFilters>) => (dispatch: any, getState: any) => {
-  const currentFilters = getState().adminReviews.filters;
-  dispatch(fetchReviews({ ...currentFilters, ...filters }));
-};
+export const refreshReviews = (filters?: Partial<ReviewFilters>): ThunkAction => 
+  (dispatch, getState) => {
+    const currentFilters = getState().adminReviews.filters;
+    dispatch(fetchReviews({ ...currentFilters, ...filters }));
+  };
 
-export const approveReview = (reviewId: string) => (dispatch: any) => {
-  // Optimistic update
-  dispatch(optimisticUpdateReview({ 
-    id: reviewId, 
-    updates: { status: 'APPROVED', updatedAt: new Date().toISOString() } 
-  }));
+  export const approveReview = (reviewId: string): ThunkAction => (dispatch) => {
+    // Optimistic update
+    dispatch(optimisticUpdateReview({ 
+      id: reviewId, 
+      updates: { status: 'APPROVED', updatedAt: new Date().toISOString() } 
+    }));
+    
+    // Actual update
+    return dispatch(updateReview({ id: reviewId, action: 'approve' }));
+  };
+
+  export const rejectReview = (reviewId: string): ThunkAction => (dispatch) => {
+    // Optimistic update
+    dispatch(optimisticUpdateReview({ 
+      id: reviewId, 
+      updates: { status: 'REJECTED', updatedAt: new Date().toISOString() } 
+    }));
+    
+    // Actual update
+    return dispatch(updateReview({ id: reviewId, action: 'reject' }));
+  };
+
+  export const toggleReviewVerification = (reviewId: string, isVerified: boolean): ThunkAction => (dispatch) => {
+    // Optimistic update
+    dispatch(optimisticUpdateReview({ 
+      id: reviewId, 
+      updates: { isVerified, updatedAt: new Date().toISOString() } 
+    }));
+    
+    // Actual update
+    return dispatch(updateReview({ id: reviewId, isVerified }));
+  };
+
+  export const searchReviews = (searchTerm: string): ThunkAction => (dispatch, getState) => {
+    const currentFilters = getState().adminReviews.filters;
+    dispatch(setFilters({ search: searchTerm, page: 1 }));
+    dispatch(fetchReviews({ ...currentFilters, search: searchTerm, page: 1 }));
+  };
+
+  export const filterReviewsByStatus = (status: ReviewStatus | "all"): ThunkAction => 
+    (dispatch, getState) => {
+      const currentFilters = getState().adminReviews.filters;
+      dispatch(setFilters({ status, page: 1 }));
+      dispatch(fetchReviews({ ...currentFilters, status, page: 1 }));
+    };
   
-  // Actual update
-  return dispatch(updateReview({ id: reviewId, action: 'approve' }));
-};
-
-export const rejectReview = (reviewId: string) => (dispatch: any) => {
-  // Optimistic update
-  dispatch(optimisticUpdateReview({ 
-    id: reviewId, 
-    updates: { status: 'REJECTED', updatedAt: new Date().toISOString() } 
-  }));
+  export const bulkApproveReviews = (reviewIds: string[]): ThunkAction => (dispatch) => {
+    return dispatch(bulkUpdateReviews({ action: 'approve', reviewIds }));
+  };
   
-  // Actual update
-  return dispatch(updateReview({ id: reviewId, action: 'reject' }));
-};
 
-export const toggleReviewVerification = (reviewId: string, isVerified: boolean) => (dispatch: any) => {
-  // Optimistic update
-  dispatch(optimisticUpdateReview({ 
-    id: reviewId, 
-    updates: { isVerified, updatedAt: new Date().toISOString() } 
-  }));
+
+  export const bulkRejectReviews = (reviewIds: string[]): ThunkAction => (dispatch) => {
+    return dispatch(bulkUpdateReviews({ action: 'reject', reviewIds }));
+  };
   
-  // Actual update
-  return dispatch(updateReview({ id: reviewId, isVerified }));
-};
-
-export const searchReviews = (searchTerm: string) => (dispatch: any, getState: any) => {
-  const currentFilters = getState().adminReviews.filters;
-  dispatch(setFilters({ search: searchTerm, page: 1 }));
-  dispatch(fetchReviews({ ...currentFilters, search: searchTerm, page: 1 }));
-};
-
-export const filterReviewsByStatus = (
-  status: ReviewStatus | "all"
-) => (dispatch: any, getState: any) => {
-  const currentFilters = getState().adminReviews.filters;
-  dispatch(setFilters({ status, page: 1 }));
-  dispatch(fetchReviews({ ...currentFilters, status, page: 1 }));
-};
-
-
-export const bulkApproveReviews = (reviewIds: string[]) => (dispatch: any) => {
-  return dispatch(bulkUpdateReviews({ action: 'approve', reviewIds }));
-};
-
-export const bulkRejectReviews = (reviewIds: string[]) => (dispatch: any) => {
-  return dispatch(bulkUpdateReviews({ action: 'reject', reviewIds }));
-};
-
-export const bulkDeleteReviews = (reviewIds: string[]) => (dispatch: any) => {
-  return dispatch(bulkUpdateReviews({ action: 'delete', reviewIds }));
-};
+  export const bulkDeleteReviews = (reviewIds: string[]): ThunkAction => (dispatch) => {
+    return dispatch(bulkUpdateReviews({ action: 'delete', reviewIds }));
+  };

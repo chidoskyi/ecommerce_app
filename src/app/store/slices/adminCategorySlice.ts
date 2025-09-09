@@ -10,9 +10,10 @@ import {
   Category,
   initialState,
 } from "@/types/categories";
+import { AxiosResponse } from "axios";
 
 // Helper function to extract data from API response
-const extractApiData = (response: any) => {
+const extractApiData = (response: AxiosResponse) => {
   // If the response has a data property, use that (Axios response format)
   if (response && typeof response === "object" && "data" in response) {
     return response.data;
@@ -24,7 +25,7 @@ const extractApiData = (response: any) => {
 // Async Thunks
 export const fetchCategories = createAsyncThunk(
   "adminCategory/fetchCategories",
-  async (filters?: Partial<CategoryFilters>, { rejectWithValue }) => {
+  async (filters: Partial<CategoryFilters>, { rejectWithValue }) => {
     try {
       const searchParams = new URLSearchParams();
 
@@ -161,13 +162,9 @@ export const uploadCategoryImages = createAsyncThunk<
 
       console.log("✅ Frontend: Upload successful", response.data);
       return extractApiData(response);
-    } catch (error: any) {
-      console.error("❌ Frontend: Upload error:", error);
-      console.error("❌ Error response:", error.response?.data);
-
-      const apiError = error.response?.data;
+    } catch (error) {
       return rejectWithValue(
-        apiError?.error || error.message || "Failed to upload image"
+        error instanceof Error ? error.message : "Failed to upload image  "
       );
     }
   }
@@ -191,12 +188,10 @@ export const deleteCategoryImage = createAsyncThunk<
     console.log("✅ Frontend: Image deleted successfully");
     const data = extractApiData(response);
     return data.category;
-  } catch (error: any) {
+  } catch (error) {
     console.error("❌ Frontend: Delete image error:", error);
-
-    const apiError = error.response?.data;
     return rejectWithValue(
-      apiError?.error || error.message || "Failed to delete image"
+      error instanceof Error ? error.message : "Failed to delete image"
     );
   }
 });
@@ -235,8 +230,6 @@ const adminCategorySlice = createSlice({
           "🔍 Redux: fetchCategories fulfilled with payload:",
           payload
         );
-        console.log("🔍 Redux: payload type:", typeof payload);
-        console.log("🔍 Redux: payload is array:", Array.isArray(payload));
 
         // Handle different response formats
         if (payload && typeof payload === "object") {
@@ -271,8 +264,8 @@ const adminCategorySlice = createSlice({
               });
 
               state.pagination = {
-                currentPage: state.filters.page || 1,
-                totalPages: Math.ceil(categoriesLength / currentLimit),
+                page: state.filters.page || 1,
+                pages: Math.ceil(categoriesLength / currentLimit),
                 total: categoriesLength,
                 limit: currentLimit,
               };
@@ -296,8 +289,8 @@ const adminCategorySlice = createSlice({
             });
 
             state.pagination = {
-              currentPage: state.filters.page || 1,
-              totalPages: Math.ceil(categoriesLength / currentLimit),
+              page: state.filters.page || 1,
+              pages: Math.ceil(categoriesLength / currentLimit),
               total: categoriesLength,
               limit: currentLimit,
             };

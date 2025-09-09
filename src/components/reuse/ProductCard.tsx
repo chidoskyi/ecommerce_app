@@ -4,17 +4,13 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Heart, ShoppingCart, Plus, Minus, Trash2 } from "lucide-react";
 import React, { useState, useEffect, useRef } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PriceFormatter } from "./FormatCurrency";
 import { ProductCardProps, UnitPrice } from "@/types/products";
 import { StorageUtil } from "@/lib/storageKeys";
-// Redux imports
-import { useDispatch, useSelector } from "react-redux";
 import {
   toggleItem,
   selectIsInWishlist,
-  selectWishlistLoading,
 } from "@/app/store/slices/wishlistSlice";
 import {
   addItemToCart,
@@ -22,7 +18,7 @@ import {
   selectItemQuantity,
   openCart,
 } from "@/app/store/slices/cartSlice";
-import type { AppDispatch } from "@/app/store/";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 
 export default function ProductCard({
   id,
@@ -36,14 +32,13 @@ export default function ProductCard({
   onRemove,
   isRemoving,
 }: ProductCardProps) {
-  const dispatch = useDispatch<AppDispatch>();
+  const dispatch = useAppDispatch();
   const router = useRouter();
 
   // Redux state
-  const isInWishlist = useSelector(selectIsInWishlist(id));
-  const wishlistLoading = useSelector(selectWishlistLoading);
-  const cartLoading = useSelector(selectCartLoading);
-  const itemQuantityInCart = useSelector(selectItemQuantity(id));
+  const isInWishlist = useAppSelector(selectIsInWishlist(id));
+  const cartLoading = useAppSelector(selectCartLoading);
+  const itemQuantityInCart = useAppSelector(selectItemQuantity(id));
 
   // Local state
   const [isHovered, setIsHovered] = useState(false);
@@ -102,6 +97,7 @@ export default function ProductCard({
         setSelectedUnit(null);
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Get display price for card

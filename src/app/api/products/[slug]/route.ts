@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ProductWithReviews } from '@/types/products';
-import { Review } from '@/types';
+import { Review } from '@/types/reviews';
 
 // GET - Fetch single product by Slug
 export async function GET(
@@ -61,7 +61,7 @@ export async function GET(
       reviewCount: productWithReviews.reviews.length,
       ratingDistribution
     })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Product GET error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },

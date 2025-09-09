@@ -1,76 +1,139 @@
 // src/app/api/payments/opay/verify-payment/route.ts
-import { NextRequest, NextResponse } from 'next/server'
-import { opayService } from '@/lib/opay'
-import prisma from '@/lib/prisma'
-import { requireAuth } from '@/lib/auth';
+import { NextResponse } from "next/server";
+import { opayService } from "@/lib/opay";
+import prisma from "@/lib/prisma";
+import { AuthenticatedRequest, requireAuth } from "@/lib/auth";
 
-export async function POST (request: NextRequest) {
+interface VerifyPaymentParams {
+  reference?: string;
+  orderNo?: string;
+  country?: string;
+}
+
+interface PaymentData {
+  status: string;
+  orderNo?: string;
+  amount?: {
+    total: number;
+    currency: string;
+  };
+  createTime?: number;
+  instrumentType?: string;
+}
+
+interface OPayStatus {
+  code: string;
+  data?: PaymentData;
+  message?: string;
+}
+
+export const POST = requireAuth(async (request: AuthenticatedRequest) => {
+  // Declare body outside try block to make it accessible in catch
+  let body: { reference?: string; orderNo?: string; country?: string } = {};
+
   try {
-        // First check auth status
-        const authCheck = await requireAuth(request);
-        if (authCheck) {
-          return authCheck; // Returns the error response if not admin
-        }
+    const user = request.user;
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    const body = await request.json()
-    console.log('Request body received:', body)
-    
-    const { reference, orderNo, country } = body
-    
-    console.log('Extracted parameters:', { reference, orderNo, country })
+    body = await request.json();
+    console.log("Request body received:", body);
+
+    const { reference, orderNo, country } = body;
+
+    console.log("Extracted parameters:", { reference, orderNo, country });
 
     if (!reference && !orderNo) {
       return NextResponse.json(
-        { error: 'Either payment reference or orderNo is required' },
+        { error: "Either payment reference or orderNo is required" },
         { status: 400 }
-      )
+      );
     }
 
-    console.log('Verifying payment for reference:', reference || orderNo)
+    console.log("Verifying payment for reference:", reference || orderNo);
 
     // Create the parameters object explicitly
-    const verifyParams = {
+    const verifyParams: VerifyPaymentParams = {
       reference: reference || undefined,
       orderNo: orderNo || undefined,
-      country: country || 'NG'
+      country: country || "NG",
+    };
+
+    console.log("Sending to opayService.verifyPayment:", verifyParams);
+
+    // Check database first to get order information
+    const order = await prisma.order.findFirst({
+      where: {
+        OR: [
+          // Search by reference if provided
+          ...(reference
+            ? [
+                { paymentId: reference },
+                { transactionId: reference },
+                { orderNumber: reference },
+              ]
+            : []),
+          // Search by orderNo if provided
+          ...(orderNo
+            ? [
+                { paymentId: orderNo },
+                { transactionId: orderNo },
+                { orderNumber: orderNo },
+              ]
+            : []),
+        ],
+      },
+      include: {
+        checkout: true,
+        Invoice: true,
+      },
+    });
+
+    if (!order) {
+      return NextResponse.json(
+        { error: "Order not found with this payment reference" },
+        { status: 404 }
+      );
     }
-    
-    console.log('Sending to opayService.verifyPayment:', verifyParams)
 
     // Check with Opay
-    const opayStatus = await opayService.verifyPayment(verifyParams)
-    console.log('Opay verification response:', opayStatus)
+    const opayStatus: OPayStatus = await opayService.verifyPayment({
+      ...verifyParams,
+      country: verifyParams.country || "NG",
+    });
+    console.log("Opay verification response:", opayStatus);
 
     // Handle successful payment updates
-    if (opayStatus.code === '00000' && opayStatus.data) {
-      const paymentData = opayStatus.data
-      
+    if (opayStatus.code === "00000" && opayStatus.data) {
+      const paymentData = opayStatus.data;
+
       // If payment is successful and order isn't already updated
-      if (paymentData.status === 'SUCCESS' && order.paymentStatus !== 'PAID') {
-        console.log('Payment successful - updating database records')
-        
+      if (paymentData.status === "SUCCESS" && order.paymentStatus !== "PAID") {
+        console.log("Payment successful - updating database records");
+
         try {
           await prisma.$transaction(async (tx) => {
             // Update order
             await tx.order.update({
               where: { id: order.id },
               data: {
-                paymentStatus: 'PAID',
-                status: order.status === 'PENDING' ? 'CONFIRMED' : order.status,
-                updatedAt: new Date()
-              }
-            })
+                paymentStatus: "PAID",
+                status: order.status === "PENDING" ? "CONFIRMED" : order.status,
+                updatedAt: new Date(),
+              },
+            });
 
             // Update checkout if exists
             if (order.checkout) {
               await tx.checkout.update({
                 where: { id: order.checkout.id },
                 data: {
-                  paymentStatus: 'PAID',
-                  status: 'COMFIRMED',
-                  updatedAt: new Date()
-                }
-              })
+                  paymentStatus: "PAID",
+                  status: "COMPLETED",
+                  updatedAt: new Date(),
+                },
+              });
             }
 
             // Update invoice if exists
@@ -78,100 +141,81 @@ export async function POST (request: NextRequest) {
               await tx.invoice.update({
                 where: { id: order.Invoice.id },
                 data: {
-                  paymentStatus: 'PAID',
-                  status: 'PAID',
+                  paymentStatus: "PAID",
+                  status: "PAID",
                   balanceAmount: 0,
                   paidAt: new Date(),
-                  updatedAt: new Date()
-                }
-              })
+                  updatedAt: new Date(),
+                },
+              });
             }
-          })
-          
-          console.log('Successfully updated database after payment confirmation')
+          });
+
+          console.log(
+            "Successfully updated database after payment confirmation"
+          );
         } catch (updateError) {
-          console.error('Error updating order status:', updateError)
+          console.error("Error updating order status:", updateError);
         }
       }
-    }
-
-    // Check our database
-    const order = await prisma.order.findFirst({
-      where: {
-        OR: [
-          // Search by reference if provided
-          ...(reference ? [
-            { paymentId: reference },
-            { transactionId: reference },
-            { orderNumber: reference }
-          ] : []),
-          // Search by orderNo if provided
-          ...(orderNo ? [
-            { paymentId: orderNo },
-            { transactionId: orderNo },
-            { orderNumber: orderNo }
-          ] : [])
-        ]
-      },
-      include: {
-        checkout: true,
-        Invoice: true
-      }
-    })
-
-    if (!order) {
-      return NextResponse.json(
-        { error: 'Order not found with this payment reference' },
-        { status: 404 }
-      )
     }
 
     return NextResponse.json({
       success: true,
       reference: reference || orderNo,
       payment: {
-        status: opayStatus.data?.status || 'UNKNOWN',
+        status: opayStatus.data?.status || "UNKNOWN",
         opayOrderNo: opayStatus.data?.orderNo,
         amount: {
           total: opayStatus.data?.amount?.total || 0,
-          currency: opayStatus.data?.amount?.currency || 'NGN',
-          displayAmount: (opayStatus.data?.amount?.total || 0) / 100
+          currency: opayStatus.data?.amount?.currency || "NGN",
+          displayAmount: (opayStatus.data?.amount?.total || 0) / 100,
         },
-        createdAt: opayStatus.data?.createTime ? new Date(opayStatus.data.createTime) : null,
-        instrumentType: opayStatus.data?.instrumentType
+        createdAt: opayStatus.data?.createTime
+          ? new Date(opayStatus.data.createTime)
+          : null,
+        instrumentType: opayStatus.data?.instrumentType,
       },
       opayStatus,
       databaseStatus: {
         order: {
           id: order.id,
           status: order.status,
-          paymentStatus: order.paymentStatus
+          paymentStatus: order.paymentStatus,
         },
-        checkout: order.checkout ? {
-          id: order.checkout.id,
-          status: order.checkout.status,
-          paymentStatus: order.checkout.paymentStatus
-        } : null,
-        invoice: order.Invoice ? {
-          id: order.Invoice.id,
-          status: order.Invoice.status,
-          paymentStatus: order.Invoice.paymentStatus,
-          balanceAmount: order.Invoice.balanceAmount
-        } : null
-      }
-    })
+        checkout: order.checkout
+          ? {
+              id: order.checkout.id,
+              status: order.checkout.status,
+              paymentStatus: order.checkout.paymentStatus,
+            }
+          : null,
+        invoice: order.Invoice
+          ? {
+              id: order.Invoice.id,
+              status: order.Invoice.status,
+              paymentStatus: order.Invoice.paymentStatus,
+              balanceAmount: order.Invoice.balanceAmount,
+            }
+          : null,
+      },
+    });
+  } catch (error: unknown) {
+    console.error("Payment verification error:", error);
 
-  } catch (error: any) {
-    console.error('Payment verification error:', error)
-    
-    return NextResponse.json({
-      success: false,
-      error: error.message,
-      reference: body?.reference || body?.orderNo || 'unknown'
-    }, { status: 500 })
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error occurred";
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: errorMessage,
+        reference: body?.reference || body?.orderNo || "unknown",
+      },
+      { status: 500 }
+    );
   }
-}
-
+});
 
 // / /api/payments/opay/verify/route.ts - OPay Verification Endpoint
 // import { NextRequest, NextResponse } from 'next/server';
@@ -195,7 +239,7 @@ export async function POST (request: NextRequest) {
 
 //     // Verify payment with OPay
 //     const verification = await opayService.verifyPayment(reference);
-    
+
 //     if (!verification.success) {
 //       return NextResponse.json({
 //         success: false,

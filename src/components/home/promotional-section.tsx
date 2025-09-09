@@ -18,7 +18,7 @@ export default function PromotionalSection() {
             20%!
           </h1>
           <p className="text-gray-500">
-            Save when you order from FeedMe's top deals
+            Save when you order from ShopGrocery top deals
           </p>
         </div>
 

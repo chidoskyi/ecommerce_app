@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Edit3, Check, X, Wand2, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Edit3, Check, Wand2, AlertTriangle } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
   generateProductSku, 
@@ -18,7 +18,7 @@ export interface HybridSkuInputProps {
 }
 
 // Robust ObjectID validation that handles any input type
-const isValidObjectId = (id: any): id is string => {
+const isValidObjectId = (id: unknown): id is string => {
   // First, ensure it's a string and not null/undefined
   if (!id || typeof id !== 'string') {
     return false;
@@ -38,7 +38,7 @@ const isValidObjectId = (id: any): id is string => {
 };
 
 // Convert any value to a valid string or null
-const sanitizeCategoryId = (id: any): string | null => {
+const sanitizeCategoryId = (id: unknown): string | null => {
   if (!id) return null;
   
   if (typeof id === 'string') {
@@ -50,8 +50,9 @@ const sanitizeCategoryId = (id: any): string | null => {
     return id.toString();
   }
   
-  if (typeof id === 'object' && id.id) {
-    return sanitizeCategoryId(id.id); // Handle objects with id property
+  // Handle objects with id property
+  if (typeof id === 'object' && id !== null && 'id' in id) {
+    return sanitizeCategoryId((id as { id: unknown }).id);
   }
   
   return null;
@@ -70,7 +71,8 @@ export const HybridSkuInput: React.FC<HybridSkuInputProps> = ({
   const generatedSku = useSelector(selectGeneratedSku);
   
   const [inputMode, setInputMode] = useState('hybrid');
-  const [isEditing, setIsEditing] = useState(false);
+  // const [isEditing, setIsEditing] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [tempValue, setTempValue] = useState(value);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);

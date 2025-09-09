@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CheckCircle, Download, Package, ArrowRight, Mail, Truck, Loader, AlertCircle, RefreshCw } from 'lucide-react';
 import { useAuth } from "@/context/AuthContext";
-import { useDispatch, useSelector } from 'react-redux';
-import { selectUserIdentification, clearEntireCart, setAuthenticated } from "@/app/store/slices/cartSlice";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
+import { selectUserIdentification, clearEntireCart } from "@/app/store/slices/cartSlice";
 import { toast } from 'react-toastify';
 import { StorageUtil } from '@/lib/storageKeys';
 import { useUser } from '@clerk/nextjs';
@@ -58,47 +58,47 @@ export default function PaymentSuccess() {
     isLoading: authLoading, 
     userId, 
     token,
-    error: authError 
+    // err 
   } = useAuth();
   const { user: clerkUser, isSignedIn } = useUser();
-  const dispatch = useDispatch();
-  const userIdentification = useSelector(selectUserIdentification);
+  const dispatch = useAppDispatch();
+  const userIdentification = useAppSelector(selectUserIdentification);
   const searchParams = useSearchParams();
   const router = useRouter();
   
   // Get parameters from URL
-  const reference = searchParams.get('reference') || searchParams.get('trxref');
-  const paymentMethod = searchParams.get('method') || 'paystack'; // Default to paystack
-  const orderId = searchParams.get('orderId');
+  const reference = searchParams?.get('reference') || searchParams?.get('trxref');
+  const paymentMethod = searchParams?.get('method') || 'paystack'; // Default to paystack
+  const orderId = searchParams?.get('orderId');
 
   useEffect(() => {
     // Trigger entrance animation
     setIsVisible(true);
   }, []);
 
-  useEffect(() => {
-    // Wait for auth to complete before verifying payment
-    if (!authLoading) {
-      if (!isAuthenticated) {
-        // Redirect to login if not authenticated
-        setError('Please log in to view your order');
-        setIsLoading(false);
-        setIsVerifying(false);
-        // Optionally redirect to login page
-        // router.push('/login');
-        return;
-      }
+  // useEffect(() => {
+  //   // Wait for auth to complete before verifying payment
+  //   if (!authLoading) {
+  //     if (!isAuthenticated) {
+  //       // Redirect to login if not authenticated
+  //       setError('Please log in to view your order');
+  //       setIsLoading(false);
+  //       setIsVerifying(false);
+  //       // Optionally redirect to login page
+  //       // router.push('/login');
+  //       return;
+  //     }
 
-      // Verify payment once authenticated
-      if (reference && token) {
-        verifyPayment();
-      } else if (!reference) {
-        setError('No payment reference found');
-        setIsLoading(false);
-        setIsVerifying(false);
-      }
-    }
-  }, [authLoading, isAuthenticated, reference, token]);
+  //     // Verify payment once authenticated
+  //     if (reference && token) {
+  //       verifyPayment();
+  //     } else if (!reference) {
+  //       setError('No payment reference found');
+  //       setIsLoading(false);
+  //       setIsVerifying(false);
+  //     }
+  //   }
+  // }, [authLoading, isAuthenticated, reference, token]);
 
 
   const clearCartAfterPayment = async () => {

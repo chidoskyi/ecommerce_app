@@ -15,22 +15,18 @@ import {
   Cake,
   Mail,
   Shield,
-  User,
+  User as UserIcon,
   Upload,
-  Edit,
   Pencil,
-  Check,
-  AlertCircle,
-  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { useUser, useReverification } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
 import { useState, useEffect, useRef } from "react";
 import api from "@/lib/api";
 
 // Client-side utility functions to avoid server-only imports
-const getUserDisplayName = (user: any) => {
+const getUserDisplayName = (user: ClerkUser) => {
   if (!user) return "";
   return (
     user.fullName ||
@@ -40,7 +36,24 @@ const getUserDisplayName = (user: any) => {
   );
 };
 
-const getUserEmail = (user: any) => {
+
+interface ClerkEmailAddress {
+  emailAddress: string;
+}
+
+interface ClerkUser {
+  fullName: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  username: string | null;
+  primaryEmailAddress: { emailAddress: string } | null;
+  emailAddresses: ClerkEmailAddress[];
+  imageUrl: string;
+}
+
+
+
+const getUserEmail = (user: ClerkUser) => {
   if (!user) return "";
   return (
     user.primaryEmailAddress?.emailAddress ||
@@ -49,14 +62,15 @@ const getUserEmail = (user: any) => {
   );
 };
 
-const getUserPhone = (user: any) => {
-  if (!user) return "";
-  return (
-    user.primaryPhoneNumber?.phoneNumber ||
-    user.phoneNumbers?.[0]?.phoneNumber ||
-    ""
-  );
-};
+
+// const getUserPhone = (user: any) => {
+//   if (!user) return "";
+//   return (
+//     user.primaryPhoneNumber?.phoneNumber ||
+//     user.phoneNumbers?.[0]?.phoneNumber ||
+//     ""
+//   );
+// };
 
 // Convert file to base64
 const fileToBase64 = (file: File): Promise<string> => {
@@ -92,6 +106,8 @@ export default function ProfilePage() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [base64Image, setBase64Image] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // const user = clerkUser as unknown as ClerkUser;
 
   // Handle image upload to Clerk with base64 conversion
   const handleImageUpload = async (file: File) => {
@@ -153,9 +169,14 @@ export default function ProfilePage() {
       }
 
       alert("Profile image updated successfully!");
-    } catch (error: any) {
-      console.error("❌ Error uploading image:", error);
-      alert(`Failed to upload image: ${error.message}`);
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error("❌ Error uploading image:", error);
+        alert(`Failed to upload image: ${error.message}`);
+      } else {
+        console.error("❌ Error uploading image:", error);
+        alert("Failed to upload image: An unknown error occurred.");
+      }
     } finally {
       setIsUploadingImage(false);
     }
@@ -219,9 +240,13 @@ export default function ProfilePage() {
       }
 
       alert("Profile image removed successfully!");
-    } catch (error: any) {
+    } catch (error) {
       console.error("❌ Error removing image:", error);
-      alert(`Failed to remove image: ${error.message}`);
+      if (error instanceof Error) {
+        alert(`Failed to remove image: ${error.message}`);
+      } else {
+        alert("Failed to remove image: Unknown error");
+      }
     } finally {
       setIsUploadingImage(false);
     }
@@ -326,22 +351,27 @@ export default function ProfilePage() {
             lastName: clerkUser.lastName,
             fullName: clerkUser.fullName,
           });
-        } catch (clerkError: any) {
+        } catch (clerkError: unknown) {
           console.error("❌ Error updating Clerk fields:", clerkError);
-          console.error("🔍 Error details:", {
-            message: clerkError.message,
-            status: clerkError.status,
-            code: clerkError.code,
-            errors: clerkError.errors,
-          });
-
-          // Check if it's a permissions issue
-          if (clerkError.message?.includes("not a valid parameter")) {
-            console.warn(
-              "⚠️ firstName/lastName not allowed - possibly restricted in Clerk settings"
-            );
+          
+          // Type-safe error handling
+          if (clerkError instanceof Error) {
+            console.error("🔍 Error details:", {
+              message: clerkError.message,
+              name: clerkError.name,
+              stack: clerkError.stack,
+            });
+  
+            // Check if it's a permissions issue
+            if (clerkError.message?.includes("not a valid parameter")) {
+              console.warn(
+                "⚠️ firstName/lastName not allowed - possibly restricted in Clerk settings"
+              );
+            }
+          } else {
+            console.error("🔍 Unknown error type:", clerkError);
           }
-
+  
           throw new Error("Failed to update Clerk fields");
         }
       }
@@ -410,7 +440,6 @@ export default function ProfilePage() {
 
 
   const handleCancel = () => {
-    // Reset form to original values
     setFormData({ ...originalFormData });
   };
 
@@ -463,7 +492,7 @@ export default function ProfilePage() {
       <Card className="border-gray-200">
         <CardHeader>
           <CardTitle className="flex items-center justify-start gap-2 mb-5">
-            <User />
+            <UserIcon />
             <h1>Account Information</h1>
           </CardTitle>
           <CardDescription className="text-lg mb-5">
@@ -591,7 +620,7 @@ export default function ProfilePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-lg">
               <div className="space-y-2">
                 <Label htmlFor="firstName" className="flex gap-2">
-                  <User size={15} /> <span>First Name</span>
+                  <UserIcon size={15} /> <span>First Name</span>
                 </Label>
                 <Input
                   id="firstName"
@@ -604,7 +633,7 @@ export default function ProfilePage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="lastName" className="flex gap-2">
-                  <User size={15} /> <span>Last Name</span>
+                  <UserIcon size={15} /> <span>Last Name</span>
                 </Label>
                 <Input
                   id="lastName"

@@ -1,17 +1,16 @@
 // app/api/admin/reviews/bulk/route.js
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { requireAdmin, AuthenticatedRequest } from '@/lib/middleware'
+import { requireAdmin, AuthenticatedRequest } from '@/lib/auth'
 
 
 // app/api/admin/reviews/bulk/route.js - For bulk operations
-export async function POST(request: NextRequest) {
-  try {
-    // Apply admin middleware
-    const adminCheck = await requireAdmin(request);
-    if (adminCheck instanceof NextResponse) {
-      return adminCheck;
-    }
+export const POST = requireAdmin(
+  async (
+    request: AuthenticatedRequest
+  ) => {
+
+    try{
 
     const user = (request as AuthenticatedRequest).user
     if (!user) {
@@ -73,4 +72,4 @@ export async function POST(request: NextRequest) {
     console.error('Bulk review operation error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

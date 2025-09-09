@@ -1,3 +1,4 @@
+// app/store/index.ts
 import { configureStore } from '@reduxjs/toolkit';
 import { 
   persistStore,
@@ -21,16 +22,9 @@ const persistConfig = {
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
 
-// Create a singleton store instance
-let store: ReturnType<typeof configureStore> | null = null;
-let persistor: ReturnType<typeof persistStore> | null = null;
-
+// Create a function that returns a new store instance
 export const makeStore = () => {
-  if (store && persistor) {
-    return { store, persistor };
-  }
-
-  store = configureStore({
+  const store = configureStore({
     reducer: persistedReducer,
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware({
@@ -41,26 +35,12 @@ export const makeStore = () => {
     devTools: process.env.NODE_ENV !== 'production',
   });
 
-  persistor = persistStore(store);
+  const persistor = persistStore(store);
   return { store, persistor };
 };
 
-// Export the store instance for direct access
-export const getStore = () => {
-  if (!store) {
-    throw new Error('Store not initialized. Call makeStore() first.');
-  }
-  return store;
-};
-
-export const getPersistor = () => {
-  if (!persistor) {
-    throw new Error('Persistor not initialized. Call makeStore() first.');
-  }
-  return persistor;
-};
-
+// Get the type of the store
 export type AppStore = ReturnType<typeof makeStore>['store'];
-export type RootState = ReturnType<AppStore['getState']>
-export type AppDispatch = AppStore['dispatch'];
-export type AppPersistor = ReturnType<typeof makeStore>['persistor']; 
+export type RootState = ReturnType<AppStore['getState']>;
+export type AppDispatch = AppStore['dispatch']; // This should properly include thunk dispatch
+export type AppPersistor = ReturnType<typeof makeStore>['persistor'];

@@ -30,9 +30,9 @@ import { CartButtonProps } from "@/types/carts";
 import { UserDropdownProps } from "@/types/users";
 import SearchDropdown from "./SearchDropDown";
 import { useProducts } from "@/app/store/slices/productSlice";
-import { useDispatch, useSelector } from 'react-redux'
 import { selectIsAdmin, selectUser, selectIsLoading, selectError, fetchUser, clearUser } from '@/app/store/slices/userSlice';
 import Image from "next/image";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 
 interface UserLink {
   icon: React.ReactNode;
@@ -101,6 +101,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   }, [inputValue, isFocused]);
 
   // Get products actions for search integration
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { actions: productActions } = useProducts();
 
   // Handle Enter key press - navigate to products page with search parameter
@@ -228,11 +229,11 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
   const [lastSignInState, setLastSignInState] = useState<boolean>(false);
   
   // Redux selectors for admin status and user data
-  const dispatch = useDispatch();
-  const isAdmin = useSelector(selectIsAdmin);
-  const reduxUser = useSelector(selectUser);
-  const isUserLoading = useSelector(selectIsLoading);
-  const userError = useSelector(selectError);
+  const dispatch = useAppDispatch();
+  const isAdmin = useAppSelector(selectIsAdmin);
+  const reduxUser = useAppSelector(selectUser);
+  const isUserLoading = useAppSelector(selectIsLoading);
+  const userError = useAppSelector(selectError);
   
   // Use Redux user data if available, fallback to props
   const user = reduxUser || propUser;
@@ -272,7 +273,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
   // Fetch user data when signed in
   useEffect(() => {
     if (isSignedIn && !reduxUser && !isUserLoading && !userError) {
-      dispatch(fetchUser() as any);
+      dispatch(fetchUser());
     }
   }, [isSignedIn, reduxUser, isUserLoading, userError, dispatch]);
 

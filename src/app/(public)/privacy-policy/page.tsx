@@ -1,24 +1,24 @@
 "use client";
 
-import React, { useState } from "react";
-import { Search, ShoppingCart, User, ChevronDown } from "lucide-react";
+import React from "react";
+// import { Search, ShoppingCart, User, ChevronDown } from "lucide-react";
 import Container from "@/components/reuse/Container";
-import Link from "next/link";
+// import Link from "next/link";
 import Breadcrumb from "@/components/reuse/Breadcrumb";
 
 const ReturnPolicyPage = () => {
-  const [newsletterEmail, setNewsletterEmail] = useState("");
+  // const [newsletterEmail, setNewsletterEmail] = useState("");
 
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Newsletter signup:", newsletterEmail);
-    // Handle newsletter signup here
-  };
+  // const handleNewsletterSubmit = (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   console.log("Newsletter signup:", newsletterEmail);
+  //   // Handle newsletter signup here
+  // };
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Breadcrumb */}
-        <Breadcrumb />
+      <Breadcrumb />
 
       {/* Main Content */}
       <Container className="mx-auto px-4 py-8">
@@ -110,8 +110,8 @@ const ReturnPolicyPage = () => {
                   </p>
                   <ul className="list-disc pl-6 mt-2 space-y-1 text-gray-700">
                     <li>
-                      <strong>shopgrocery Wallet Credit</strong> (for orders below
-                      ₦5,000).
+                      <strong>shopgrocery Wallet Credit</strong> (for orders
+                      below ₦5,000).
                     </li>
                     <li>
                       <strong>Bank Transfer</strong> (for orders above ₦5,000;
@@ -133,9 +133,9 @@ const ReturnPolicyPage = () => {
                 Refunds may take longer during holidays or banking delays.
               </li>
               <li>
-                Return shipping costs are covered by <strong>Shopgrocery</strong>{" "}
-                for defective/wrong items. If you change your mind, you bear
-                return costs.
+                Return shipping costs are covered by{" "}
+                <strong>Shopgrocery</strong> for defective/wrong items. If you
+                change your mind, you bear return costs.
               </li>
             </ul>
           </section>

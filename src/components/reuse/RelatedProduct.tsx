@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import ProductCard from "@/components/reuse/ProductCard";
 import Container from "./Container";
 import { useProducts } from "@/app/store/slices/productSlice";
 import { Product } from "@/types/products";
 
-interface RelatedProductsProps {
+export interface RelatedProductsProps {
   currentProductId: string | number;
   currentProductCategory: string | number | { id: string | number; name: string };
   maxProducts?: number;
@@ -22,7 +21,7 @@ export const RelatedProducts = ({
   title = "You might also like",
   showViewAll = false,
 }: RelatedProductsProps) => {
-  const { products, getProductsByCategory } = useProducts();
+  const { products } = useProducts();
 
   // Helper function to get category ID from different formats
   const getCategoryId = () => {
@@ -102,11 +101,11 @@ export const RelatedProducts = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
         {fallbackProducts.map((product) => {
           // Get proper product pricing
-          const productPrice = product.hasFixedPrice && product.fixedPrice > 0
-            ? product.fixedPrice
-            : product.displayPrice || 
-              (product.unitPrices?.[0]?.price) || 
-              0;
+          // const productPrice = product.hasFixedPrice && product.fixedPrice > 0
+          //   ? product.fixedPrice
+          //   : product.displayPrice || 
+          //     (product.unitPrices?.[0]?.price) || 
+          //     0;
 
           return (
             <ProductCard 
@@ -118,7 +117,7 @@ export const RelatedProducts = ({
               fixedPrice={product.fixedPrice}
               slug={product.slug || ''}
               unitPrice={product.unitPrices?.[0] || { unit: '', price: 0 }}
-              images={product.image?.[0] || product.images || "/placeholder.svg"}
+              images={product.images?.[0] || product.images || "/placeholder.svg"}
               category={typeof product.categoryId === 'object' 
                 ? product.categoryId?.name 
                 : product.category?.name || "General"}

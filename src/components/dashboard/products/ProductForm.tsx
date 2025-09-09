@@ -2,11 +2,12 @@
 
 import type React from "react";
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { X, Upload, Eye } from "lucide-react";
+import { X, Upload, Eye, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import * as Selection from '@radix-ui/react-select'
 import {
   Select,
   SelectContent,
@@ -15,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useRouter } from 'next/navigation';
+import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
@@ -35,7 +36,7 @@ import Image from "next/image";
 import { toast } from "react-toastify";
 import {
   formStateToApiData,
-  Product,
+  // Product,
   ProductFormProps,
   ProductFormState,
   productToFormState,
@@ -61,6 +62,14 @@ export interface ProductFormPropsExtended
   onEditProduct?: () => void; // Add this new prop
 }
 
+interface ImagePreview {
+  previewUrl: string;
+  file?: File;
+  url: string;
+  id?: string;
+  image?: string;
+}
+
 export function ProductForm({
   mode,
   product,
@@ -68,11 +77,21 @@ export function ProductForm({
   onError,
   onCancel,
   onProductChange,
-   onEditProduct, // Add this new prop
+  // onEditProduct, // Add this new prop
   existingSkus = [],
 }: ProductFormPropsExtended) {
   const dispatch = useAppDispatch();
   const categories = useAppSelector(selectCategories);
+
+  // Add this state at the top of your component
+  // const [mobileTabOpen, setMobileTabOpen] = useState(false);
+
+  const tabs = [
+    { value: "basic", label: "Basic Info" },
+    { value: "pricing", label: "Pricing & Inventory" },
+    { value: "metadata", label: "Metadata" },
+    { value: "media", label: "Media" },
+  ];
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState("basic");
@@ -258,10 +277,11 @@ export function ProductForm({
         return { ...prevData, images: updatedImages };
       });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [imagePreview]
   );
 
-  const getImageUrl = useCallback((image: any): string => {
+  const getImageUrl = useCallback((image: ImagePreview): string => {
     if (typeof image === "string") return image;
     if (image?.previewUrl) return image.previewUrl;
     if (image?.url) return image.url;
@@ -269,7 +289,7 @@ export function ProductForm({
   }, []);
 
   const handlePreviewImage = useCallback(
-    (image: any) => {
+    (image: ImagePreview) => {
       const url = getImageUrl(image);
       setImagePreview(url);
       setIsPreviewOpen(true);
@@ -332,7 +352,6 @@ export function ProductForm({
     return errors;
   };
 
-
   const handleSubmit = useCallback(
     async (e?: React.MouseEvent) => {
       console.log("Submit triggered - mode:", mode);
@@ -340,17 +359,17 @@ export function ProductForm({
         e.preventDefault();
         e.stopPropagation();
       }
-  
+
       try {
         setLoading(true);
-  
+
         // Validate form
         const validationErrors = validateForm(formData);
         if (validationErrors.length > 0) {
           toast.error(validationErrors[0]);
           return;
         }
-  
+
         // Convert form data to API format
         const apiData = formStateToApiData(formData);
         console.log("API data prepared:", {
@@ -358,24 +377,24 @@ export function ProductForm({
           images: `${apiData.images?.length || 0} existing images`,
           newImageFiles: `${apiData.newImageFiles?.length || 0} new files`,
         });
-  
+
         if (mode === "add") {
           console.log("🆕 Starting product creation...");
-          
+
           // For new products, handle file uploads differently
           if (apiData.newImageFiles && apiData.newImageFiles.length > 0) {
             // Create product first, then upload images separately
             console.log("🆕 Creating product with file uploads...");
-  
+
             // Create product without images first
             const productDataWithoutFiles = { ...apiData };
             delete productDataWithoutFiles.newImageFiles;
-  
+
             const result = await dispatch(
               createProduct(productDataWithoutFiles)
             ).unwrap();
             console.log("✅ Product created, now uploading images...");
-  
+
             // Upload images to the created product
             if (apiData.newImageFiles.length > 0) {
               await dispatch(
@@ -391,44 +410,43 @@ export function ProductForm({
             const result = await dispatch(createProduct(apiData)).unwrap();
             console.log("✅ Product created successfully:", result);
           }
-  
+
           // Refresh products list
           console.log("🔄 Refreshing products list...");
           await dispatch(fetchProducts({})).unwrap();
           console.log("✅ Products list refreshed");
-  
+
           // Show success message
           toast.success("Product added successfully!");
-  
+
           // Call onSuccess callback if provided
           if (onSuccess) {
             console.log("📞 Calling onSuccess callback...");
             onSuccess();
           }
-  
+
           // REDIRECT TO ADMIN/PRODUCTS AFTER SUCCESSFUL ADD
           console.log("🔄 Redirecting to /admin/products...");
-          
+
           // Use setTimeout to ensure the redirect happens after state updates
           setTimeout(() => {
-            router.push('/admin/products');
+            router.push("/admin/products");
           }, 100);
-  
         } else if (mode === "edit" && product) {
           // For updates, handle images separately
           console.log("📝 Updating existing product...");
-  
+
           // Update product data (without new files)
           const productDataWithoutFiles = { ...apiData };
           delete productDataWithoutFiles.newImageFiles;
-  
+
           const result = await dispatch(
             updateProduct({
               id: product.id,
               productData: productDataWithoutFiles,
             })
           ).unwrap();
-  
+
           // Upload any new images
           if (apiData.newImageFiles && apiData.newImageFiles.length > 0) {
             console.log(
@@ -442,23 +460,30 @@ export function ProductForm({
             ).unwrap();
             console.log("✅ New images uploaded successfully");
           }
-  
+
           console.log("✅ Product updated successfully:", result);
           toast.success("Product updated successfully");
-  
+
           // Refresh products list
           await dispatch(fetchProducts({})).unwrap();
-  
+
           if (onSuccess) {
             onSuccess();
           }
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("❌ Error in form submission:", error);
-        const errorMessage =
-          error?.message || error || "Failed to save product";
+        
+        let errorMessage = "Failed to save product";
+        
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (typeof error === 'string') {
+          errorMessage = error;
+        }
+        
         toast.error(errorMessage);
-  
+      
         if (onError) {
           onError(errorMessage);
         }
@@ -466,7 +491,17 @@ export function ProductForm({
         setLoading(false);
       }
     },
-    [mode, formData, product, dispatch, onSuccess, onError, existingSkus, router]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      mode,
+      formData,
+      product,
+      dispatch,
+      onSuccess,
+      onError,
+      existingSkus,
+      router,
+    ]
   );
 
   const handleCancel = useCallback(
@@ -501,20 +536,48 @@ export function ProductForm({
   const formContent = useMemo(() => {
     return (
       <div className="w-full">
+        {/* Mobile Dropdown - Integrated with Radix Tabs */}
+        <div className="md:hidden mb-4">
+          <Selection.Root value={activeTab} onValueChange={setActiveTab}>
+            <Selection.Trigger className="w-full flex items-center justify-between p-3 border border-gray-300 rounded-md bg-white">
+              <Selection.Value>
+                {tabs.find((tab) => tab.value === activeTab)?.label}
+              </Selection.Value>
+              <Selection.Icon>
+                <ChevronDown className="h-4 w-4" />
+              </Selection.Icon>
+            </Selection.Trigger>
+  
+            <Selection.Portal>
+              <Selection.Content className="bg-white border border-gray-300 rounded-md shadow-lg z-50">
+                <Selection.Viewport className="p-1">
+                  {tabs.map((tab) => (
+                    <Selection.Item
+                      key={tab.value}
+                      value={tab.value}
+                      className="p-3 text-sm rounded-md hover:bg-gray-50 cursor-pointer data-[highlighted]:bg-gray-50 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-600"
+                    >
+                      <Selection.ItemText>{tab.label}</Selection.ItemText>
+                    </Selection.Item>
+                  ))}
+                </Selection.Viewport>
+              </Selection.Content>
+            </Selection.Portal>
+          </Selection.Root>
+        </div>
+  
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger className="cursor-pointer" value="basic">
-              Basic Info
-            </TabsTrigger>
-            <TabsTrigger className="cursor-pointer" value="pricing">
-              Pricing & Inventory
-            </TabsTrigger>
-            <TabsTrigger className="cursor-pointer" value="metadata">
-              Metadata
-            </TabsTrigger>
-            <TabsTrigger className="cursor-pointer" value="media">
-              Media
-            </TabsTrigger>
+          {/* Desktop Tabs */}
+          <TabsList className="hidden md:grid w-full grid-cols-4">
+            {tabs.map((tab) => (
+              <TabsTrigger
+                key={tab.value}
+                className="cursor-pointer"
+                value={tab.value}
+              >
+                {tab.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           <TabsContent value="basic" className="space-y-4 py-4">
@@ -858,24 +921,28 @@ export function ProductForm({
             <div className="grid gap-4">
               <div className="grid gap-2">
                 <Label>Product Images</Label>
-                <div className="grid grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
+                  {/* Upload Button */}
                   <div
-                    className="flex flex-col items-center justify-center h-40 border-2 border-dashed rounded-md border-gray-300 p-4 text-center hover:bg-gray-50 cursor-pointer transition-colors"
+                    className="flex flex-col items-center justify-center h-28 sm:h-32 md:h-40 border-2 border-dashed rounded-md border-gray-300 p-2 sm:p-3 md:p-4 text-center hover:bg-gray-50 cursor-pointer transition-colors"
                     onClick={handleAddImageClick}
                   >
-                    <Upload className="h-8 w-8 text-gray-400 mb-2" />
-                    <p className="text-sm text-gray-500">Click to upload</p>
-                    <p className="text-xs text-gray-400 mt-1">
+                    <Upload className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 text-gray-400 mb-1 sm:mb-2" />
+                    <p className="text-xs sm:text-sm text-gray-500">
+                      Click to upload
+                    </p>
+                    <p className="text-[10px] xs:text-xs text-gray-400 mt-0.5 sm:mt-1">
                       PNG, JPG, GIF up to 10MB
                     </p>
                   </div>
 
+                  {/* Image Previews */}
                   {formData.images.map((image, index) => {
                     const imageUrl = getImageUrl(image);
                     return (
                       <div
                         key={index}
-                        className="relative h-40 rounded-md overflow-hidden group"
+                        className="relative h-28 sm:h-32 md:h-40 rounded-md overflow-hidden group"
                       >
                         <Image
                           src={imageUrl}
@@ -885,41 +952,42 @@ export function ProductForm({
                           height={150}
                         />
                         <div className="absolute inset-0 bg-black/50 bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
-                          <div className="flex gap-2">
+                          <div className="flex gap-1 sm:gap-2">
                             <Button
                               type="button"
                               variant="secondary"
                               size="icon"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 h-8 w-8 cursor-pointer"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 cursor-pointer"
                               onClick={(e) => {
                                 e.preventDefault();
                                 handlePreviewImage(image);
                               }}
                             >
-                              <Eye className="h-4 w-4 text-white" />
+                              <Eye className="h-3 w-3 sm:h-3 sm:w-3 md:h-4 md:w-4 text-white" />
                             </Button>
                             <Button
                               type="button"
                               variant="destructive"
                               size="icon"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 h-8 w-8 cursor-pointer"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 cursor-pointer"
                               onClick={(e) => {
                                 e.preventDefault();
                                 handleRemoveImage(index);
                               }}
                             >
-                              <X className="h-4 w-4 text-white cursor-pointer" />
+                              <X className="h-3 w-3 sm:h-3 sm:w-3 md:h-4 md:w-4 text-white cursor-pointer" />
                             </Button>
                           </div>
                         </div>
+                        {/* Primary Badge */}
                         {index === 0 && (
-                          <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded">
+                          <div className="absolute top-1 left-1 sm:top-2 sm:left-2 bg-blue-500 text-white text-[10px] xs:text-xs px-1 py-0.5 sm:px-2 sm:py-1 rounded">
                             Primary
                           </div>
                         )}
-                        {/* FIXED: Show upload status for new images */}
+                        {/* New Image Badge */}
                         {typeof image === "object" && image?.isNew && (
-                          <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">
+                          <div className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-green-500 text-white text-[10px] xs:text-xs px-1 py-0.5 sm:px-2 sm:py-1 rounded">
                             New
                           </div>
                         )}
@@ -936,7 +1004,7 @@ export function ProductForm({
                   onChange={handleImageUpload}
                   className="hidden"
                 />
-                <p className="text-sm text-muted-foreground mt-2">
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1 sm:mt-2">
                   Upload product images. First image will be used as the product
                   thumbnail. You can upload multiple images at once.
                 </p>
@@ -966,6 +1034,7 @@ export function ProductForm({
         </Dialog>
       </div>
     );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeTab,
     formData,
@@ -993,6 +1062,7 @@ export function ProductForm({
         }
       });
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (mode === "add") {

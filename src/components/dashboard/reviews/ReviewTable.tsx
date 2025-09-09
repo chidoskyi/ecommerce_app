@@ -12,7 +12,6 @@ import {
   selectIsAllReviewsSelected,
 } from "@/app/store/slices/adminReviewSlice";
 import {
-  Star,
   Check,
   X,
   Trash2,
@@ -23,6 +22,7 @@ import {
   Calendar,
   User,
   Package,
+  MoreVertical,
 } from "lucide-react";
 import { Review } from "@/types/reviews";
 import { StarRating } from "@/components/reuse/StarRating";
@@ -36,25 +36,30 @@ const ReviewRow: React.FC<ReviewRowProps> = ({ review }) => {
   const selectedReviews = useSelector(selectSelectedReviews);
   const isUpdating = useSelector(selectIsReviewUpdating(review.id));
   const isDeleting = useSelector(selectIsReviewDeleting(review.id));
+  const [showMobileActions, setShowMobileActions] = React.useState(false);
 
   const isSelected = selectedReviews.includes(review.id);
 
   const handleApprove = () => {
     dispatch(updateReview({ id: review.id, action: "approve" }));
+    setShowMobileActions(false);
   };
 
   const handleReject = () => {
     dispatch(updateReview({ id: review.id, action: "reject" }));
+    setShowMobileActions(false);
   };
 
   const handleDelete = () => {
     if (confirm("Are you sure you want to delete this review?")) {
       dispatch(deleteReview(review.id));
     }
+    setShowMobileActions(false);
   };
 
   const handleToggleVerification = () => {
     dispatch(updateReview({ id: review.id, isVerified: !review.isVerified }));
+    setShowMobileActions(false);
   };
 
   const getStatusBadgeColor = (status: string) => {
@@ -70,33 +75,17 @@ const ReviewRow: React.FC<ReviewRowProps> = ({ review }) => {
     }
   };
 
-  const renderStars = (rating: number) => {
-    return (
-      <div className="flex items-center space-x-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <Star
-            key={star}
-            className={`w-4 h-4 ${
-              star <= rating ? "text-yellow-400 fill-current" : "text-gray-300"
-            }`}
-          />
-        ))}
-        <span className="ml-2 text-sm text-gray-600">({rating})</span>
-      </div>
-    );
-  };
-
   return (
     <div
-      className={`p-6 hover:bg-gray-50 transition-colors relative ${
+      className={`p-4 sm:p-6 hover:bg-gray-50 transition-colors relative ${
         isSelected ? "bg-blue-50" : ""
       }`}
     >
-      <div className="flex items-start space-x-4">
+      <div className="flex items-start space-x-3 sm:space-x-4">
         {/* Selection Checkbox */}
         <button
           onClick={() => dispatch(toggleReviewSelection(review.id))}
-          className="mt-1"
+          className="mt-1 flex-shrink-0"
         >
           {isSelected ? (
             <CheckSquare className="w-5 h-5 text-blue-600" />
@@ -107,64 +96,84 @@ const ReviewRow: React.FC<ReviewRowProps> = ({ review }) => {
 
         {/* Review Content */}
         <div className="flex-1 min-w-0">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center space-x-3">
-              {/* {renderStars(review.rating)} */}
-              <StarRating rating={review.rating} showNumber/>
-              <span
-                className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusBadgeColor(
-                  review.status
-                )}`}
-              >
-                {review.status}
-              </span>
-              {review.isVerified && (
-                <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 border border-blue-200">
-                  Verified
+          {/* Header - Mobile First Layout */}
+          <div className="mb-3">
+            {/* Top Row: Rating and Status */}
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap">
+                <StarRating rating={review.rating} showNumber />
+                <span
+                  className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusBadgeColor(
+                    review.status
+                  )}`}
+                >
+                  {review.status}
                 </span>
-              )}
+                {review.isVerified && (
+                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                    Verified
+                  </span>
+                )}
+              </div>
+
+              {/* Mobile Actions Toggle */}
+              <div className="sm:hidden">
+                <button
+                  onClick={() => setShowMobileActions(!showMobileActions)}
+                  className="p-1 text-gray-500 hover:text-gray-700"
+                >
+                  <MoreVertical className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            <div className="text-sm text-gray-500 flex items-center space-x-4">
-              <span className="flex items-center space-x-1">
-                <Calendar className="w-4 h-4" />
-                <span>
-                  {new Date(review.createdAt).toLocaleDateString()}
-                </span>
+            {/* Date - Mobile */}
+            <div className="text-sm text-gray-500 flex items-center space-x-1 sm:hidden">
+              <Calendar className="w-4 h-4" />
+              <span>
+                {new Date(review.createdAt).toLocaleDateString()}
+              </span>
+            </div>
+
+            {/* Date - Desktop */}
+            <div className="text-sm text-gray-500 items-center space-x-1 hidden sm:flex sm:justify-end">
+              <Calendar className="w-4 h-4" />
+              <span>
+                {new Date(review.createdAt).toLocaleDateString()}
               </span>
             </div>
           </div>
 
           {/* Review Text */}
           <div className="mb-4">
-            <p className="text-gray-900 leading-relaxed">
+            <p className="text-gray-900 leading-relaxed text-sm sm:text-base">
               {review.content}
             </p>
           </div>
 
-          {/* Meta Information */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-6 text-sm text-gray-600">
+          {/* Meta Information - Mobile Stacked Layout */}
+          <div className="space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between">
+            <div className="space-y-2 sm:space-y-0 sm:flex sm:items-center sm:space-x-6 text-sm text-gray-600">
               <div className="flex items-center space-x-1">
-                <User className="w-4 h-4" />
-                <span>
-                {review.user?.firstName} {review.user?.lastName}
-
-                </span>
-                <span className="text-gray-400">
-                  ({review.user?.email})
-                </span>
+                <User className="w-4 h-4 flex-shrink-0" />
+                <div className="flex flex-col sm:flex-row sm:items-center min-w-0">
+                  <span className="truncate">
+                    {review.user?.firstName} {review.user?.lastName}
+                  </span>
+                  <span className="text-gray-400 text-xs sm:text-sm sm:ml-1">
+                    ({review.user?.email})
+                  </span>
+                </div>
               </div>
 
               <div className="flex items-center space-x-1">
-                <Package className="w-4 h-4" />
-                <span>{review.product.name}</span>
+                <Package className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">{review.product.name}</span>
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center space-x-2">
+            {/* Desktop Action Buttons */}
+            <div className="hidden sm:flex sm:items-center sm:space-x-2">
               {review.status === "PENDING" && (
                 <>
                   <button
@@ -209,6 +218,56 @@ const ReviewRow: React.FC<ReviewRowProps> = ({ review }) => {
               </button>
             </div>
           </div>
+
+          {/* Mobile Action Buttons Dropdown */}
+          {showMobileActions && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg border sm:hidden">
+              <div className="grid grid-cols-2 gap-2">
+                {review.status === "PENDING" && (
+                  <>
+                    <button
+                      onClick={handleApprove}
+                      disabled={isUpdating}
+                      className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm flex items-center justify-center space-x-1"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>Approve</span>
+                    </button>
+                    <button
+                      onClick={handleReject}
+                      disabled={isUpdating}
+                      className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm flex items-center justify-center space-x-1"
+                    >
+                      <X className="w-4 h-4" />
+                      <span>Reject</span>
+                    </button>
+                  </>
+                )}
+
+                <button
+                  onClick={handleToggleVerification}
+                  disabled={isUpdating}
+                  className={`px-3 py-2 rounded-lg disabled:opacity-50 text-sm flex items-center justify-center space-x-1 ${
+                    review.isVerified
+                      ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{review.isVerified ? "Verified" : "Verify"}</span>
+                </button>
+
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 text-sm flex items-center justify-center space-x-1"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -249,7 +308,7 @@ const ReviewsTable: React.FC<ReviewsTableProps> = ({
   if (loading) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-8 text-center">
+        <div className="p-6 sm:p-8 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-2 text-gray-600">Loading reviews...</p>
         </div>
@@ -260,12 +319,12 @@ const ReviewsTable: React.FC<ReviewsTableProps> = ({
   if (error) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-8 text-center">
+        <div className="p-6 sm:p-8 text-center">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-red-600">{error}</p>
+          <p className="text-red-600 text-sm sm:text-base">{error}</p>
           <button
             onClick={onRefresh}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
           >
             Retry
           </button>
@@ -277,7 +336,7 @@ const ReviewsTable: React.FC<ReviewsTableProps> = ({
   if (reviews.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-8 text-center">
+        <div className="p-6 sm:p-8 text-center">
           <Eye className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-600">No reviews found</p>
         </div>
@@ -288,8 +347,8 @@ const ReviewsTable: React.FC<ReviewsTableProps> = ({
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       {/* Table Header */}
-      <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
-        <div className="flex items-center space-x-4">
+      <div className="border-b border-gray-200 bg-gray-50 px-4 sm:px-6 py-3 sm:py-4">
+        <div className="flex items-center space-x-3 sm:space-x-4">
           <button
             onClick={handleSelectAll}
             className="flex items-center space-x-2 text-sm font-medium text-gray-700"
@@ -299,13 +358,14 @@ const ReviewsTable: React.FC<ReviewsTableProps> = ({
             ) : (
               <Square className="w-5 h-5" />
             )}
-            <span>Select All</span>
+            <span className="hidden sm:inline">Select All</span>
+            <span className="sm:hidden">All</span>
           </button>
         </div>
       </div>
 
       {/* Table Body */}
-      <div className="divide-y divide-gray-200">
+      <div className="divide-y divide-gray-200 max-h-96 sm:max-h-none overflow-y-auto">
         {reviews.map((review) => (
           <ReviewRow key={review.id} review={review} />
         ))}

@@ -61,6 +61,7 @@ const createEmailTransporter = (): Transporter => {
 export const transporter = createEmailTransporter()
 
 // Verify transporter configuration
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 transporter.verify((error, success) => {
   if (error) {
     console.error('Email transporter error:', error)

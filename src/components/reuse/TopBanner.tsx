@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Gift, X } from 'lucide-react';
 
 interface TopBannerProps {

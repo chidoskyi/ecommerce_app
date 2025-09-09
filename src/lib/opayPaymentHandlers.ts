@@ -2,9 +2,40 @@
 import prisma from "@/lib/prisma";
 import { opayService } from "@/lib/opay";
 import { v4 as uuidv4 } from "uuid";
+import { User, Address } from "@prisma/client";
+import { AuthenticatedUser } from "./auth";
+
+
+// Validated item interface
+interface ValidatedItem {
+  productId: string;
+  title: string;
+  quantity: number;
+  fixedPrice: number | null;
+  unitPrice: number | null;
+  selectedUnit: string | null;
+  totalPrice: number;
+  weight: number;
+  totalWeight: number;
+  price: number;
+}
+
+interface CalculationResult {
+  userData: User;
+  validatedItems: ValidatedItem[];
+  totalWeight: number;
+  deliveryFee: number;
+  finalSubtotal: number;
+  totalAmount: number;
+  shippingAddress: Address;
+  billingAddress: Address;
+  couponId?: string;
+  discountAmount: number;
+  currency: string;
+}
 
 // Opay payment handler with transaction management
-export async function handleOpayPayment(user: any, calculatedData: any) {
+export async function handleOpayPayment(user: AuthenticatedUser, calculatedData: CalculationResult) {
   const {
     userData,
     validatedItems,
@@ -14,7 +45,7 @@ export async function handleOpayPayment(user: any, calculatedData: any) {
     totalAmount,
     shippingAddress,
     billingAddress,
-    shippingMethod,
+    // shippingMethod,
     couponId,
     discountAmount,
     currency,
@@ -297,7 +328,7 @@ export async function handleOpayPayment(user: any, calculatedData: any) {
                   currency,
                   shippingAddress: cleanShippingAddress,
                   billingAddress: cleanBillingAddress,
-                  shippingMethod,
+                  // shippingMethod,
                   paymentMethod: "opay",
                   paymentStatus: "PENDING",
                   couponId,
@@ -497,7 +528,7 @@ export async function handleOpayPayment(user: any, calculatedData: any) {
         currency,
         shippingAddress: cleanShippingAddress,
         billingAddress: cleanBillingAddress,
-        shippingMethod,
+        // shippingMethod,
         paymentMethod: "opay",
         paymentStatus: "UNPAID",
         couponId,

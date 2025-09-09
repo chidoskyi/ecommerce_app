@@ -18,7 +18,7 @@ import { ProductViewDialog } from "@/components/dashboard/products/ProductViewDi
 import {
   formStateToApiData,
   Product,
-  ProductFilters as ProductFiltersType,
+  // ProductFilters as ProductFiltersType,
   ProductFormState,
 } from "@/types/products";
 
@@ -55,7 +55,6 @@ export function ProductList() {
   const dispatch = useAppDispatch();
 
   // Redux selectors
-  // Redux selectors
   const products = useAppSelector(selectProducts);
   const pagination = useAppSelector(selectPagination);
   const filters = useAppSelector(selectFilters);
@@ -82,6 +81,7 @@ export function ProductList() {
   useEffect(() => {
     dispatch(fetchProducts(filters));
     dispatch(fetchCategories());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch]);
 
   // Refetch products when filters change (debounced)
@@ -90,6 +90,7 @@ export function ProductList() {
       dispatch(fetchProducts(filters));
     }, 500);
     return () => clearTimeout(timeoutId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dispatch,
     filters.search,
@@ -102,6 +103,7 @@ export function ProductList() {
   // Immediate refetch for pagination and sorting
   useEffect(() => {
     dispatch(fetchProducts(filters));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dispatch,
     filters.page,
@@ -137,6 +139,7 @@ export function ProductList() {
       const productDataWithoutFiles = { ...apiData };
       delete productDataWithoutFiles.newImageFiles;
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const result = await dispatch(
         updateProduct({
           id: selectedProduct.id,
@@ -277,8 +280,8 @@ export function ProductList() {
         await Promise.all(
           selectedProducts.map((id) => dispatch(deleteProduct(id)).unwrap())
         );
-                        // Refresh products list
-                        await dispatch(fetchProducts({})).unwrap();
+        // Refresh products list
+        await dispatch(fetchProducts({})).unwrap();
         toast.success(`${selectedProducts.length} products deleted`);
       } else {
         const validStatus = action.toUpperCase() as "ACTIVE" | "INACTIVE";
@@ -319,7 +322,7 @@ export function ProductList() {
 
     dispatch(
       updateFilters({
-        sortBy: key as any,
+        sortBy: key as string,
         sortOrder: direction as "asc" | "desc",
       })
     );
@@ -436,54 +439,71 @@ export function ProductList() {
   const displayProducts = products || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-0">
+      {/* Header Section - Mobile Optimized */}
       <div className="flex flex-col space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Products</h1>
-        <p className="text-muted-foreground">
-          Manage your product inventory ({productStats.total} total,{" "}
-          {productStats.active} active, {productStats.inactive} inactive)
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Products</h1>
+        <p className="text-sm md:text-base text-muted-foreground">
+          <span className="block sm:inline">
+            Manage your product inventory ({productStats.total} total,{" "}
+          </span>
+          <span className="block sm:inline">
+            {productStats.active} active, {productStats.inactive} inactive)
+          </span>
         </p>
       </div>
 
+      {/* Main Content Card - Mobile Optimized */}
       <div className="flex flex-col space-y-4">
         <Card className="border-gray-400 shadow-md">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle>Product Inventory</CardTitle>
-              <ProductActions
-                selectedProducts={selectedProducts}
-                onBulkAction={handleBulkAction}
-                disabled={updateLoading || deleteLoading}
+          <CardHeader className="pb-3 px-4 md:px-6">
+            {/* Header with Actions - Mobile Stack */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+              <div className="space-y-1">
+                <CardTitle className="text-lg md:text-xl">Product Inventory</CardTitle>
+                <CardDescription className="text-sm">
+                  View and manage your product inventory
+                </CardDescription>
+              </div>
+              
+              {/* Product Actions - Mobile Optimized */}
+              <div className="flex-shrink-0">
+                <ProductActions
+                  selectedProducts={selectedProducts}
+                  onBulkAction={handleBulkAction}
+                  disabled={updateLoading || deleteLoading}
+                />
+              </div>
+            </div>
+
+            {/* Filters - Mobile Optimized */}
+            <div className="pt-4">
+              <ProductFilters
+                searchQuery={filters.search || ""}
+                setSearchQuery={handleSearchChange}
+                filters={{
+                  status: filters.status?.toLowerCase() || "all",
+                  category: filters.category || "all",
+                  price: {
+                    min: filters.minPrice || "",
+                    max: filters.maxPrice || "",
+                  },
+                  priceType: filters.priceType?.toLowerCase() || "all",
+                }}
+                categories={categories}
+                products={products}
+                activeTab={activeTab}
+                setActiveTab={handleTabChange}
+                onFilterChange={handleFilterChange}
+                onPriceFilterChange={handlePriceFilterChange}
+                onResetFilters={resetFilters}
+                productStats={productStats}
               />
             </div>
-            <CardDescription>
-              View and manage your product inventory
-            </CardDescription>
-
-            <ProductFilters
-              searchQuery={filters.search || ""}
-              setSearchQuery={handleSearchChange}
-              filters={{
-                status: filters.status?.toLowerCase() || "all",
-                category: filters.category || "all",
-                price: {
-                  min: filters.minPrice || "",
-                  max: filters.maxPrice || "",
-                },
-                priceType: filters.priceType?.toLowerCase() || "all",
-              }}
-              categories={categories}
-              products={products}
-              activeTab={activeTab}
-              setActiveTab={handleTabChange}
-              onFilterChange={handleFilterChange}
-              onPriceFilterChange={handlePriceFilterChange}
-              onResetFilters={resetFilters}
-              productStats={productStats}
-            />
           </CardHeader>
 
-          <CardContent>
+          {/* Table Content - Mobile Optimized Padding */}
+          <CardContent className="px-2 md:px-6 ">
             <ProductTable
               products={displayProducts}
               categories={categories}
@@ -523,10 +543,9 @@ export function ProductList() {
         </Card>
       </div>
 
-      {/* Edit Product Dialog - Now only handles edit mode */}
-      {/* Edit Product Dialog - Now only handles edit mode */}
+      {/* Edit Product Dialog - Mobile Optimized */}
       <Dialog open={isEditProductOpen} onOpenChange={setIsEditProductOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-3xl h-[95vh] md:max-h-[90vh] overflow-y-auto mx-2 md:mx-auto">
           <ProductForm
             mode="edit"
             product={selectedProduct}
@@ -585,9 +604,9 @@ export function ProductList() {
         </DialogContent>
       </Dialog>
 
-      {/* View Product Dialog */}
+      {/* View Product Dialog - Mobile Optimized */}
       <Dialog open={isViewProductOpen} onOpenChange={setIsViewProductOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-4xl h-[95vh] md:max-h-[90vh] overflow-y-auto mx-2 md:mx-auto">
           {selectedProduct && (
             <ProductViewDialog
               product={selectedProduct}

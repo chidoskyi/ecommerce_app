@@ -2,6 +2,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import {  Address, NewAddress } from '@/types'; // Adjust the import path as necessary
 import api from "@/lib/api"
+import { RootState } from '..';
 
 
 export interface AddressUpdate extends Partial<NewAddress> {
@@ -270,14 +271,14 @@ export const {
 export default addressSlice.reducer;
 
 // Selectors
-export const selectAddresses = (state: any) => state.address.addresses;
-export const selectAddressLoading = (state: any) => state.address.loading;
-export const selectAddressError = (state: any) => state.address.error;
-export const selectShippingAddresses = (state: any) => 
+export const selectAddresses = (state: RootState) => state.address.addresses;
+export const selectAddressLoading = (state: RootState) => state.address.loading;
+export const selectAddressError = (state: RootState) => state.address.error;
+export const selectShippingAddresses = (state: RootState) => 
   state.address.addresses.filter((addr: Address) => addr.type === 'SHIPPING');
-export const selectBillingAddresses = (state: any) => 
+export const selectBillingAddresses = (state: RootState) => 
   state.address.addresses.filter((addr: Address) => addr.type === 'BILLING');
-export const selectDefaultShippingAddress = (state: any) => 
+export const selectDefaultShippingAddress = (state: RootState) => 
   state.address.addresses.find((addr: Address) => addr.type === 'SHIPPING' && addr.isDefault);
-export const selectDefaultBillingAddress = (state: any) => 
+export const selectDefaultBillingAddress = (state: RootState) => 
   state.address.addresses.find((addr: Address) => addr.type === 'BILLING' && addr.isDefault);

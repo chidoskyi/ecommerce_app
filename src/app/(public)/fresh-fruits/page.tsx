@@ -7,6 +7,7 @@ import Container from '@/components/reuse/Container';
 import { useProducts } from '@/app/store/slices/productSlice';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import Breadcrumb from '@/components/reuse/Breadcrumb';
 
 export default function FreshFruitsPage() {
   const { 
@@ -62,10 +63,10 @@ export default function FreshFruitsPage() {
   const endIndex = startIndex + productsPerPage;
   const currentProducts = sortedProducts.slice(startIndex, endIndex);
   const pathname = usePathname();
-  const paths = pathname.split("/").filter(Boolean);
+  const paths = pathname?.split("/").filter(Boolean);
 
-  const handleSortChange = (sort: string) => {
-    setSortBy(sort as any);
+  const handleSortChange = (sort: "featured" | "price-low" | "price-high" | "alphabetically" | "rating") => {
+    setSortBy(sort);
     setCurrentPage(1);
   };
 
@@ -87,7 +88,7 @@ export default function FreshFruitsPage() {
         <div className="flex justify-between items-center p-4 mb-6 shadow-md">
               <h1 className="text-2xl text-orange-600 font-semibold">
                 {" "}
-                {paths.map((path, index) => {
+                {paths?.map((path, index) => {
                   const href = `/${paths.slice(0, index + 1).join("/")}`;
                   const isLast = index === paths.length - 1;
                   const pathName = path.replace(/-/g, " ");
@@ -154,38 +155,13 @@ export default function FreshFruitsPage() {
   return (
         <>
             {/* Breadcrumb */}
- <div className="w-full bg-white mx-auto px-4 sm:px-6 lg:px-8 py-5 mb-5">
-      <Container className="text-lg text-gray-500 font-semibold">
-        <Link href="/">
-          <span className="hover:text-orange-600 cursor-pointer">Home</span>
-        </Link>
-        
-        {paths.map((path, index) => {
-          const href = `/${paths.slice(0, index + 1).join('/')}`;
-          const isLast = index === paths.length - 1;
-          const pathName = path.replace(/-/g, ' ');
-
-          return (
-            <span key={path}>
-              <span className="mx-2">›</span>
-              {isLast ? (
-                <span className="text-gray-900 text-sm capitalize">{pathName}</span>
-              ) : (
-                <Link href={href}>
-                  <span className="hover:text-orange-600 cursor-pointer capitalize">{pathName}</span>
-                </Link>
-              )}
-            </span>
-          );
-        })}
-      </Container>
-    </div>
+            <Breadcrumb />
     <Container className="mx-auto px-4 py-8">
 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-4 mb-6 shadow-md">
   {/* Breadcrumbs - Full width on mobile, auto on desktop */}
   <div className="w-full md:w-auto">
     <h1 className="text-xl md:text-2xl text-orange-600 font-semibold">
-      {paths.map((path, index) => {
+      {paths?.map((path, index) => {
         const href = `/${paths.slice(0, index + 1).join("/")}`;
         const isLast = index === paths.length - 1;
         const pathName = path.replace(/-/g, " ");
@@ -219,7 +195,7 @@ export default function FreshFruitsPage() {
       <span className="text-sm whitespace-nowrap">Sort by:</span>
       <select
         value={sortBy}
-        onChange={(e) => handleSortChange(e.target.value)}
+        onChange={(e) => handleSortChange(e.target.value as "featured" | "alphabetically" | "price-low" | "price-high" | "rating")}
         className="w-full sm:w-auto p-2 border rounded-md text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500"
       >
         <option value="featured">Featured</option>
@@ -244,8 +220,7 @@ export default function FreshFruitsPage() {
             description={product.description || "No description available."}
             unit={product.unitPrices?.[0]?.unit || "Per Item"}
             category={product.category?.name || "Uncategorized"}
-            rating={product.rating}
-            isFeatured={product.isFeatured}
+            rating={product.reviews?.[0].rating}
           />
         ))}
       </div>

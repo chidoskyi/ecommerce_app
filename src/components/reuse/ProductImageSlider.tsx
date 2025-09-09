@@ -10,7 +10,6 @@ import {
   Plus,
   Minus,
   Trash2,
-  Share2,
   Heart,
   ChevronLeft,
   ChevronRight,
@@ -24,38 +23,37 @@ import { ProductImageGalleryProps, ProductOption } from "@/types/products";
 import {
   addItemToCart,
   selectCartLoading,
-  selectItemQuantity,
-  openCart,
+  // selectItemQuantity,
+  // openCart,
 } from "@/app/store/slices/cartSlice";
 import {
   toggleItem,
   selectIsInWishlist,
   selectWishlistLoading,
 } from "@/app/store/slices/wishlistSlice";
-import type { AppDispatch } from "@/app/store/";
 import { StorageUtil } from "@/lib/storageKeys";
-import { useDispatch, useSelector } from "react-redux";
 import ShareButton from "./ShareButon";
-import { Review } from "@/types/reviews";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
+// import { Review } from "@/types/reviews";
 
 const ProductImageGallery = ({ product }: ProductImageGalleryProps) => {
-  const dispatch = useDispatch<AppDispatch>();
+  const dispatch = useAppDispatch();
   const [activeImage, setActiveImage] = useState(0);
   const [isWishlistUpdating, setIsWishlistUpdating] = useState(false);
-  const isInWishlist = useSelector(selectIsInWishlist(product.id));
+  const isInWishlist = useAppSelector(selectIsInWishlist(product.id));
   const [quantity, setQuantity] = useState(1);
   const [showQuantity, setShowQuantity] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const imageContainerRef = useRef<HTMLDivElement>(null);
-  const cartLoading = useSelector(selectCartLoading);
+  const cartLoading = useAppSelector(selectCartLoading);
 
   // localStorage utilities
   const userId = StorageUtil.getUserId();
   const guestId = StorageUtil.getGuestId();
-  const isWishlistLoading = useSelector(selectWishlistLoading);
-  const toggleCart = useSelector(openCart);
+  const isWishlistLoading = useAppSelector(selectWishlistLoading);
+  // const toggleCart = useAppSelector(openCart);
 
   // Get product images - prefer API data over hardcoded
   const getProductImages = (): string[] => {
@@ -128,10 +126,10 @@ const ProductImageGallery = ({ product }: ProductImageGalleryProps) => {
   );
 
   // Calculate when needed
-const calculateAverageRating = (reviews: Review[]) => {
-  if (!reviews || reviews.length === 0) return 0;
-  return reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length;
-};
+// const calculateAverageRating = (reviews: Review[]) => {
+//   if (!reviews || reviews.length === 0) return 0;
+//   return reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length;
+// };
 
   // FIXED: Get current price based on product pricing type
   const getCurrentPrice = () => {
@@ -331,7 +329,7 @@ const calculateAverageRating = (reviews: Review[]) => {
   };
 
   return (
-    <div className="py-4 grid grid-cols-1 md:grid-cols-6 lg:grid-cols-8 gap-8 bg-white my-6 p-3 h-full">
+    <div className="py-4 grid grid-cols-1 md:grid-cols-6 lg:grid-cols-8 gap-4 md:gap-8 bg-white my-6 p-3 h-full">
       {/* Product Image Gallery */}
       <div className="col-span-3">
         <div className="flex flex-col gap-4 h-full">

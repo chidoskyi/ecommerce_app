@@ -10,7 +10,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { User } from "@/types/users";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { useSelector, useDispatch } from "react-redux";
 import { selectWishlistCount } from "@/app/store/slices/wishlistSlice";
 import { StorageUtil } from "@/lib/storageKeys";
 
@@ -25,6 +24,8 @@ import {
   mergeGuestCart,
   selectUserIdentification,
 } from "@/app/store/slices/cartSlice";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
+import { toast } from "react-toastify";
 
 // Main Header Component
 const Header: React.FC<HeaderProps> = () => {
@@ -32,12 +33,12 @@ const Header: React.FC<HeaderProps> = () => {
   const { isSignedIn, user: clerkUser, isLoaded } = useUser();
   const { signOut } = useClerk();
   const router = useRouter();
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
 
   // Redux selectors for cart and wishlist
-  const wishlistCount = useSelector(selectWishlistCount);
-  const cart = useSelector((state: any) => state.cart);
-  const userIdentification = useSelector(selectUserIdentification);
+  const wishlistCount = useAppSelector(selectWishlistCount);
+  const cart = useAppSelector((state) => state.cart);
+  const userIdentification = useAppSelector(selectUserIdentification);
 
   // Extract cart data from Redux store
   const cartItems = cart.items || [];
@@ -67,6 +68,7 @@ const Header: React.FC<HeaderProps> = () => {
     userId: null,
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [headerHeight, setHeaderHeight] = useState({
     withBanner: 220,
     withoutBanner: 136,
@@ -162,6 +164,7 @@ const Header: React.FC<HeaderProps> = () => {
       isSignedIn,
       userId,
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isSignedIn, clerkUser?.id, dispatch]);
 
   // Sync Redux state with localStorage (separate effect to prevent loops)
@@ -219,6 +222,7 @@ const Header: React.FC<HeaderProps> = () => {
     updatePlaceholder();
     const interval = setInterval(updatePlaceholder, 5000);
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Banner close handler

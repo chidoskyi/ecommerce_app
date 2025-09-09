@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { AuthenticatedRequest, requireAuth } from "@/lib/auth";
 import { walletService } from "@/lib/wallet";
 
@@ -34,13 +34,13 @@ import { walletService } from "@/lib/wallet";
 //   }
 // }
 
-export async function GET(request: NextRequest) {
+export const GET = requireAuth(
+  async (
+    request: AuthenticatedRequest
+  ) => {
   try {
-    const authCheck = await requireAuth(request)
-    if (authCheck) {
-      return authCheck
-    }
-    const user = (request as AuthenticatedRequest).user;
+  
+    const user = request.user;
     
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -58,16 +58,16 @@ export async function GET(request: NextRequest) {
       data: transactions
     })
 
-  } catch (error: any) {
-    console.error('Get transactions error:', error)
+  } catch (error: unknown) {
+    console.error('Get transactions error:', error instanceof Error ? error.message : 'Unknown error')
     
     return NextResponse.json(
       { 
         success: false, 
         error: 'Failed to get transaction history',
-        message: error.message 
+        message: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     )
   }
-}
+})

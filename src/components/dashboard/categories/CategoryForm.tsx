@@ -21,7 +21,6 @@ import {
   uploadCategoryImages,
   deleteCategoryImage,
   selectLoading,
-  selectError,
   selectCreating,
   selectUpdating,
 } from "@/app/store/slices/adminCategorySlice";
@@ -206,125 +205,203 @@ export const CategoryForm: React.FC<CategoryFormProps & { loading?: boolean }> =
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>
+      <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto mx-auto sm:w-full">
+        {/* Header Section */}
+        <DialogHeader className="space-y-2 pb-4 border-b border-gray-100">
+          <DialogTitle className="text-xl sm:text-2xl font-bold text-gray-900">
             {mode === "edit" ? "Edit Category" : "Add New Category"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-sm sm:text-base text-gray-600">
             {mode === "edit"
               ? "Update category information."
               : "Create a new product category."}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="image">Category Image</Label>
-            <div className="flex items-center gap-4 border border-gray-300 p-4 rounded-md">
+
+        {/* Form Content */}
+        <div className="space-y-6 py-4 sm:py-6">
+          {/* Image Upload Section */}
+          <div className="space-y-3">
+            <Label htmlFor="image" className="text-sm font-semibold text-gray-700">
+              Category Image
+            </Label>
+            <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 sm:p-6 bg-gray-50/50">
               {imagePreview ? (
-                <div className="relative w-20 h-20">
-                  <Image
-                    src={imagePreview}
-                    alt="Category preview"
-                    width={80}
-                    height={80}
-                    className="w-full h-full object-cover rounded-md border"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute -top-2 -right-2 h-6 w-6 cursor-pointer"
-                    onClick={handleRemoveImage}
-                    disabled={isLoading}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  {/* Image Preview */}
+                  <div className="relative">
+                    <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-lg overflow-hidden border-2 border-white shadow-md">
+                      <Image
+                        src={imagePreview}
+                        alt="Category preview"
+                        width={112}
+                        height={112}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute -top-2 -right-2 h-7 w-7 rounded-full shadow-lg hover:scale-105 transition-transform"
+                      onClick={handleRemoveImage}
+                      disabled={isLoading}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  {/* File Input and Info */}
+                  <div className="flex-1 w-full sm:w-auto space-y-3">
+                    <Input
+                      ref={fileInputRef}
+                      id="image"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className={`cursor-pointer transition-colors ${
+                        errors.image 
+                          ? "border-red-500 focus:border-red-500" 
+                          : "border-gray-300 focus:border-blue-500"
+                      }`}
+                      disabled={isLoading}
+                    />
+                    <p className="text-xs sm:text-sm text-gray-500">
+                      Choose a different image (max 5MB)
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <div className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-md flex items-center justify-center">
-                  <Upload className="h-8 w-8 text-gray-400" />
+                <div className="text-center space-y-4">
+                  {/* Upload Icon */}
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto bg-gray-100 rounded-full flex items-center justify-center">
+                    <Upload className="h-8 w-8 sm:h-10 sm:w-10 text-gray-400" />
+                  </div>
+                  
+                  {/* File Input */}
+                  <div className="space-y-2">
+                    <Input
+                      ref={fileInputRef}
+                      id="image"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className={`cursor-pointer transition-colors ${
+                        errors.image 
+                          ? "border-red-500 focus:border-red-500" 
+                          : "border-gray-300 focus:border-blue-500"
+                      }`}
+                      disabled={isLoading}
+                    />
+                    <p className="text-xs sm:text-sm text-gray-500">
+                      Upload an image for the category (max 5MB)
+                    </p>
+                  </div>
                 </div>
               )}
-              <div className="flex-1">
-                <Input
-                  ref={fileInputRef}
-                  id="image"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className={errors.image ? "border-red-500" : "cursor-pointer"}
-                  disabled={isLoading}
-                />
-                {errors.image && (
-                  <p className="text-sm text-red-500 mt-1">{errors.image}</p>
-                )}
-                <p className="text-sm text-muted-foreground mt-1">
-                  Upload an image for the category (max 5MB)
-                </p>
-              </div>
+              
+              {errors.image && (
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-sm text-red-600">{errors.image}</p>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="name">Category Name</Label>
+          {/* Category Name */}
+          <div className="space-y-2">
+            <Label htmlFor="name" className="text-sm font-semibold text-gray-700">
+              Category Name <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="name"
               value={formData.name}
               onChange={handleNameChange}
               placeholder="e.g. Summer Collection"
-              className={errors.name ? "border-red-500" : ""}
+              className={`text-sm sm:text-base py-2.5 sm:py-3 transition-colors ${
+                errors.name 
+                  ? "border-red-500 focus:border-red-500" 
+                  : "border-gray-300 focus:border-blue-500"
+              }`}
               disabled={isLoading}
             />
             {errors.name && (
-              <p className="text-sm text-red-500">{errors.name}</p>
+              <div className="p-2 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600">{errors.name}</p>
+              </div>
             )}
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="description">Description (Optional)</Label>
+          {/* Description */}
+          <div className="space-y-2">
+            <Label htmlFor="description" className="text-sm font-semibold text-gray-700">
+              Description <span className="text-gray-400">(Optional)</span>
+            </Label>
             <Textarea
               id="description"
               value={formData.description}
               onChange={handleDescriptionChange}
               placeholder="Enter category description..."
-              className="min-h-[80px]"
+              className="min-h-[100px] sm:min-h-[120px] text-sm sm:text-base border-gray-300 focus:border-blue-500 resize-none"
               disabled={isLoading}
             />
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="active"
-              checked={formData.status === CategoryStatus.ACTIVE}
-              className="bg-gray-400"
-              onCheckedChange={(checked) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  status: checked ? CategoryStatus.ACTIVE : CategoryStatus.INACTIVE,
-                }))
-              }
-              disabled={isLoading}
-            />
-            <Label htmlFor="active">Active</Label>
+          {/* Status Toggle */}
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="space-y-1">
+              <Label htmlFor="active" className="text-sm font-semibold text-gray-700 cursor-pointer">
+                Category Status
+              </Label>
+              <p className="text-xs sm:text-sm text-gray-500">
+                {formData.status === CategoryStatus.ACTIVE 
+                  ? "Category is active and visible to customers" 
+                  : "Category is inactive and hidden from customers"
+                }
+              </p>
+            </div>
+            <div className="flex items-center space-x-3">
+              <span className={`text-sm font-medium ${
+                formData.status === CategoryStatus.ACTIVE ? "text-green-600" : "text-gray-500"
+              }`}>
+                {formData.status === CategoryStatus.ACTIVE ? "Active" : "Inactive"}
+              </span>
+              <Switch
+                id="active"
+                checked={formData.status === CategoryStatus.ACTIVE}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    status: checked ? CategoryStatus.ACTIVE : CategoryStatus.INACTIVE,
+                  }))
+                }
+                disabled={isLoading}
+                className="data-[state=checked]:bg-green-500"
+              />
+            </div>
           </div>
         </div>
-        <DialogFooter>
+
+        {/* Footer Buttons */}
+        <DialogFooter className="flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
           <Button 
-            className="cursor-pointer border-gray-300 text-gray-700 hover:bg-gray-100" 
             variant="outline" 
             onClick={onClose}
             disabled={isLoading}
+            className="w-full sm:w-auto order-2 sm:order-1 py-2.5 px-6 border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
           >
             Cancel
           </Button>
           <Button 
-            className="flex cursor-pointer items-center px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 bg-gradient-to-r from-blue-600 to-cyan-500 hover:bg-gradient-to-r hover:from-blue-700 hover:to-cyan-600 text-white shadow-lg shadow-blue-500/25" 
             onClick={handleSubmit}
             disabled={isLoading}
+            className="w-full sm:w-auto order-1 sm:order-2 py-2.5 px-6 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/30 transition-all duration-200 font-semibold"
           >
             {isLoading ? (
-              mode === "edit" ? "Saving..." : "Adding..."
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                {mode === "edit" ? "Saving..." : "Adding..."}
+              </div>
             ) : (
               mode === "edit" ? "Save Changes" : "Add Category"
             )}

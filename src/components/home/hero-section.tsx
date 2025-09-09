@@ -6,6 +6,7 @@ import Link from "next/link";
 import Container from "../reuse/Container";
 import { getCloudinaryUrl } from "@/utils/cloudinary";
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dgxsqjeun";
 
 const slides = [
@@ -93,7 +94,7 @@ export default function HeroSection() {
 
         {/* Side Banners */}
         <div className="flex flex-row space-x-4 md:flex-col md:space-x-0 md:space-y-4 z-0">
-          {sideBanners.map((banner, i) => (
+          {sideBanners.map((banner) => (
             <div
               key={banner.src}
               className="relative h-[100px] md:w-full w-1/2 md:h-[250px] overflow-hidden"

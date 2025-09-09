@@ -102,7 +102,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         newToken = await clerkGetToken({ template: "_apptoken" });
       } catch (clerkError) {
         console.warn("⚠️ Clerk hook failed, trying window.Clerk:", clerkError);
-        const clerk = (window as { Clerk?: any }).Clerk;
+        // Use proper typing for Clerk object
+        const clerk = (window as typeof window & { Clerk?: { session?: { getToken: (options: { template: string }) => Promise<string> } } }).Clerk;
         if (clerk?.session) {
           newToken = await clerk.session.getToken({ template: "_apptoken" });
         }

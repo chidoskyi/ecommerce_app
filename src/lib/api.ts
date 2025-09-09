@@ -6,41 +6,61 @@ const api = axios.create({
 })
 
 // Enhanced token getter with debugging
-const getAuthHeaders = async () => {
+interface ClerkSession {
+  getToken: (options: { template: string }) => Promise<string>;
+}
+
+interface ClerkUser {
+  id?: string;
+}
+
+interface ClerkObject {
+  session?: ClerkSession;
+  user?: ClerkUser;
+}
+
+interface ClerkWindow extends Window {
+  Clerk?: ClerkObject;
+}
+
+const getAuthHeaders = async (): Promise<Record<string, string>> => {
   try {
     if (typeof window === 'undefined') {
-      console.warn('getAuthHeaders called on server-side')
-      return {}
+      console.warn('getAuthHeaders called on server-side');
+      return {};
     }
     
-    const clerk = (window as any).Clerk
+    const clerk = (window as ClerkWindow).Clerk;
     if (!clerk?.session) {
-      console.warn('Clerk session not available')
-      return {}
+      console.warn('Clerk session not available');
+      return {};
     }
 
-    // Get both token and user ID
     const [token, userId] = await Promise.all([
       clerk.session.getToken({ template: '_apptoken' }),
       clerk.user?.id
-    ])
+    ]);
 
     if (!token) {
-      console.warn('Token generation returned null/undefined')
-      return {}
+      console.warn('Token generation returned null/undefined');
+      return {};
     }
 
-    console.log('🔑 Generated token (first 10 chars):', token.substring(0, 10) + '...')
-    return {
+    const headers: Record<string, string> = {
       'Authorization': `Bearer ${token}`,
-      'x-auth-token': token,
-      'x-user-id': userId
+      'x-auth-token': token
+    };
+    
+    if (userId) {
+      headers['x-user-id'] = userId;
     }
+    
+    return headers;
   } catch (error) {
-    console.error('Error getting auth headers:', error)
-    return {}
+    console.error('Error getting auth headers:', error);
+    return {};
   }
-}
+};
 
 // Request interceptor with FormData support
 api.interceptors.request.use(

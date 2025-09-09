@@ -1,21 +1,64 @@
-// lib/auth.ts - Updated middleware with both user.id and clerkId
-import type { User } from "@prisma/client";
+// lib/auth.ts - Updated for Next.js 15 with RouteContext
+import type { User, UserStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
-export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string; // Database user ID
-    clerkId: string; // Clerk user ID
-    email: string;
-    role: string;
-    status: string;
-    // Add other user fields as needed
-  };
-  userId?: string; // Alias for clerkId (backward compatibility)
-  dbUserId?: string; // Explicit database user ID
+// Define the RouteContext type for Next.js App Router dynamic routes
+export interface RouteContext<T extends Record<string, string | string[]> = Record<string, string>> {
+  params: Promise<T>;
+}
+
+// Define comprehensive user interface
+export interface AuthenticatedUser {
+  id: string; // Database user ID
+  clerkId: string; // Clerk user ID
+  email: string;
+  role: string;
+  status: UserStatus;
+  firstName?: string;
+  lastName?: string;
+  avatar?: string;
+  dateOfBirth: Date | null;
+  emailVerified: boolean;
+  lastLoginAt: Date | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+// Define authenticated request interface
+export interface AuthenticatedRequest extends NextRequest {
+  user: AuthenticatedUser;
+  userId: string;
+  dbUserId: string; 
   token?: string;
+}
+
+// Updated handlers for static routes (no dynamic segments)
+export type StaticAuthenticatedHandler = (
+  req: AuthenticatedRequest
+) => Promise<NextResponse>;
+
+export type StaticApiRouteHandler = (
+  req: NextRequest
+) => Promise<NextResponse>;
+
+// Updated handlers for dynamic routes using RouteContext
+export type DynamicAuthenticatedHandler<T extends Record<string, string | string[]> = Record<string, string>> = (
+  req: AuthenticatedRequest,
+  ctx: RouteContext<T>
+) => Promise<NextResponse>;
+
+export type DynamicApiRouteHandler<T extends Record<string, string | string[]> = Record<string, string>> = (
+  req: NextRequest,
+  ctx: RouteContext<T>
+) => Promise<NextResponse>;
+
+// Headers interface for better type safety
+interface RequestHeaders {
+  authorization: string | null;
+  'x-auth-token': string | null;
+  'x-user-id': string | null;
 }
 
 /**
@@ -38,7 +81,7 @@ export async function getAuthFromRequest(req?: NextRequest): Promise<User> {
 
         // Get token from Clerk
         try {
-          token = await clerkAuth.getToken({ template: "_apptoken" });
+          token = await clerkAuth.getToken({ template: "default" });
           console.log("Token from Clerk:", token ? "EXISTS" : "NULL");
         } catch (tokenError) {
           console.warn("⚠️ Could not get token from Clerk:", tokenError);
@@ -52,28 +95,30 @@ export async function getAuthFromRequest(req?: NextRequest): Promise<User> {
     if (!clerkUserId && req) {
       console.log("🔍 Trying to extract auth from request headers...");
 
-      const authHeader = req.headers.get("authorization");
-      const customTokenHeader = req.headers.get("x-auth-token");
-      const userIdHeader = req.headers.get("x-user-id");
+      const headers: RequestHeaders = {
+        authorization: req.headers.get("authorization"),
+        'x-auth-token': req.headers.get("x-auth-token"),
+        'x-user-id': req.headers.get("x-user-id")
+      };
 
       console.log("Headers check:", {
-        authorization: authHeader ? "EXISTS" : "MISSING",
-        "x-auth-token": customTokenHeader ? "EXISTS" : "MISSING",
-        "x-user-id": userIdHeader ? "EXISTS" : "MISSING",
+        authorization: headers.authorization ? "EXISTS" : "MISSING",
+        "x-auth-token": headers['x-auth-token'] ? "EXISTS" : "MISSING",
+        "x-user-id": headers['x-user-id'] ? "EXISTS" : "MISSING",
       });
 
       // Extract token from headers
-      if (authHeader?.startsWith("Bearer ")) {
-        token = authHeader.substring(7);
+      if (headers.authorization?.startsWith("Bearer ")) {
+        token = headers.authorization.substring(7);
         console.log("✅ Found token in Authorization header");
-      } else if (customTokenHeader) {
-        token = customTokenHeader;
+      } else if (headers['x-auth-token']) {
+        token = headers['x-auth-token'];
         console.log("✅ Found token in x-auth-token header");
       }
 
       // Extract userId from headers if available
-      if (userIdHeader) {
-        clerkUserId = userIdHeader;
+      if (headers['x-user-id']) {
+        clerkUserId = headers['x-user-id'];
         console.log("✅ Found userId in x-user-id header:", clerkUserId);
       }
     }
@@ -111,46 +156,45 @@ export async function getAuthFromRequest(req?: NextRequest): Promise<User> {
 }
 
 /**
- * Enhanced requireAuth middleware with both user.id and clerkId
+ * Helper function to attach user data to request
  */
-export function requireAuth(
-  handler: (
-    req: NextRequest,
-    context: { params?: Record<string, string> }
-  ) => Promise<NextResponse>
-): (
-  req: NextRequest,
-  context: { params?: Record<string, string> }
-) => Promise<NextResponse>;
-
-export function requireAuth(req: NextRequest): Promise<NextResponse | null>;
-
-export function requireAuth(
-  handlerOrReq:
-    | ((
-        req: NextRequest,
-        context: { params?: Record<string, string> }
-      ) => Promise<NextResponse>)
-    | NextRequest
-): any {
-  if (typeof handlerOrReq === "function") {
-    const handler = handlerOrReq;
-    return async (
-      req: NextRequest,
-      context: { params?: Record<string, string> } = {}
-    ) => {
-      const authResult = await requireAuth(req);
-      if (authResult instanceof NextResponse) {
-        return authResult;
-      }
-      return handler(req, context);
-    };
+function attachUserToRequest(req: NextRequest, user: User, token?: string): AuthenticatedRequest {
+  const authenticatedReq = req as AuthenticatedRequest;
+  
+  authenticatedReq.user = {
+    id: user.id, // Database ID
+    clerkId: user.clerkId, // Clerk ID
+    email: user.email,
+    role: user.role,
+    status: user.status,
+    firstName: user.firstName || undefined,
+    lastName: user.lastName || undefined,
+    avatar: user.avatar || undefined,
+    emailVerified: user.emailVerified,
+    dateOfBirth: user.dateOfBirth,
+    lastLoginAt: user.lastLoginAt,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
+  
+  authenticatedReq.userId = user.clerkId; // Alias for backward compatibility
+  authenticatedReq.dbUserId = user.id; // Explicit database ID
+  
+  if (token) {
+    authenticatedReq.token = token;
   }
+  
+  return authenticatedReq;
+}
 
-  const req = handlerOrReq;
-  return (async () => {
+/**
+ * Authentication middleware for STATIC routes (no dynamic segments)
+ * Use this for routes like /api/users, /api/addresses, etc.
+ */
+export function requireAuth(handler: StaticAuthenticatedHandler): StaticApiRouteHandler {
+  return async (req: NextRequest): Promise<NextResponse> => {
     try {
-      console.log("🔐 RequireAuth middleware executing...");
+      console.log("🔐 RequireAuth middleware executing for static route...");
 
       const user = await getAuthFromRequest(req);
 
@@ -164,35 +208,28 @@ export function requireAuth(
 
       console.log("✅ User authenticated successfully:", user.email);
 
-      // Attach comprehensive user info to request object
-      const authenticatedReq = req as any;
-      authenticatedReq.user = {
-        id: user.id, // Database ID
-        clerkId: user.clerkId, // Clerk ID
-        email: user.email,
-        role: user.role,
-        status: user.status,
-        // Add other fields as needed
-      };
-      authenticatedReq.userId = user.clerkId; // Alias for backward compatibility
-      authenticatedReq.dbUserId = user.id; // Explicit database ID
-
       // Try to get token for the request object
+      let token: string | undefined;
       try {
         const authHeader = req.headers.get("authorization");
         if (authHeader?.startsWith("Bearer ")) {
-          authenticatedReq.token = authHeader.substring(7);
+          token = authHeader.substring(7);
         } else {
           const clerkAuth = auth();
           if (clerkAuth) {
-            authenticatedReq.token = await clerkAuth.getToken();
+            const clerkToken = await clerkAuth.getToken();
+            token = clerkToken || undefined;
           }
         }
       } catch (tokenError) {
         console.warn("⚠️ Token attachment failed:", tokenError);
       }
 
-      return null; // Auth successful
+      // Attach user data to request
+      const authenticatedReq = attachUserToRequest(req, user, token);
+
+      // Call the handler with authenticated request
+      return handler(authenticatedReq);
     } catch (error) {
       console.error("❌ Auth middleware error:", error);
 
@@ -216,39 +253,92 @@ export function requireAuth(
         { status: 401 }
       );
     }
-  })();
+  };
 }
 
 /**
- * Enhanced requireAdmin middleware with token support
+ * Authentication middleware for DYNAMIC routes (with [param] segments) using RouteContext
+ * Use this for routes like /api/users/[id], /api/addresses/[id], etc.
  */
-// Overloaded function signatures for different usage patterns
-export function requireAdmin(
-  handler: (req: NextRequest) => Promise<NextResponse>
-): (req: NextRequest) => Promise<NextResponse>;
-export function requireAdmin(req: NextRequest): Promise<NextResponse | null>;
-export function requireAdmin(
-  handlerOrReq: ((req: NextRequest) => Promise<NextResponse>) | NextRequest
-): any {
-  // If it's a function (handler), return higher-order function
-  if (typeof handlerOrReq === "function") {
-    const handler = handlerOrReq;
-    return async (req: NextRequest) => {
-      const adminResult = await requireAdmin(req);
-      if (adminResult instanceof NextResponse) {
-        return adminResult;
-      }
-      return handler(req);
-    };
-  }
-
-  // If it's a request, perform admin check directly
-  const req = handlerOrReq;
-  return (async () => {
+export function requireAuthDynamic<T extends Record<string, string | string[]> = Record<string, string>>(
+  handler: DynamicAuthenticatedHandler<T>
+): DynamicApiRouteHandler<T> {
+  return async (
+    req: NextRequest,
+    ctx: RouteContext<T>
+  ): Promise<NextResponse> => {
     try {
-      console.log("🔐 RequireAdmin middleware executing...");
+      console.log("🔐 RequireAuth middleware executing for dynamic route...");
 
-      // Use the enhanced getAuthFromRequest function
+      const user = await getAuthFromRequest(req);
+
+      if (user.status !== "ACTIVE") {
+        console.error("❌ User account is not active:", user.status);
+        return NextResponse.json(
+          { error: "Account is not active" },
+          { status: 401 }
+        );
+      }
+
+      console.log("✅ User authenticated successfully:", user.email);
+
+      // Try to get token for the request object
+      let token: string | undefined;
+      try {
+        const authHeader = req.headers.get("authorization");
+        if (authHeader?.startsWith("Bearer ")) {
+          token = authHeader.substring(7);
+        } else {
+          const clerkAuth = auth();
+          if (clerkAuth) {
+            const clerkToken = await clerkAuth.getToken();
+            token = clerkToken || undefined;
+          }
+        }
+      } catch (tokenError) {
+        console.warn("⚠️ Token attachment failed:", tokenError);
+      }
+
+      // Attach user data to request
+      const authenticatedReq = attachUserToRequest(req, user, token);
+
+      // Call the handler with authenticated request and RouteContext
+      return handler(authenticatedReq, ctx);
+    } catch (error) {
+      console.error("❌ Auth middleware error:", error);
+
+      if (error instanceof Error) {
+        if (error.message.includes("Unauthorized")) {
+          return NextResponse.json(
+            { error: "Authentication required" },
+            { status: 401 }
+          );
+        }
+        if (error.message.includes("User not found")) {
+          return NextResponse.json(
+            { error: "User not found" },
+            { status: 401 }
+          );
+        }
+      }
+
+      return NextResponse.json(
+        { error: "Authentication failed" },
+        { status: 401 }
+      );
+    }
+  };
+}
+
+/**
+ * Admin authentication middleware for STATIC routes (no dynamic segments)
+ * Use this for routes like /api/admin/users, /api/admin/settings, etc.
+ */
+export function requireAdmin(handler: StaticAuthenticatedHandler): StaticApiRouteHandler {
+  return async (req: NextRequest): Promise<NextResponse> => {
+    try {
+      console.log("🔐 RequireAdmin middleware executing for static route...");
+
       const user = await getAuthFromRequest(req);
 
       if (user.status !== "ACTIVE") {
@@ -286,23 +376,20 @@ export function requireAdmin(
         role: user.role,
       });
 
-      // Attach user to request object
-      const authenticatedReq = req as any;
-      authenticatedReq.user = user;
-      authenticatedReq.userId = user.clerkId;
-
       // Try to get token for the request object
+      let token: string | undefined;
       try {
         const authHeader = req.headers.get("authorization");
         if (authHeader?.startsWith("Bearer ")) {
-          authenticatedReq.token = authHeader.substring(7);
+          token = authHeader.substring(7);
           console.log("✅ Token retrieved from Authorization header");
         } else {
           const clerkAuth = auth();
-          if (clerkAuth && clerkAuth.getToken) {
-            authenticatedReq.token = await clerkAuth.getToken({
-              template: "_apptoken",
+          if (clerkAuth) {
+            const clerkToken = await clerkAuth.getToken({
+              template: "default",
             });
+            token = clerkToken || undefined;
             console.log("✅ Token retrieved from Clerk auth");
           } else {
             console.warn("⚠️ No valid Clerk auth session available");
@@ -312,11 +399,14 @@ export function requireAdmin(
         console.warn("⚠️ Could not attach token to request:", tokenError);
       }
 
-      return null; // No error, auth successful
+      // Attach user data to request
+      const authenticatedReq = attachUserToRequest(req, user, token);
+
+      // Call the handler with authenticated request
+      return handler(authenticatedReq);
     } catch (error) {
       console.error("❌ Admin auth middleware error:", error);
 
-      // Handle specific error cases
       if (error instanceof Error) {
         if (error.message.includes("Unauthorized")) {
           return NextResponse.json(
@@ -349,78 +439,156 @@ export function requireAdmin(
         { status: 401 }
       );
     }
-  })();
+  };
 }
 
 /**
- * Enhanced checkModerator function with better error handling
+ * Admin authentication middleware for DYNAMIC routes using RouteContext
+ * Use this for routes like /api/admin/users/[id], /api/admin/orders/[id], etc.
  */
-export async function checkModerator(
-  req: NextRequest
-): Promise<NextResponse | null> {
-  console.log("🔐 CheckModerator middleware executing...");
+export function requireAdminDynamic<T extends Record<string, string | string[]> = Record<string, string>>(
+  handler: DynamicAuthenticatedHandler<T>
+): DynamicApiRouteHandler<T> {
+  return async (
+    req: NextRequest,
+    ctx: RouteContext<T>
+  ): Promise<NextResponse> => {
+    try {
+      console.log("🔐 RequireAdmin middleware executing for dynamic route...");
 
-  const authResponse = await requireAuth(req);
-  if (authResponse) return authResponse;
+      const user = await getAuthFromRequest(req);
 
-  const user = (req as any).user;
-  if (user?.role !== "ADMIN" && user?.role !== "MODERATOR") {
-    console.error("❌ Insufficient moderator permissions:", {
-      required: ["ADMIN", "MODERATOR"],
-      actual: user?.role,
-    });
+      if (user.status !== "ACTIVE") {
+        console.error("❌ Admin user account is not active:", user.status);
+        return NextResponse.json(
+          {
+            error: "Account is not active",
+            status: user.status,
+            timestamp: new Date().toISOString(),
+          },
+          { status: 401 }
+        );
+      }
 
-    return NextResponse.json(
-      {
-        error: "Moderator access required",
-        message: "Insufficient permissions to access this resource",
-        requiredRoles: ["ADMIN", "MODERATOR"],
-        userRole: user?.role,
-        timestamp: new Date().toISOString(),
-      },
-      { status: 403 }
-    );
-  }
+      // Check admin role
+      if (user.role !== "ADMIN" && user.role !== "MODERATOR") {
+        console.error("❌ Insufficient permissions:", {
+          required: ["ADMIN", "MODERATOR"],
+          actual: user.role,
+        });
+        return NextResponse.json(
+          {
+            error: "Admin access required",
+            message: "Insufficient permissions to access this resource",
+            requiredRoles: ["ADMIN", "MODERATOR"],
+            userRole: user.role,
+            timestamp: new Date().toISOString(),
+          },
+          { status: 403 }
+        );
+      }
 
-  console.log("✅ Moderator access granted:", {
-    email: user?.email,
-    role: user?.role,
-  });
-  return null;
+      console.log("✅ Admin access granted:", {
+        email: user.email,
+        role: user.role,
+      });
+
+      // Try to get token for the request object
+      let token: string | undefined;
+      try {
+        const authHeader = req.headers.get("authorization");
+        if (authHeader?.startsWith("Bearer ")) {
+          token = authHeader.substring(7);
+          console.log("✅ Token retrieved from Authorization header");
+        } else {
+          const clerkAuth = auth();
+          if (clerkAuth) {
+            const clerkToken = await clerkAuth.getToken({
+              template: "default",
+            });
+            token = clerkToken || undefined;
+            console.log("✅ Token retrieved from Clerk auth");
+          } else {
+            console.warn("⚠️ No valid Clerk auth session available");
+          }
+        }
+      } catch (tokenError) {
+        console.warn("⚠️ Could not attach token to request:", tokenError);
+      }
+
+      // Attach user data to request
+      const authenticatedReq = attachUserToRequest(req, user, token);
+
+      // Call the handler with authenticated request and RouteContext
+      return handler(authenticatedReq, ctx);
+    } catch (error) {
+      console.error("❌ Admin auth middleware error:", error);
+
+      if (error instanceof Error) {
+        if (error.message.includes("Unauthorized")) {
+          return NextResponse.json(
+            {
+              error: "Authentication required",
+              message: "Please log in to access this resource",
+              timestamp: new Date().toISOString(),
+            },
+            { status: 401 }
+          );
+        }
+        if (error.message.includes("User not found")) {
+          return NextResponse.json(
+            {
+              error: "User not found",
+              message: "Please complete your registration",
+              timestamp: new Date().toISOString(),
+            },
+            { status: 401 }
+          );
+        }
+      }
+
+      return NextResponse.json(
+        {
+          error: "Authentication failed",
+          message: "An error occurred during authentication",
+          timestamp: new Date().toISOString(),
+        },
+        { status: 401 }
+      );
+    }
+  };
 }
 
 /**
- * Helper function to create role-based middleware
+ * Role-based authentication middleware for STATIC routes (no dynamic segments)
  */
 export function requireRoles(roles: string[]) {
-  return function (
-    handler: (req: NextRequest) => Promise<NextResponse>
-  ): (req: NextRequest) => Promise<NextResponse> {
-    return async (req: NextRequest) => {
+  return function (handler: StaticAuthenticatedHandler): StaticApiRouteHandler {
+    return async (req: NextRequest): Promise<NextResponse> => {
       try {
         console.log(`🔐 RequireRoles middleware executing for roles:`, roles);
 
-        // First check authentication
-        const authResult = await requireAuth(req);
-        if (authResult instanceof NextResponse) {
-          return authResult;
+        const user = await getAuthFromRequest(req);
+
+        if (user.status !== "ACTIVE") {
+          return NextResponse.json(
+            { error: "Account is not active" },
+            { status: 401 }
+          );
         }
 
-        // Then check roles
-        const user = (req as any).user;
-        if (!user || !roles.includes(user.role)) {
+        if (!roles.includes(user.role)) {
           console.error("❌ Insufficient role permissions:", {
             required: roles,
-            actual: user?.role,
+            actual: user.role,
           });
 
           return NextResponse.json(
             {
               error: "Insufficient permissions",
-              message:
-                "You do not have the required role to access this resource",
+              message: "You do not have the required role to access this resource",
               requiredRoles: roles,
-              userRole: user?.role,
+              userRole: user.role,
               timestamp: new Date().toISOString(),
             },
             { status: 403 }
@@ -431,7 +599,104 @@ export function requireRoles(roles: string[]) {
           email: user.email,
           role: user.role,
         });
-        return handler(req);
+
+        // Get token
+        let token: string | undefined;
+        try {
+          const authHeader = req.headers.get("authorization");
+          if (authHeader?.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+          } else {
+            const clerkAuth = auth();
+            const clerkToken = await clerkAuth.getToken();
+            token = clerkToken || undefined;
+          }
+        } catch (tokenError) {
+          console.warn("⚠️ Token attachment failed:", tokenError);
+        }
+
+        // Attach user data to request
+        const authenticatedReq = attachUserToRequest(req, user, token);
+
+        return handler(authenticatedReq);
+      } catch (error) {
+        console.error("❌ Role middleware error:", error);
+        return NextResponse.json(
+          {
+            error: "Authorization failed",
+            message: "An error occurred during authorization",
+            timestamp: new Date().toISOString(),
+          },
+          { status: 500 }
+        );
+      }
+    };
+  };
+}
+
+/**
+ * Role-based authentication middleware for DYNAMIC routes using RouteContext
+ */
+export function requireRolesDynamic<T extends Record<string, string | string[]> = Record<string, string>>(roles: string[]) {
+  return function (handler: DynamicAuthenticatedHandler<T>): DynamicApiRouteHandler<T> {
+    return async (
+      req: NextRequest,
+      ctx: RouteContext<T>
+    ): Promise<NextResponse> => {
+      try {
+        console.log(`🔐 RequireRoles middleware executing for dynamic route with roles:`, roles);
+
+        const user = await getAuthFromRequest(req);
+
+        if (user.status !== "ACTIVE") {
+          return NextResponse.json(
+            { error: "Account is not active" },
+            { status: 401 }
+          );
+        }
+
+        if (!roles.includes(user.role)) {
+          console.error("❌ Insufficient role permissions:", {
+            required: roles,
+            actual: user.role,
+          });
+
+          return NextResponse.json(
+            {
+              error: "Insufficient permissions",
+              message: "You do not have the required role to access this resource",
+              requiredRoles: roles,
+              userRole: user.role,
+              timestamp: new Date().toISOString(),
+            },
+            { status: 403 }
+          );
+        }
+
+        console.log("✅ Role access granted:", {
+          email: user.email,
+          role: user.role,
+        });
+
+        // Get token
+        let token: string | undefined;
+        try {
+          const authHeader = req.headers.get("authorization");
+          if (authHeader?.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+          } else {
+            const clerkAuth = auth();
+            const clerkToken = await clerkAuth.getToken();
+            token = clerkToken || undefined;
+          }
+        } catch (tokenError) {
+          console.warn("⚠️ Token attachment failed:", tokenError);
+        }
+
+        // Attach user data to request
+        const authenticatedReq = attachUserToRequest(req, user, token);
+
+        return handler(authenticatedReq, ctx);
       } catch (error) {
         console.error("❌ Role middleware error:", error);
         return NextResponse.json(
@@ -459,4 +724,21 @@ export async function getCurrentAuthUser(
     console.error("Error getting current auth user:", error);
     return null;
   }
+}
+
+/**
+ * Type guard to check if request is authenticated
+ */
+export function isAuthenticatedRequest(req: NextRequest): req is AuthenticatedRequest {
+  return 'user' in req && 'userId' in req && 'dbUserId' in req;
+}
+
+/**
+ * Helper function to safely get user from authenticated request
+ */
+export function getUserFromRequest(req: NextRequest): AuthenticatedUser | null {
+  if (isAuthenticatedRequest(req)) {
+    return req.user;
+  }
+  return null;
 }

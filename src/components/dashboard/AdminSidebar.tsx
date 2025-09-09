@@ -4,11 +4,8 @@ import { useState } from "react";
 import {
   LayoutDashboard,
   Package,
-  FileText,
   Users,
   ClipboardList,
-  BarChart3,
-  Settings,
   LogOut,
   X,
   ChevronDown,
@@ -19,7 +16,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { SidebarProps } from "@/types";
-import Image from "next/image";
 
 
 

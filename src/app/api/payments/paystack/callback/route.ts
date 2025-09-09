@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
               `${process.env.NEXT_PUBLIC_BASE_URL}/account/wallet?payment=failed&reference=${paymentReference}`
             );
           }
-        } catch (walletError: any) {
+        } catch (walletError: unknown) {
           console.error('Wallet deposit processing error:', walletError);
           return NextResponse.redirect(
             `${process.env.NEXT_PUBLIC_BASE_URL}/account/wallet?payment=error&reference=${paymentReference}`
@@ -67,14 +67,14 @@ export async function GET(request: NextRequest) {
         );
       }
 
-    } catch (verificationError: any) {
+    } catch (verificationError: unknown) {
       console.error('Payment verification error:', verificationError);
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_BASE_URL}/account/wallet?payment=error&reference=${paymentReference}`
       );
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Payment callback error:', error);
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_BASE_URL}/account/wallet?payment=error`

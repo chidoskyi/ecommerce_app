@@ -43,7 +43,7 @@ const generateTempId = () =>
   `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
 // Async thunks for API operations
-export const fetchProducts = createAsyncThunk(  
+export const fetchProducts = createAsyncThunk(
   "products/fetchProducts",
   async (
     customFilters: Partial<ProductState["filters"]> & {
@@ -133,8 +133,10 @@ export const fetchProductBySlug = createAsyncThunk(
         rating: data.rating || data.averageRating || 0,
         unitPrices: data.unitPrices || [],
       };
-    } catch (error: any) {
-      return rejectWithValue(handleApiError("Failed to fetch product"));
+    } catch (error: unknown) {
+      return rejectWithValue(
+        handleApiError(error) || "Failed to fetch product"
+      );
     }
   }
 );

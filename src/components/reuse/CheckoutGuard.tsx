@@ -58,7 +58,7 @@ export default function CheckoutPage() {
             Preparing your checkout...
           </h2>
           <p className="text-gray-600">
-            We're verifying your account details
+            We&apos;re verifying your account details
           </p>
         </div>
       </div>

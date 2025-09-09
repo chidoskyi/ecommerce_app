@@ -5,7 +5,7 @@ import { opayService } from '@/lib/opay'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { reference, status } = body
+    const { reference } = body
 
     if (!reference) {
       return NextResponse.json({ error: 'Payment reference is required' }, { status: 400 })
@@ -14,13 +14,13 @@ export async function POST(request: NextRequest) {
     // Verify payment with Opay
     const paymentVerification = await opayService.verifyPayment(reference)
     
-    if (!paymentVerification.success) {
+    if (paymentVerification.code !== '00000') {
       console.error('Opay verification failed:', paymentVerification)
       return NextResponse.json({ error: 'Payment verification failed' }, { status: 400 })
     }
 
-    const paymentData = paymentVerification.data
-    const isSuccessful = paymentData.status === 'SUCCESS' || paymentData.status === 'PAID'
+    const paymentData = paymentVerification.data  
+    const isSuccessful = paymentData?.status === 'SUCCESS' || paymentData?.status === 'CLOSE'
 
     // Find the order by payment reference (paymentId field)
     const order = await prisma.order.findFirst({
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
           status: 'CONFIRMED',
           paymentStatus: 'PAID',
           processedAt: new Date(),
-          transactionId: paymentData.transactionId || reference
+          transactionId: paymentData.orderNo || reference
         }
       })
 

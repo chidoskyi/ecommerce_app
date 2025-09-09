@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 // Add logging helper for consistency
-function log(message: string, data?: any) {
+function log<T>(message: string, data?: string | number | boolean | object | T) {
   const timestamp = new Date().toISOString();
   console.log(
     `[USER ${timestamp}] ${message}`,

@@ -5,7 +5,7 @@ import { Badge, Trash2 } from "lucide-react";
 
 
 
-export function PaymentMethods({ paymentMethods }: { paymentMethods: PaymentMethod[] }) {
+export default function PaymentMethods({ paymentMethods }: { paymentMethods: PaymentMethod[] }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">

@@ -5,7 +5,6 @@ import { useProducts } from "@/app/store/slices/productSlice";
 import { useCategories } from "@/app/store/slices/categorySlice";
 import Image from 'next/image';
 import { Product } from '@/types/products';
-import { StarRating } from './StarRating';
 
 export interface SearchBarProps {
   inputValue: string;
@@ -28,7 +27,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
 
   // Get products and categories from Redux store
-  const { products, actions } = useProducts();
+  const { products } = useProducts();
   const { categories, actions: categoryActions } = useCategories();
 
   // Sample pages - replace with your actual data
@@ -119,6 +118,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
     }, 300);
     
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, products, categories]);
 
   if (!isVisible) return null;
@@ -144,7 +144,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
             {/* Suggestions header */}
             {(productSuggestions.length > 0 || pageSuggestions.length > 0 || categorySuggestions.length > 0) && (
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-900">Search Results for "{searchQuery}"</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Search Results for &quot;{searchQuery}&quot;</h3>
               </div>
             )}
 
@@ -315,7 +315,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
                   </svg>
                 </div>
                 <h4 className="text-lg font-medium text-gray-900 mb-2">No results found</h4>
-                <p className="text-gray-500 mb-4">We couldn't find anything matching "{searchQuery}"</p>
+                <p className="text-gray-500 mb-4">We couldn&quot;t find anything matching &quot;{searchQuery}&quot;</p>
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <Link 
                     href={`/products?search=${encodeURIComponent(searchQuery)}`}

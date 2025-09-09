@@ -5,19 +5,20 @@ export interface Category {
   name: string;
   slug: string;
   description: string | null;
-  image: string | null;
+  image: string | null; // For existing categories, image is always a URL string or null
   status: CategoryStatus;
   createdAt: string;
   updatedAt: string;
   productsCount: number;
 }
 
+// Updated NewCategory to allow File objects for image uploads
 export interface NewCategory {
-  name: string
-  slug: string
-  description?: string | null; // allow null
-  image: string
-  status?: CategoryStatus
+  name: string;
+  slug?: string;
+  description?: string | null;
+  image: string | File | null; // Allow string (URL), File (for uploads), or null
+  status?: CategoryStatus;
 }
 
 export interface CategoryFormProps {
@@ -102,7 +103,7 @@ export interface CategoryPaginationProps {
   
   export interface CreateCategoryData {
     name: string;
-    description: string;
+    description?: string;
     image?: string | null;
     status?: CategoryStatus;
   }
@@ -113,6 +114,9 @@ export interface CategoryPaginationProps {
     description?: string;
     image?: string | null;
     status?: CategoryStatus;
+    createdAt: string;
+    updatedAt: string;
+    productsCount: number;
   }
   
   export interface UpdateStatusData {

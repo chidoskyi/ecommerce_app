@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { UserRole, UserStatus } from '@/types/users';
+import { User, UserRole, UserStatus } from '@/types/users';
 import { UserActions } from '@/components/dashboard/users/UserActions';
 import {
   selectUsers,
@@ -79,19 +79,28 @@ export const UserTable: React.FC<UserTableProps> = ({ onEdit }) => {
     }).format(date);
   };
 
-  const getDisplayName = (user: any): string => {
+  const formatDateMobile = (dateString: string): string => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: '2-digit',
+    }).format(date);
+  };
+
+  const getDisplayName = (user: User): string => {
     if (user.firstName && user.lastName) {
       return `${user.firstName} ${user.lastName}`;
     }
-    return user.name || user.email;
+    return user.fullName || user.email;
   };
 
-  const getInitials = (user: any): string => {
+  const getInitials = (user: User): string => {
     if (user.firstName && user.lastName) {
       return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
     }
-    if (user.name) {
-      return user.name
+    if (user.fullName) {
+      return user.fullName
         .split(' ')
         .map((n: string) => n[0])
         .join('')
@@ -102,20 +111,22 @@ export const UserTable: React.FC<UserTableProps> = ({ onEdit }) => {
 
   return (
     <>
-      <div className="pb-4">
+      {/* Search Section */}
+      <div className="pb-4 px-2 sm:px-0">
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/3 h-5 w-5 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
           <Input
             type="search"
             placeholder="Search users..."
-            className="!text-[16px] border-gray-300 text-base transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 md:text-sm border pl-10 h-10 sm:h-12 focus:border-[#1B6013] focus:ring-orange-600"
+            className="!text-[16px] sm:!text-sm border-gray-300 transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 border pl-10 sm:pl-10 h-11 sm:h-10 focus:border-[#1B6013] focus:ring-orange-600"
             value={searchTerm}
             onChange={(e) => handleSearchChange(e.target.value)}
           />
         </div>
       </div>
       
-      <div className="rounded-md border border-gray-200 bg-white shadow-sm">
+      {/* Desktop Table */}
+      <div className="hidden md:block rounded-md border border-gray-200 bg-white shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>
@@ -146,31 +157,31 @@ export const UserTable: React.FC<UserTableProps> = ({ onEdit }) => {
                 <TableRow key={user.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <Avatar>
+                      <Avatar className="h-8 w-8">
                         <AvatarImage
                           src={`https://ui-avatars.com/api/?name=${encodeURIComponent(getDisplayName(user))}&background=random`}
                         />
-                        <AvatarFallback>
+                        <AvatarFallback className="text-xs">
                           {getInitials(user)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <div className="font-medium">{getDisplayName(user)}</div>
-                        <div className="text-sm text-muted-foreground">{user.email}</div>
+                        <div className="font-medium text-sm">{getDisplayName(user)}</div>
+                        <div className="text-xs text-muted-foreground">{user.email}</div>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge className={getRoleBadgeColor(user.role)} variant="outline">
+                    <Badge className={`${getRoleBadgeColor(user.role)} text-xs`} variant="outline">
                       {user.role}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge className={getStatusBadgeColor(user.status)} variant="outline">
+                    <Badge className={`${getStatusBadgeColor(user.status)} text-xs`} variant="outline">
                       {user.status}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-sm">
                     {user.createdAt ? formatDate(user.createdAt) : 'Never'}
                   </TableCell>
                   <TableCell className="text-right">
@@ -181,6 +192,59 @@ export const UserTable: React.FC<UserTableProps> = ({ onEdit }) => {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Mobile Card Layout */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          </div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="text-center py-10 bg-white rounded-lg border border-gray-200 mx-2">
+            <p className="text-muted-foreground">
+              {searchTerm ? `No users found matching "${searchTerm}"` : 'No users found'}
+            </p>
+          </div>
+        ) : (
+          filteredUsers.map((user) => (
+            <div key={user.id} className="bg-white rounded-lg border border-gray-200 p-4 mx-2 shadow-sm">
+              {/* User Info */}
+              <div className="flex items-center gap-3 mb-3">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage
+                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(getDisplayName(user))}&background=random`}
+                  />
+                  <AvatarFallback className="text-sm">
+                    {getInitials(user)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm truncate">{getDisplayName(user)}</div>
+                  <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                </div>
+                <div className="flex-shrink-0">
+                  <UserActions user={user} onEdit={onEdit} />
+                </div>
+              </div>
+
+              {/* Badges and Date */}
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <Badge className={`${getRoleBadgeColor(user.role)} text-xs`} variant="outline">
+                  {user.role}
+                </Badge>
+                <Badge className={`${getStatusBadgeColor(user.status)} text-xs`} variant="outline">
+                  {user.status}
+                </Badge>
+              </div>
+
+              {/* Created Date */}
+              <div className="text-xs text-muted-foreground">
+                Created: {user.createdAt ? formatDateMobile(user.createdAt) : 'Never'}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </>
   );

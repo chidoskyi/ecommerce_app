@@ -3,7 +3,7 @@
 import { SignIn } from '@clerk/nextjs'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 
 const testimonials = [
@@ -34,7 +34,7 @@ export default function Page() {
   const searchParams = useSearchParams()
   
   // Get the redirect_url from search parameters
-  const redirect_url = searchParams.get('redirect_url')
+  const redirect_url = searchParams?.get('redirect_url')
   const redirectUrl = redirect_url ? decodeURIComponent(redirect_url) : '/'
 
   return (

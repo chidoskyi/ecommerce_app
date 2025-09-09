@@ -8,7 +8,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge, Edit, Trash2, MapPin, Plus } from "lucide-react";
+import { Edit, Trash2, MapPin, Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge"
+
 import { useState, useEffect } from "react";
 import {
   Dialog,
@@ -33,7 +35,6 @@ import {
   updateAddress, 
   deleteAddress, 
   setDefaultAddress, 
-  clearError 
 } from "@/app/store/slices/addressSlice";
 
 import { Address } from "@/types";
@@ -41,12 +42,23 @@ import { toast } from "react-toastify";
 
 export default function Addresses() {
   const dispatch = useAppDispatch();
-  const { addresses, loading, error } = useAppSelector((state) => state.address);
+  const { addresses, loading, } = useAppSelector((state) => state.address);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentAddress, setCurrentAddress] = useState<Address | null>(null);
-  const [formData, setFormData] = useState({
-    type: "SHIPPING" as const,
+  const [formData, setFormData] = useState<{
+    type: "SHIPPING" | "BILLING";
+    firstName: string;
+    lastName: string;
+    address: string;
+    city: string;
+    state: string;
+    zip: string;
+    country: string;
+    phone: string;
+    isDefault: boolean;
+  }>({
+    type: "SHIPPING",
     firstName: "",
     lastName: "",
     address: "",
@@ -62,14 +74,6 @@ export default function Addresses() {
   useEffect(() => {
     dispatch(fetchAddresses());
   }, [dispatch]);
-
-  // Show error toast
-  useEffect(() => {
-    if (error) {
-      toast.error(typeof error === "string" ? error : error.message);
-      dispatch(clearError()); // Fixed: dispatch clearError instead of calling it directly
-    }
-  }, [error, dispatch]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -87,41 +91,37 @@ export default function Addresses() {
   };
 
   const handleAddAddress = async () => {
-  try {
-    await dispatch(createAddress({
-      ...formData,
-      type: formData.type as 'SHIPPING' | 'BILLING' // Ensure correct type
-    })).unwrap();
-    toast.success("Address added successfully");
-    resetForm();
-    setIsDialogOpen(false);
-  } catch (error) {
-    console.error("Failed to add address:", error);
-    toast.error("Failed to add address");
-  }
-};
+    try {
+      await dispatch(createAddress(formData)).unwrap();
+      toast.success("Address added successfully");
+      resetForm();
+      setIsDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to add address:", error);
+      toast.error("Failed to add address");
+    }
+  };
 
-const handleEditAddress = async () => {
-  if (!currentAddress) return;
+  const handleEditAddress = async () => {
+    if (!currentAddress) return;
 
-  try {
-    await dispatch(updateAddress({ 
-      addressId: currentAddress.id,
-      type: formData.type as 'SHIPPING' | 'BILLING', // Ensure correct type
-      ...formData
-    })).unwrap();
-    toast.success("Address updated successfully");
-    resetForm();
-    setIsDialogOpen(false);
-  } catch (error) {
-    console.error("Failed to update address:", error);
-    toast.error("Failed to update address");
-  }
-};
+    try {
+      await dispatch(updateAddress({ 
+        addressId: currentAddress.id,
+        ...formData
+      })).unwrap();
+      toast.success("Address updated successfully");
+      resetForm();
+      setIsDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to update address:", error);
+      toast.error("Failed to update address");
+    }
+  };
 
   const handleRemoveAddress = async (id: string) => {
     try {
-      await dispatch(deleteAddress(id)).unwrap(); // Fixed: dispatch and unwrap
+      await dispatch(deleteAddress(id)).unwrap();
       toast.success("Address deleted successfully");
     } catch (error) {
       console.error("Failed to delete address:", error);
@@ -138,7 +138,7 @@ const handleEditAddress = async () => {
       await dispatch(setDefaultAddress({ 
         addressId: id, 
         type: address.type 
-      })).unwrap(); // Fixed: dispatch and unwrap, correct payload structure
+      })).unwrap();
       toast.success("Default address updated");
     } catch (error) {
       console.error("Failed to set default address:", error);
@@ -434,7 +434,7 @@ const handleEditAddress = async () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {addresses.map((address) => (
+            {addresses.map((address: Address) => (
               <div
                 key={address.id}
                 className="border border-gray-200 rounded-lg p-4 relative"

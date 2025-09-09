@@ -1,17 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { AuthenticatedRequest, requireAdmin, requireAuth } from '@/lib/auth'
 
 // GET - Retrieve invoice for an order
-export async function GET(request: NextRequest) {
+export const GET = requireAuth( async ( request: AuthenticatedRequest ) => {
   try {
 
-          // First check admin status
-  const authCheck = await requireAuth(request);
-  if (authCheck) {
-    return authCheck; // Returns the error response if not admin
-  }
-    const user = (request as AuthenticatedRequest).user
+    const user = request.user
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -154,19 +149,16 @@ export async function GET(request: NextRequest) {
       error: 'Internal server error' 
     }, { status: 500 })
   }
-}
+})
 
 // POST - Generate invoice PDF (optional - you can implement PDF generation)
-export async function POST(request: NextRequest) {
+export const POST = requireAdmin(
+  async (
+    request: AuthenticatedRequest,
+  ) => {
   try {
 
-          // First check admin status
-  const authCheck = await requireAuth(request);
-  if (authCheck) {
-    return authCheck; // Returns the error response if not admin
-  }
-
-    const user = ( request as AuthenticatedRequest).user
+    const user = request.user
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -222,19 +214,16 @@ export async function POST(request: NextRequest) {
       error: 'Internal server error' 
     }, { status: 500 })
   }
-}
+})
 
 // PUT - Mark invoice as paid (when payment is confirmed)
-export async function PUT(request: NextRequest) {
+export const PUT = requireAdmin(
+  async (
+    request: AuthenticatedRequest,
+  ) => {
   try {
 
-          // First check admin status
-  const adminCheck = await requireAdmin(request);
-  if (adminCheck) {
-    return adminCheck; // Returns the error response if not admin
-  }
-  
-    const user = (request as AuthenticatedRequest).user
+    const user = request.user
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -302,4 +291,4 @@ export async function PUT(request: NextRequest) {
       error: 'Internal server error' 
     }, { status: 500 })
   }
-}
+})

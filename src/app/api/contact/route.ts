@@ -10,7 +10,7 @@ const emailService = new EmailService()
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Validation function
-function validateContactForm(data: any): { isValid: boolean; errors: string[] } {
+function validateContactForm(data: Record<string, string | number | boolean | object | undefined>): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   if (!data.fullName || typeof data.fullName !== 'string' || data.fullName.trim().length < 2) {

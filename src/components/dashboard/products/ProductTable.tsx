@@ -9,6 +9,10 @@ import {
   X,
   Trash2,
   Loader2,
+  ChevronDown,
+  Package,
+  Clock,
+  DollarSign,
 } from "lucide-react";
 import {
   Table,
@@ -82,9 +86,18 @@ export function ProductTable({
     }).format(date);
   };
 
-  // Get category name by ID
-  // In ProductTable.tsx - Replace the existing getCategoryName function
+  // Mobile format date (shorter)
+  const formatDateMobile = (dateString: string | Date) => {
+    if (!dateString) return "-";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "-";
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+    }).format(date);
+  };
 
+  // Get category name by ID
   const getCategoryName = (product: Product) => {
     // First check if product has embedded category data
     if (
@@ -141,20 +154,22 @@ export function ProductTable({
   const renderPaginationItems = () => {
     const items = [];
     const showEllipsis = totalPages > 5;
-  
+
     // Always show first page
     items.push(
       <PaginationItem key={1}>
         <PaginationLink
           isActive={currentPage === 1}
           onClick={() => !loading && onPaginate(1)}
-          className={loading ? "pointer-events-none opacity-50" : "cursor-pointer"}
+          className={
+            loading ? "pointer-events-none opacity-50" : "cursor-pointer"
+          }
         >
           1
         </PaginationLink>
       </PaginationItem>
     );
-  
+
     if (showEllipsis) {
       // Show ellipsis if current page is far from start
       if (currentPage > 3) {
@@ -164,11 +179,11 @@ export function ProductTable({
           </PaginationItem>
         );
       }
-  
+
       // Show pages around current page
       const start = Math.max(2, currentPage - 1);
       const end = Math.min(totalPages - 1, currentPage + 1);
-  
+
       for (let page = start; page <= end; page++) {
         if (page !== 1 && page !== totalPages) {
           items.push(
@@ -176,7 +191,9 @@ export function ProductTable({
               <PaginationLink
                 isActive={page === currentPage}
                 onClick={() => !loading && onPaginate(page)}
-                className={loading ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                className={
+                  loading ? "pointer-events-none opacity-50" : "cursor-pointer"
+                }
               >
                 {page}
               </PaginationLink>
@@ -184,7 +201,7 @@ export function ProductTable({
           );
         }
       }
-  
+
       // Show ellipsis if current page is far from end
       if (currentPage < totalPages - 2) {
         items.push(
@@ -201,7 +218,9 @@ export function ProductTable({
             <PaginationLink
               isActive={page === currentPage}
               onClick={() => !loading && onPaginate(page)}
-              className={loading ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              className={
+                loading ? "pointer-events-none opacity-50" : "cursor-pointer"
+              }
             >
               {page}
             </PaginationLink>
@@ -209,7 +228,7 @@ export function ProductTable({
         );
       }
     }
-  
+
     // Always show last page if it's not the first page
     if (totalPages > 1) {
       items.push(
@@ -217,20 +236,221 @@ export function ProductTable({
           <PaginationLink
             isActive={currentPage === totalPages}
             onClick={() => !loading && onPaginate(totalPages)}
-            className={loading ? "pointer-events-none opacity-50" : "cursor-pointer"}
+            className={
+              loading ? "pointer-events-none opacity-50" : "cursor-pointer"
+            }
           >
             {totalPages}
           </PaginationLink>
         </PaginationItem>
       );
     }
-  
+
     return items;
+  };
+
+  // Mobile Product Card Component
+  const MobileProductCard = ({ product }: { product: Product }) => {
+    const isSelected = selectedProducts.includes(product.id);
+
+    return (
+      <div
+        className={`bg-white border border-gray-300 rounded-lg p-4 mb-3 shadow-sm transition-colors ${
+          isSelected ? "bg-blue-50 border-blue-200" : ""
+        } ${bulkActionLoading && isSelected ? "opacity-60" : ""}`}
+      >
+        {/* Header with checkbox, image, name, and actions */}
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onSelectProduct(product.id)}
+              disabled={loading || bulkActionLoading}
+              className="flex-shrink-0"
+            />
+            <Avatar className="h-10 w-10 rounded-sm flex-shrink-0">
+              <AvatarImage
+                src={
+                  product.images?.[0] || "/placeholder.svg?height=40&width=40"
+                }
+                alt={product.name}
+                className="object-cover"
+              />
+              <AvatarFallback className="rounded-sm bg-purple-100 text-purple-700 text-sm">
+                {product.name.substring(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <div
+                className="font-medium text-sm truncate"
+                title={product.name}
+              >
+                {product.name}
+              </div>
+              <div className="text-xs text-gray-500 truncate">
+                {getCategoryName(product)}
+              </div>
+            </div>
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 cursor-pointer flex-shrink-0"
+                disabled={bulkActionLoading}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 bg-white">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => onView(product)}
+                className="cursor-pointer"
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                View Details
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onEdit(product)}
+                className="cursor-pointer"
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => onStatusChange(product.id, "ACTIVE")}
+                disabled={product.status === "ACTIVE"}
+                className="cursor-pointer"
+              >
+                <Check className="mr-2 h-4 w-4" />
+                Mark as Active
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onStatusChange(product.id, "INACTIVE")}
+                disabled={product.status === "INACTIVE"}
+                className="cursor-pointer"
+              >
+                <X className="mr-2 h-4 w-4" />
+                Mark as Inactive
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-red-600 cursor-pointer"
+                onClick={() => onDelete(product.id)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Badges */}
+        {(product.isFeatured ||
+          product.isTrending ||
+          product.isDealOfTheDay ||
+          product.isNewArrival) && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {product.isFeatured && (
+              <Badge
+                variant="secondary"
+                className="text-xs bg-yellow-100 text-yellow-800"
+              >
+                Featured
+              </Badge>
+            )}
+            {product.isTrending && (
+              <Badge
+                variant="secondary"
+                className="text-xs bg-green-100 text-green-800"
+              >
+                Trending
+              </Badge>
+            )}
+            {product.isDealOfTheDay && (
+              <Badge
+                variant="secondary"
+                className="text-xs bg-red-100 text-red-800"
+              >
+                Deal
+              </Badge>
+            )}
+            {product.isNewArrival && (
+              <Badge
+                variant="secondary"
+                className="text-xs bg-blue-100 text-blue-800"
+              >
+                New
+              </Badge>
+            )}
+          </div>
+        )}
+
+        {/* Price and Status */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium">
+              {product.hasFixedPrice ? (
+                <PriceFormatter
+                  amount={product.fixedPrice}
+                  showDecimals={true}
+                />
+              ) : product.unitPrices && product.unitPrices.length > 0 ? (
+                <div className="space-y-1">
+                  <div className="text-sm">
+                    <span className="font-medium">
+                      {product.unitPrices[0].unit}:
+                    </span>{" "}
+                    <PriceFormatter
+                      amount={product.unitPrices[0].price}
+                      showDecimals={true}
+                    />
+                  </div>
+                  {product.unitPrices.length > 1 && (
+                    <div className="text-xs text-gray-500">
+                      +{product.unitPrices.length - 1} more prices
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <span className="text-gray-400">-</span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Badge
+              className={`${getStatusBadgeColor(product.status)} text-xs`}
+              variant="outline"
+            >
+              {product.status === "ACTIVE"
+                ? "Active"
+                : product.status === "INACTIVE"
+                ? "Inactive"
+                : "Draft"}
+            </Badge>
+          </div>
+        </div>
+
+        {/* Footer with updated date */}
+        <div className="flex justify-between items-center pt-2 border-t">
+          <span className="text-xs text-gray-500">
+            Updated: {formatDateMobile(product.updatedAt)}
+          </span>
+        </div>
+      </div>
+    );
   };
 
   return (
     <>
-      <div className="rounded-md border border-gray-400">
+      {/* Desktop Table - Hidden on mobile */}
+      <div className="hidden md:block rounded-md border border-gray-400">
         <Table>
           <TableHeader>
             <TableRow>
@@ -259,7 +479,6 @@ export function ProductTable({
                   {getSortIcon("name")}
                 </div>
               </TableHead>
-              {/* <TableHead>SKU</TableHead> */}
               <TableHead
                 className="cursor-pointer hover:bg-gray-50 transition-colors"
                 onClick={() => !loading && onSort("fixedPrice")}
@@ -414,11 +633,6 @@ export function ProductTable({
                         </div>
                       </div>
                     </TableCell>
-                    {/* <TableCell>
-                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">
-                        {product.sku || '-'}
-                      </code>
-                    </TableCell> */}
 
                     <TableCell>
                       {product.hasFixedPrice ? (
@@ -431,7 +645,7 @@ export function ProductTable({
                         <div className="space-y-1">
                           {product.unitPrices
                             .slice(0, 2)
-                            .map((unitPrice, idx) => (
+                            .map((unitPrice) => (
                               <div key={unitPrice.unit} className="text-sm">
                                 <span className="font-medium">
                                   {unitPrice.unit}:
@@ -454,8 +668,7 @@ export function ProductTable({
                     </TableCell>
                     <TableCell>
                       <span className="text-sm">
-                        {getCategoryName(product)}{" "}
-                        {/* Pass the full product object instead of just categoryId */}
+                        {getCategoryName(product)}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -548,10 +761,126 @@ export function ProductTable({
         </Table>
       </div>
 
-      {/* Pagination */}
+      {/* Mobile View - Hidden on desktop */}
+      <div className="md:hidden">
+        {/* Mobile Header with Select All */}
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-t-lg border-gray-200 border-b-0">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              checked={
+                products.length > 0 &&
+                selectedProducts.length === products.length
+              }
+              indeterminate={
+                selectedProducts.length > 0 &&
+                selectedProducts.length < products.length
+              }
+              onCheckedChange={(checked) =>
+                onSelectAll(Boolean(checked), products)
+              }
+              disabled={loading || bulkActionLoading}
+              className="cursor-pointer"
+            />
+            <span className="text-sm font-medium">
+              {selectedProducts.length > 0
+                ? `${selectedProducts.length} selected`
+                : "Select all"}
+            </span>
+          </div>
+
+          {/* Mobile Sort Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1">
+                Sort <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-white">
+              <DropdownMenuItem
+                onClick={() => onSort("name")}
+                className="cursor-pointer"
+              >
+                <Package className="mr-2 h-4 w-4" />
+                Sort by Name
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onSort("fixedPrice")}
+                className="cursor-pointer"
+              >
+                <DollarSign className="mr-2 h-4 w-4" />
+                Sort by Price
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onSort("status")}
+                className="cursor-pointer"
+              >
+                <Check className="mr-2 h-4 w-4" />
+                Sort by Status
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onSort("updatedAt")}
+                className="cursor-pointer"
+              >
+                <Clock className="mr-2 h-4 w-4" />
+                Sort by Updated
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Mobile Cards Container */}
+        <div className="border-gray-200  border-t-0 rounded-b-lg p-2 bg-gray-50">
+          {loading ? (
+            <div className="text-center py-10">
+              <div className="flex justify-center items-center gap-2">
+                <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                <span className="text-gray-600">Loading products...</span>
+              </div>
+            </div>
+          ) : products.length === 0 ? (
+            <div className="text-center py-10">
+              {hasActiveFilters ? (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-gray-600 font-medium">
+                      No products found
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      No products match your current filters
+                    </p>
+                  </div>
+                  <Button variant="outline" onClick={onResetFilters}>
+                    Clear all filters
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-gray-600 font-medium">No products yet</p>
+                    <p className="text-sm text-gray-500">
+                      Get started by adding your first product
+                    </p>
+                  </div>
+                  <Link href="/admin/add-products">
+                    <Button className="mt-2">Add Product</Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {products.map((product) => (
+                <MobileProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Pagination - Responsive */}
       {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-between">
-          <div className="text-sm text-gray-700">
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+          <div className="text-sm text-gray-700 text-center sm:text-left">
             Showing {(currentPage - 1) * 10 + 1} to{" "}
             {Math.min(currentPage * 10, products.length)} of {products.length}{" "}
             results
@@ -597,7 +926,7 @@ export function ProductTable({
         <div className="fixed inset-0 bg-black/50 bg-opacity-20 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-4 shadow-lg flex items-center gap-3">
             <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
-            <span>
+            <span className="text-sm md:text-base">
               Processing {selectedProducts.length} selected products...
             </span>
           </div>

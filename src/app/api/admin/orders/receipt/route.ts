@@ -1,8 +1,8 @@
-// /api/admin/orders/receipt/route.ts - Receipt Download Endpoint
+// /api/admin/orders/receipt/route.ts - Fixed Receipt Download Endpoint using jsPDF
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { AuthenticatedRequest, requireAuth } from '@/lib/auth';
-import PDFDocument from 'pdfkit';
+import jsPDF from 'jspdf';
 
 export const POST = requireAuth(async (request: NextRequest) => {
   try {
@@ -47,139 +47,231 @@ export const POST = requireAuth(async (request: NextRequest) => {
       }
     });
 
-    // Generate PDF receipt
-    const doc = new PDFDocument({ margin: 50 });
-    const chunks: Buffer[] = [];
-
-    doc.on('data', (chunk) => chunks.push(chunk));
-    
-    const pdfPromise = new Promise<Buffer>((resolve) => {
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
+    // Generate PDF receipt using jsPDF
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
     });
 
+    let yPosition = 20;
+    const pageWidth = doc.internal.pageSize.width;
+    const margin = 15;
+
+    // Helper function to format currency (avoid special characters)
+    const formatCurrency = (amount: number): string => {
+      return `NGN ${amount.toLocaleString('en-US')}`;
+    };
+
+    // Helper function to add text with proper positioning
+    type TextAlign = 'left' | 'right' | 'center';
+    interface AddTextOptions {
+      align?: TextAlign;
+    }
+    const addText = (text: string, x: number, y: number, options: AddTextOptions = {}) => {
+      if (options.align === 'right') {
+        doc.text(text, x, y, { align: 'right' });
+      } else if (options.align === 'center') {
+        doc.text(text, x, y, { align: 'center' });
+      } else {
+        doc.text(text, x, y);
+      }
+    };
+
     // Add company header
-    doc.fontSize(20)
-       .text(process.env.COMPANY_NAME || 'Your Store Name', 50, 50)
-       .fontSize(12)
-       .text(process.env.COMPANY_ADDRESS || 'Your Business Address', 50, 80)
-       .text(`Phone: ${process.env.COMPANY_PHONE || '+234 XXX XXX XXXX'}`, 50, 95)
-       .text(`Email: ${process.env.COMPANY_EMAIL || 'info@yourstore.com'}`, 50, 110);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    addText(process.env.COMPANY_NAME || 'Your Store Name', margin, yPosition);
+    
+    yPosition += 10;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    addText(process.env.COMPANY_ADDRESS || 'Your Business Address', margin, yPosition);
+    
+    yPosition += 6;
+    addText(`Phone: ${process.env.COMPANY_PHONE || '+234 XXX XXX XXXX'}`, margin, yPosition);
+    
+    yPosition += 6;
+    addText(`Email: ${process.env.COMPANY_EMAIL || 'info@yourstore.com'}`, margin, yPosition);
 
     // Add receipt title
-    doc.fontSize(16)
-       .text('PAYMENT RECEIPT', 50, 150)
-       .fontSize(12);
+    yPosition += 15;
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    addText('PAYMENT RECEIPT', pageWidth / 2, yPosition, { align: 'center' });
 
-    // Add order details
-    let yPosition = 180;
-    doc.text(`Receipt #: ${invoice?.invoiceNumber || order.orderNumber}`, 50, yPosition)
-       .text(`Order #: ${order.orderNumber}`, 300, yPosition);
+    // Add order details in two columns
+    yPosition += 15;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
     
-    yPosition += 20;
-    doc.text(`Date: ${order.createdAt.toLocaleDateString()}`, 50, yPosition)
-       .text(`Payment Method: ${order.paymentMethod}`, 300, yPosition);
-
-    yPosition += 20;
-    doc.text(`Transaction ID: ${order.transactionId || order.paymentId}`, 50, yPosition)
-       .text(`Status: ${order.paymentStatus}`, 300, yPosition);
+    // Left column
+    addText(`Receipt #: ${invoice?.invoiceNumber || order.orderNumber}`, margin, yPosition);
+    yPosition += 6;
+    addText(`Date: ${order.createdAt.toLocaleDateString('en-US')}`, margin, yPosition);
+    yPosition += 6;
+    addText(`Transaction ID: ${order.transactionId || order.paymentId || 'N/A'}`, margin, yPosition);
+    
+    // Right column (reset y position)
+    yPosition -= 12;
+    const rightColX = pageWidth / 2 + 10;
+    addText(`Order #: ${order.orderNumber}`, rightColX, yPosition);
+    yPosition += 6;
+    addText(`Payment Method: ${order.paymentMethod}`, rightColX, yPosition);
+    yPosition += 6;
+    addText(`Status: ${order.paymentStatus}`, rightColX, yPosition);
 
     // Add customer details
-    yPosition += 40;
-    doc.fontSize(14).text('Customer Information:', 50, yPosition);
-    yPosition += 20;
-    doc.fontSize(12)
-       .text(`Name: ${order.user?.firstName || ''} ${order.user?.lastName || ''}`, 50, yPosition)
-       .text(`Email: ${order.email}`, 300, yPosition);
+    yPosition += 15;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    addText('Customer Information', margin, yPosition);
+    
+    yPosition += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    addText(`Name: ${order.user?.firstName || ''} ${order.user?.lastName || ''}`, margin, yPosition);
+    addText(`Email: ${order.email}`, rightColX, yPosition);
 
     if (order.phone) {
-      yPosition += 15;
-      doc.text(`Phone: ${order.phone}`, 50, yPosition);
+      yPosition += 6;
+      addText(`Phone: ${order.phone}`, margin, yPosition);
     }
 
     // Add shipping address if available
     if (order.shippingAddress) {
-      yPosition += 30;
-      doc.fontSize(14).text('Shipping Address:', 50, yPosition);
-      yPosition += 20;
-      doc.fontSize(12)
-         .text(`${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`, 50, yPosition);
-      yPosition += 15;
-      doc.text(order.shippingAddress.address, 50, yPosition);
-      yPosition += 15;
-      doc.text(`${order.shippingAddress.city}, ${order.shippingAddress.state}`, 50, yPosition);
-      yPosition += 15;
-      doc.text(order.shippingAddress.country, 50, yPosition);
+      yPosition += 12;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      addText('Shipping Address', margin, yPosition);
+      
+      yPosition += 8;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      addText(`${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`, margin, yPosition);
+      
+      yPosition += 6;
+      addText(order.shippingAddress.address, margin, yPosition);
+      
+      yPosition += 6;
+      addText(`${order.shippingAddress.city}, ${order.shippingAddress.state}`, margin, yPosition);
+      
+      yPosition += 6;
+      addText(order.shippingAddress.country, margin, yPosition);
     }
 
     // Add items table
-    yPosition += 40;
-    doc.fontSize(14).text('Items Ordered:', 50, yPosition);
-    yPosition += 20;
-
-    // Table headers
-    doc.fontSize(12)
-       .text('Item', 50, yPosition)
-       .text('Qty', 300, yPosition)
-       .text('Unit Price', 350, yPosition)
-       .text('Total', 450, yPosition);
-
     yPosition += 15;
-    doc.moveTo(50, yPosition).lineTo(550, yPosition).stroke();
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    addText('Items Ordered', margin, yPosition);
+
     yPosition += 10;
+    
+    // Table headers
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    const col1 = margin;
+    const col2 = pageWidth - 80;
+    const col3 = pageWidth - 60;
+    const col4 = pageWidth - 40;
+    // const col5 = pageWidth - 15;
+    
+    addText('Item', col1, yPosition);
+    addText('Qty', col2, yPosition);
+    addText('Unit Price', col3, yPosition);
+    addText('Total', col4, yPosition);
+
+    // Draw header line
+    yPosition += 3;
+    doc.setLineWidth(0.5);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 8;
 
     // Table rows
+    doc.setFont('helvetica', 'normal');
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    let subtotalCalc = 0;
+    
     order.items.forEach((item) => {
-      const unitPrice = item.unitPrice || item.fixedPrice || (item.totalPrice / item.quantity);
-      const totalPrice = item.totalPrice || (unitPrice * item.quantity);
+      const unitPrice = Number(item.unitPrice) || Number(item.fixedPrice) || (Number(item.totalPrice) / item.quantity);
+      const totalPrice = Number(item.totalPrice) || (unitPrice * item.quantity);
+      subtotalCalc += totalPrice;
 
-      doc.text(item.title, 50, yPosition, { width: 200 })
-         .text(item.quantity.toString(), 300, yPosition)
-         .text(`₦${unitPrice.toLocaleString()}`, 350, yPosition)
-         .text(`₦${totalPrice.toLocaleString()}`, 450, yPosition);
+      // Handle long item titles
+      const maxTitleLength = 35;
+      const itemTitle = item.title.length > maxTitleLength ? 
+        item.title.substring(0, maxTitleLength - 3) + '...' : 
+        item.title;
       
-      yPosition += 20;
+      addText(itemTitle, col1, yPosition);
+      addText(item.quantity.toString(), col2, yPosition);
+      addText(formatCurrency(unitPrice), col3, yPosition);
+      addText(formatCurrency(totalPrice), col4, yPosition);
+      
+      yPosition += 8;
     });
 
-    // Add totals
+    // Add totals section
+    yPosition += 5;
+    doc.setLineWidth(0.5);
+    doc.line(col2, yPosition, pageWidth - margin, yPosition);
     yPosition += 10;
-    doc.moveTo(50, yPosition).lineTo(550, yPosition).stroke();
-    yPosition += 15;
 
-    doc.text(`Subtotal:`, 350, yPosition)
-       .text(`₦${order.subtotalPrice.toLocaleString()}`, 450, yPosition);
+    doc.setFont('helvetica', 'normal');
+    
+    // Subtotal
+    addText('Subtotal:', col3, yPosition);
+    addText(formatCurrency(Number(order.subtotalPrice)), col4, yPosition);
 
+    // Shipping
     if (order.totalShipping > 0) {
-      yPosition += 15;
-      doc.text(`Shipping:`, 350, yPosition)
-         .text(`₦${order.totalShipping.toLocaleString()}`, 450, yPosition);
+      yPosition += 6;
+      addText('Shipping:', col3, yPosition);
+      addText(formatCurrency(Number(order.totalShipping)), col4, yPosition);
     }
 
+    // Tax
     if (order.totalTax > 0) {
-      yPosition += 15;
-      doc.text(`Tax:`, 350, yPosition)
-         .text(`₦${order.totalTax.toLocaleString()}`, 450, yPosition);
+      yPosition += 6;
+      addText('Tax:', col3, yPosition);
+      addText(formatCurrency(Number(order.totalTax)), col4, yPosition);
     }
 
+    // Discount
     if (order.totalDiscount > 0) {
-      yPosition += 15;
-      doc.text(`Discount:`, 350, yPosition)
-         .text(`-₦${order.totalDiscount.toLocaleString()}`, 450, yPosition);
+      yPosition += 6;
+      addText('Discount:', col3, yPosition);
+      addText(`-${formatCurrency(Number(order.totalDiscount))}`, col4, yPosition);
     }
 
-    yPosition += 15;
-    doc.fontSize(14)
-       .text(`Total Paid:`, 350, yPosition)
-       .text(`₦${order.totalPrice.toLocaleString()}`, 450, yPosition);
+    // Total
+    yPosition += 8;
+    doc.setLineWidth(1);
+    doc.line(col2, yPosition, pageWidth - margin, yPosition);
+    yPosition += 8;
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    addText('Total Paid:', col3, yPosition);
+    addText(formatCurrency(Number(order.totalPrice)), col4, yPosition);
 
     // Add footer
-    yPosition += 50;
-    doc.fontSize(10)
-       .text('Thank you for your business!', 50, yPosition)
-       .text(`For support, contact us at ${process.env.COMPANY_EMAIL || 'info@yourstore.com'}`, 50, yPosition + 15);
+    yPosition += 20;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    addText('Thank you for your business!', pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 8;
+    addText(`For support, contact us at ${process.env.COMPANY_EMAIL || 'info@yourstore.com'}`, 
+      pageWidth / 2, yPosition, { align: 'center' });
 
-    doc.end();
+    // Add page border (optional)
+    doc.setLineWidth(0.5);
+    doc.rect(10, 10, pageWidth - 20, doc.internal.pageSize.height - 20);
 
-    const pdfBuffer = await pdfPromise;
+    // Generate PDF buffer
+    const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
 
     return new NextResponse(pdfBuffer, {
       headers: {

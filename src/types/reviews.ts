@@ -76,11 +76,11 @@ export interface Review {
     statusCounts: Record<ReviewStatus, number>
   }
   
-  export interface ApiResponse<T = any> {
-    success: boolean
-    data?: T
-    error?: string
-    message?: string
+  export interface ApiResponse<T = unknown> {
+    success: boolean;
+    data?: T;
+    error?: string;
+    message?: string;
   }
 
   

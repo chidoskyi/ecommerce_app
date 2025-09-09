@@ -2,7 +2,6 @@
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Filter } from "lucide-react"
 import { OrdersTableProps } from "@/types/orders"
 import { PriceFormatter } from "../reuse/FormatCurrency"
 import { Badge } from "@/components/ui/badge"
@@ -12,7 +11,7 @@ export function RecentProductsTable({ orders }: OrdersTableProps) {
   // Function to get status badge color
   const getStatusColor = (status: string) => {
     switch (status?.toUpperCase()) {
-      case 'COMPLETED':
+      case 'CONFIRMED':
       case 'DELIVERED':
         return 'bg-green-100 text-green-800'
       case 'PENDING':
@@ -24,6 +23,8 @@ export function RecentProductsTable({ orders }: OrdersTableProps) {
         return 'bg-red-100 text-red-800'
       case 'UNPAID':
         return 'bg-orange-100 text-orange-800'
+      case 'PAID':
+       return 'bg-green-100 text-green-800'
       default:
         return 'bg-gray-100 text-gray-800'
     }
@@ -61,22 +62,11 @@ export function RecentProductsTable({ orders }: OrdersTableProps) {
               <TableRow key={order.id} className="border-gray-300">
                 <TableCell className="font-medium">
                   <div className="flex items-center">
-                    {/* <div className="w-6 h-6 bg-gray-100 rounded mr-2">
-                      <Image
-                      src={order.items?.product.images[0]}
-                      width={50 }
-                        height={50}
-                        alt={order.product.name}
-                      />
-                    </div> */}
                     {order.orderNumber || `ORDER-${order.id.slice(-8).toUpperCase()}`}
                   </div>
                 </TableCell>
                 <TableCell>
-                  {order.user?.firstName && order.user?.lastName 
-                    ? `${order.user.firstName} ${order.user.lastName}`
-                    : order.customerName || 'Guest Customer'
-                  }
+                  {order.customerName}
                 </TableCell>
                 <TableCell>
                   <PriceFormatter 

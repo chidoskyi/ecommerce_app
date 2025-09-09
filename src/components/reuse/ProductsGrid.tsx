@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Heart, ShoppingCart } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
+import { FilterParams } from "@/types/products"
 
 const products = [
   {
@@ -92,11 +93,11 @@ const products = [
 
 interface ProductGridProps {
   category: string
-  filters: any
+  filters: FilterParams
   sortBy: string
 }
 
-export function ProductGrid({ category, filters, sortBy }: ProductGridProps) {
+export function ProductGrid({ category, sortBy }: ProductGridProps) {
   // Filter and sort products based on props
   let filteredProducts = [...products]
 

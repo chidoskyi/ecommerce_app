@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, AuthenticatedRequest } from '@/lib/auth'
 import { validateAndCalculate, handleBankTransferPayment } from '@/lib/bankPaymentHandlers'
 import { handleOpayPayment  } from '@/lib/opayPaymentHandlers'
 import { handlePaystackPayment } from '@/lib/handlePaystackPayment'
@@ -13,7 +13,7 @@ import { handleWalletPayment } from '@/lib/walletPaymentHandler'
 // /api/checkout/route.ts (GET method)
 export const GET = requireAuth(async (request: NextRequest) => {
   try {
-    const user = (request as any).user;
+    const user = (request as AuthenticatedRequest).user;
     if (!user) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
@@ -27,7 +27,7 @@ export const GET = requireAuth(async (request: NextRequest) => {
     const offset = parseInt(searchParams.get('offset') || '0');
 
     // Build where clause
-    const whereClause: any = {
+    const whereClause: Record<string, string | number | boolean | object | undefined> = {
       userId: user.id
     };
 
@@ -89,7 +89,7 @@ export const GET = requireAuth(async (request: NextRequest) => {
     console.error('Fetch checkouts error:', error);
     return NextResponse.json({ 
       error: 'Internal server error',
-      message: error.message 
+      message: error instanceof Error ? error.message : "Unknown error"
     }, { status: 500 });
   }
 });
@@ -98,7 +98,7 @@ export const GET = requireAuth(async (request: NextRequest) => {
 // Updated POST handler in /api/checkout/route.ts
 export const POST = requireAuth(async (request: NextRequest) => {
   try {
-    const user = (request as any).user;
+    const user = (request as AuthenticatedRequest).user;
     if (!user) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
@@ -141,10 +141,10 @@ export const POST = requireAuth(async (request: NextRequest) => {
 
     return NextResponse.json(result, { status: 201 });
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Checkout error:', error);
     return NextResponse.json({ 
-      error: error.message || 'Internal server error'
+      error: error instanceof Error ? error.message : "Unknown error"
     }, { status: 500 });
   }
 });
@@ -152,7 +152,7 @@ export const POST = requireAuth(async (request: NextRequest) => {
 // PUT method to update checkout status
 export const PUT = requireAuth(async (request: NextRequest) => {
   try {
-    const user = (request as any).user
+    const user = (request as AuthenticatedRequest).user
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -163,7 +163,7 @@ export const PUT = requireAuth(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Checkout ID is required' }, { status: 400 })
     }
 
-    const updateData: any = {}
+    const updateData: Record<string, string | number | boolean | object | undefined> = {}
     if (status) updateData.status = status
     if (paymentStatus) updateData.paymentStatus = paymentStatus
     if (orderId) updateData.orderId = orderId
@@ -189,10 +189,10 @@ export const PUT = requireAuth(async (request: NextRequest) => {
 
     return NextResponse.json(checkout)
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Update checkout error:', error)
     return NextResponse.json({ 
-      error: 'Internal server error' 
+      error: error instanceof Error ? error.message : "Unknown error"
     }, { status: 500 })
   }
 })

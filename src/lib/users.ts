@@ -1,5 +1,5 @@
 // src/lib/users.ts (updated with proper typing)
-import { User } from "@prisma/client";
+import { Prisma, User, UserStatus, UserRole } from "@prisma/client";
 import prisma from "./prisma";
 import EmailService from "@/lib/emailService";
 
@@ -13,7 +13,51 @@ export interface EmailUser {
   lastName: string | null;
 }
 
-function log(message: string, data?: any) {
+// Define interfaces for type safety
+export interface UserFilters {
+  status?: UserStatus
+  role?: UserRole
+  emailVerified?: boolean
+  email?: string
+  firstName?: string
+  lastName?: string
+  phone?: string
+  search?: string
+  createdAt?: {
+    gte?: string | Date
+    lte?: string | Date
+  }
+  lastLoginAt?: {
+    gte?: string | Date
+    lte?: string | Date
+  }
+}
+
+export interface GetUsersParams {
+  limit?: number
+  offset?: number
+  sortBy?: string
+  page?: number
+  sortOrder?: "asc" | "desc"
+  filters?: UserFilters
+}
+
+export interface GetUsersResponse {
+  success: true
+  users: User[]
+  total: number
+  totalPages: number
+}
+
+export interface GetUsersErrorResponse {
+  success: false
+  error: string
+}
+
+export type GetUsersResult = GetUsersResponse | GetUsersErrorResponse
+
+
+function log<T>(message: string, data?: string | number | boolean | object | T) {
   const timestamp = new Date().toISOString();
   console.log(
     `[USER_SERVICE ${timestamp}] ${message}`,
@@ -25,7 +69,7 @@ export async function createUser(user: Partial<User>) {
   try {
     log("🏗️ Creating user in database...", user);
     const newUser = await prisma.user.create({
-      data: user as any,
+      data: user as User,
     });
 
     log("✅ User created successfully in database:", newUser);
@@ -50,16 +94,10 @@ export async function createUser(user: Partial<User>) {
 }
 
 // src/lib/users.ts (updated getAllUsers function)
-export async function getAllUsers(params?: {
-  limit?: number;
-  offset?: number;
-  sortBy?: string;
-  sortOrder?: "asc" | "desc";
-  filters?: Record<string, any>;
-}) {
+export async function getAllUsers(params?: GetUsersParams): Promise<GetUsersResult> {
   try {
-    log("🔍 Getting users from database with params...", params);
-
+    console.log("🔍 Getting users from database with params...", params);
+    
     const {
       limit = 10,
       offset = 0,
@@ -68,8 +106,8 @@ export async function getAllUsers(params?: {
       filters = {},
     } = params || {};
 
-    // Build where clause for filtering
-    const where: any = {};
+    // Build where clause for filtering with proper typing
+    const where: Prisma.UserWhereInput = {};
 
     // Status filter
     if (filters.status) {
@@ -119,18 +157,22 @@ export async function getAllUsers(params?: {
     // Date range filters
     if (filters.createdAt) {
       where.createdAt = {};
-      if (filters.createdAt.gte)
+      if (filters.createdAt.gte) {
         where.createdAt.gte = new Date(filters.createdAt.gte);
-      if (filters.createdAt.lte)
+      }
+      if (filters.createdAt.lte) {
         where.createdAt.lte = new Date(filters.createdAt.lte);
+      }
     }
 
     if (filters.lastLoginAt) {
       where.lastLoginAt = {};
-      if (filters.lastLoginAt.gte)
+      if (filters.lastLoginAt.gte) {
         where.lastLoginAt.gte = new Date(filters.lastLoginAt.gte);
-      if (filters.lastLoginAt.lte)
+      }
+      if (filters.lastLoginAt.lte) {
         where.lastLoginAt.lte = new Date(filters.lastLoginAt.lte);
+      }
     }
 
     // Get total count for pagination
@@ -139,17 +181,20 @@ export async function getAllUsers(params?: {
     // Calculate total pages
     const totalPages = Math.ceil(total / limit);
 
+    // Create orderBy object with proper typing
+    const orderBy: Record<string, "asc" | "desc"> = {
+      [sortBy]: sortOrder,
+    };
+
     // Get users with pagination and filtering
     const users = await prisma.user.findMany({
       where,
       skip: offset,
       take: limit,
-      orderBy: {
-        [sortBy]: sortOrder,
-      },
+      orderBy,
     });
 
-    log(`✅ Found ${users.length} users out of ${total} total`);
+    console.log(`✅ Found ${users.length} users out of ${total} total`);
 
     return {
       success: true,
@@ -158,7 +203,7 @@ export async function getAllUsers(params?: {
       totalPages,
     };
   } catch (error) {
-    log("❌ Error getting users from database:", error);
+    console.log("❌ Error getting users from database:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",

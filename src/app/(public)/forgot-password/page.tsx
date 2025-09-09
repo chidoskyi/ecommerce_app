@@ -1,11 +1,11 @@
-'use client'
+"use client";
 
-import React, { useEffect, useState } from 'react'
-import { useAuth, useSignIn } from '@clerk/nextjs'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { ArrowLeft, Mail, Lock, Key } from 'lucide-react'
-import Image from 'next/image'
+import React, { useEffect, useState } from "react";
+import { useAuth, useSignIn } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Mail, Lock, Key } from "lucide-react";
+import Image from "next/image";
 
 const testimonials = [
   {
@@ -28,80 +28,100 @@ const testimonials = [
     name: "Ifeanyi Okoro",
     text: "Reliable platform with fast delivery and multiple payment options.",
   },
-]
+];
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [code, setCode] = useState('')
-  const [successfulCreation, setSuccessfulCreation] = useState(false)
-  const [secondFactor, setSecondFactor] = useState(false)
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [current, setCurrent] = useState(0)
-  const router = useRouter()
-  const { isSignedIn } = useAuth()
-  const { isLoaded, signIn, setActive } = useSignIn()
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [successfulCreation, setSuccessfulCreation] = useState(false);
+  const [secondFactor, setSecondFactor] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const router = useRouter();
+  const { isSignedIn } = useAuth();
+  const { isLoaded, signIn } = useSignIn();
 
   useEffect(() => {
     if (isSignedIn) {
-      router.push('/')
+      router.push("/");
     }
-  }, [isSignedIn, router])
+  }, [isSignedIn, router]);
 
   if (!isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-600"></div>
       </div>
-    )
+    );
   }
 
   // Send the password reset code to the user's email
   async function create(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
     try {
       await signIn?.create({
-        strategy: 'reset_password_email_code',
+        strategy: "reset_password_email_code",
         identifier: email,
-      })
-      setSuccessfulCreation(true)
-    } catch (err: any) {
-      console.error('Error sending reset code:', err.errors?.[0]?.longMessage)
-      setError(err.errors?.[0]?.longMessage || 'An error occurred. Please try again.')
+      });
+      setSuccessfulCreation(true);
+    } catch (err: unknown) {
+      let errorMessage = "An error occurred. Please try again.";
+
+      if (err && typeof err === "object" && "errors" in err) {
+        const errors = (err as { errors?: Array<{ longMessage?: string }> })
+          .errors;
+        if (errors && errors[0]?.longMessage) {
+          errorMessage = errors[0].longMessage;
+        }
+      }
+
+      console.error("Error sending reset code:", errorMessage);
+      setError(errorMessage);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   // Reset the user's password
   async function reset(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
     try {
       const result = await signIn?.attemptFirstFactor({
-        strategy: 'reset_password_email_code',
+        strategy: "reset_password_email_code",
         code,
         password,
-      })
+      });
 
-      if (result?.status === 'needs_second_factor') {
-        setSecondFactor(true)
-      } else if (result?.status === 'complete') {
+      if (result?.status === "needs_second_factor") {
+        setSecondFactor(true);
+      } else if (result?.status === "complete") {
         // Set the active session to the newly created session (user is now signed in)
-        setActive({ session: result.createdSessionId })
-        router.push('/')
+        // setActive({ session: result.createdSessionId })
+        router.push("/");
       }
-    } catch (err: any) {
-      console.error('Error resetting password:', err.errors?.[0]?.longMessage)
-      setError(err.errors?.[0]?.longMessage || 'An error occurred. Please try again.')
+    } catch (err: unknown) {
+      let errorMessage = "An error occurred. Please try again.";
+
+      if (err && typeof err === "object" && "errors" in err) {
+        const errors = (err as { errors?: Array<{ longMessage?: string }> })
+          .errors;
+        if (errors && errors[0]?.longMessage) {
+          errorMessage = errors[0].longMessage;
+        }
+      }
+
+      console.error("Error resetting password:", errorMessage);
+      setError(errorMessage);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -113,22 +133,29 @@ export default function ForgotPasswordPage() {
           <div className="max-w-md w-full space-y-8">
             <div className="text-center">
               <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-                {!successfulCreation ? 'Reset your password' : 'Enter new password'}
+                {!successfulCreation
+                  ? "Reset your password"
+                  : "Enter new password"}
               </h2>
               <p className="mt-2 text-sm text-gray-600">
-                {!successfulCreation 
-                  ? 'Enter your email address and we\'ll send you a reset code'
-                  : 'Enter the code from your email and your new password'
-                }
+                {!successfulCreation
+                  ? "Enter your email address and we'll send you a reset code"
+                  : "Enter the code from your email and your new password"}
               </p>
             </div>
 
             <div className="bg-white py-8 px-6 shadow-lg rounded-lg">
-              <form onSubmit={!successfulCreation ? create : reset} className="space-y-6">
+              <form
+                onSubmit={!successfulCreation ? create : reset}
+                className="space-y-6"
+              >
                 {!successfulCreation ? (
                   <>
                     <div>
-                      <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                      <label
+                        htmlFor="email"
+                        className="block text-sm font-medium text-gray-700"
+                      >
                         Email address
                       </label>
                       <div className="mt-1 relative">
@@ -157,7 +184,7 @@ export default function ForgotPasswordPage() {
                         {loading ? (
                           <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                         ) : (
-                          'Send reset code'
+                          "Send reset code"
                         )}
                       </button>
                     </div>
@@ -165,7 +192,10 @@ export default function ForgotPasswordPage() {
                 ) : (
                   <>
                     <div>
-                      <label htmlFor="code" className="block text-sm font-medium text-gray-700">
+                      <label
+                        htmlFor="code"
+                        className="block text-sm font-medium text-gray-700"
+                      >
                         Reset code
                       </label>
                       <div className="mt-1 relative">
@@ -185,7 +215,10 @@ export default function ForgotPasswordPage() {
                     </div>
 
                     <div>
-                      <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                      <label
+                        htmlFor="password"
+                        className="block text-sm font-medium text-gray-700"
+                      >
                         New password
                       </label>
                       <div className="mt-1 relative">
@@ -214,7 +247,7 @@ export default function ForgotPasswordPage() {
                         {loading ? (
                           <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                         ) : (
-                          'Reset password'
+                          "Reset password"
                         )}
                       </button>
                     </div>
@@ -230,7 +263,8 @@ export default function ForgotPasswordPage() {
                 {secondFactor && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
                     <p className="text-sm text-yellow-700">
-                      Two-factor authentication is required. Please contact support for assistance.
+                      Two-factor authentication is required. Please contact
+                      support for assistance.
                     </p>
                   </div>
                 )}
@@ -245,7 +279,7 @@ export default function ForgotPasswordPage() {
               </form>
 
               <div className="mt-6">
-                <Link 
+                <Link
                   href="/sign-in"
                   className="flex items-center justify-center text-sm text-orange-600 hover:text-orange-500"
                 >
@@ -259,9 +293,9 @@ export default function ForgotPasswordPage() {
 
         {/* Right side - Full Image with Testimonial Overlay */}
         <div className="hidden lg:block lg:w-1/2 relative">
-          <Image 
-            src="/shop-grocery.jpg" 
-            alt="Reset password" 
+          <Image
+            src="/shop-grocery.jpg"
+            alt="Reset password"
             fill
             className="object-cover"
             priority
@@ -272,8 +306,12 @@ export default function ForgotPasswordPage() {
           {/* Testimonial Section */}
           <div className="absolute bottom-0 inset-x-0 p-6 bg-gradient-to-t from-black/70 via-black/30 to-transparent text-center">
             <div className="flex flex-col items-center space-y-3">
-              <p className='text-white text-lg italic'>&quot;{testimonials[current].text}&quot;</p>
-              <h3 className="text-white font-semibold">-{testimonials[current].name}</h3>
+              <p className="text-white text-lg italic">
+                &quot;{testimonials[current].text}&quot;
+              </p>
+              <h3 className="text-white font-semibold">
+                -{testimonials[current].name}
+              </h3>
             </div>
 
             {/* Navigation Bullets */}
@@ -292,5 +330,5 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

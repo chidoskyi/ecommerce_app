@@ -1,21 +1,28 @@
 // /api/payments/verify/[reference]/route.ts
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { AuthenticatedRequest, requireAuth } from '@/lib/auth'
+import { AuthenticatedRequest, requireAuthDynamic, RouteContext } from '@/lib/auth'
 import { opayService } from '@/lib/opay'
 import { OrderStatus } from '@prisma/client';
 
-export const GET = (async (
-  request: NextRequest,
-  { params }: { params: { reference: string } }
-) => {
-  try {
-    // First check auth status
-    const authCheck = await requireAuth(request);
-    if (authCheck) {
-      return authCheck; // Returns the error response if not admin
+export const GET = requireAuthDynamic(
+  async (
+    request: AuthenticatedRequest,
+    ctx: RouteContext
+  ) => {
+    try {
+      const user = request.user;
+      const params = await ctx.params; // Await the params promise first
+      const { reference } = params; // Then destructure
+
+
+
+    if (!reference) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
     }
-    const user = await (request as AuthenticatedRequest).user;
     if (!user) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },

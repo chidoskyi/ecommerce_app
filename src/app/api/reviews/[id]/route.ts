@@ -1,13 +1,20 @@
 // app/api/reviews/[id]/route.js
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, AuthenticatedRequest } from "@/lib/auth";
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const reviewId = params.id;
+import { AuthenticatedRequest, requireAuthDynamic, RouteContext } from "@/lib/auth";
+
+
+export const GET = requireAuthDynamic(
+  async (
+    request: AuthenticatedRequest,
+    ctx: RouteContext
+  ) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const user = request.user;
+      const params = await ctx.params; // Await the params promise first
+      const { reviewId } = params; // Then destructure
+    // const reviewId  = params.id;
 
     const review = await prisma.review.findUnique({
       where: { id: reviewId },
@@ -42,25 +49,25 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+})
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    // Authentication check
-    const authResult = await requireAuth(request);
-    if (authResult instanceof NextResponse) {
-      return authResult;
-    }
-    const user = (request as AuthenticatedRequest).user;
+export const PUT = requireAuthDynamic(
+  async (
+    request: AuthenticatedRequest,
+    ctx: RouteContext
+  ) => {
+    try {
+      const user = request.user;
+      const params = await ctx.params; // Await the params promise first
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id } = params; // Then destructure
+      
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const reviewId = params.id;
-    const { rating, title, body } = await request.json();
+    const { rating, title, content } = await request.json();
 
     // Find existing review
     const existingReview = await prisma.review.findUnique({
@@ -88,7 +95,7 @@ export async function PUT(
     const updateData = {};
     if (rating) updateData.rating = parseInt(rating);
     if (title !== undefined) updateData.title = title || null;
-    if (body !== undefined) updateData.body = body || null;
+    if (content !== undefined) updateData.content = content || null;
 
     // Reset to PENDING status if content changes (requires re-approval)
     if (Object.keys(updateData).length > 0) {
@@ -129,19 +136,19 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+})
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    // Authentication check
-    const authResult = await requireAuth(request);
-    if (authResult instanceof NextResponse) {
-      return authResult;
-    }
-    const user = (request as AuthenticatedRequest).user;
+export const DELETE = requireAuthDynamic(
+  async (
+    request: AuthenticatedRequest,
+    ctx: RouteContext
+  ) => {
+    try {
+      const user = request.user;
+      const params = await ctx.params; // Await the params promise first
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id } = params; // Then destructure
+
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -174,4 +181,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+})

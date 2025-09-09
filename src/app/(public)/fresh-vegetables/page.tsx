@@ -22,7 +22,7 @@ export default function FreshVegetablesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const productsPerPage = 12;
   const pathname = usePathname();
-  const paths = pathname.split("/").filter(Boolean);
+  const paths = pathname?.split("/").filter(Boolean);
 
   // Fetch new arrival products
   useEffect(() => {
@@ -71,8 +71,8 @@ export default function FreshVegetablesPage() {
   const endIndex = startIndex + productsPerPage;
   const currentProducts = sortedProducts.slice(startIndex, endIndex);
 
-  const handleSortChange = (sort: string) => {
-    setSortBy(sort as any);
+  const handleSortChange = (sort: "featured" | "price-low" | "price-high" | "alphabetically" | "rating") => {
+    setSortBy(sort);
     setCurrentPage(1);
   };
 
@@ -153,7 +153,7 @@ export default function FreshVegetablesPage() {
   {/* Breadcrumbs - Full width on mobile, auto on desktop */}
   <div className="w-full md:w-auto">
     <h1 className="text-xl md:text-2xl text-orange-600 font-semibold">
-      {paths.map((path, index) => {
+      {paths?.map((path, index) => {
         const href = `/${paths.slice(0, index + 1).join("/")}`;
         const isLast = index === paths.length - 1;
         const pathName = path.replace(/-/g, " ");
@@ -187,7 +187,7 @@ export default function FreshVegetablesPage() {
       <span className="text-sm whitespace-nowrap">Sort by:</span>
       <select
         value={sortBy}
-        onChange={(e) => handleSortChange(e.target.value)}
+        onChange={(e) => handleSortChange(e.target.value as "featured" | "alphabetically" | "price-low" | "price-high" | "rating")}
         className="w-full sm:w-auto p-2 border rounded-md text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500"
       >
         <option value="featured">Featured</option>
@@ -214,7 +214,7 @@ export default function FreshVegetablesPage() {
               <span className="text-sm">Sort by:</span>
               <select
                 value={sortBy}
-                onChange={(e) => handleSortChange(e.target.value)}
+                onChange={(e) => handleSortChange(e.target.value as "featured" | "alphabetically" | "price-low" | "price-high" | "rating")}
                 className="p-2 border rounded-md text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500"
               >
                 <option value="featured">Featured</option>
@@ -239,7 +239,7 @@ export default function FreshVegetablesPage() {
               description={product.description || "No description available."}
               unit={product.unitPrices?.[0]?.unit || "Per Item"}
               category={product.category?.name || "Fruits"}
-              rating={product.rating}
+              rating={product.reviews?.[0].rating}
             />
           ))}
         </div>

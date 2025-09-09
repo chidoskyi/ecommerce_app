@@ -7,7 +7,7 @@ import { User } from "@prisma/client";
 import { createUser, updateUser, deleteUser, getUser } from "@/lib/users";
 
 // Add logging helper
-function log(message: string, data?: any) {
+function log<T>(message: string, data?: string | number | boolean | object | T) {
   const timestamp = new Date().toISOString();
   console.log(
     `[WEBHOOK ${timestamp}] ${message}`,
@@ -161,8 +161,8 @@ export async function POST(req: Request) {
 
         // Ensure the user has a wallet (create if doesn't exist)
         try {
-          log("💰 Getting or creating wallet for user:", updatedUser.id);
-          const wallet = await walletService.getOrCreateWallet(updatedUser.id, id); // Pass clerkId as second parameter
+          log("💰 Getting or creating wallet for user:", updatedUser?.user?.id);
+          const wallet = await walletService.getOrCreateWallet(updatedUser?.user?.id, id); // Pass clerkId as second parameter
           log("✅ Wallet ensured for user:", wallet);
         } catch (walletError) {
           log("❌ Error getting/creating wallet:", walletError);

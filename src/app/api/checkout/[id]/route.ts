@@ -1,21 +1,25 @@
 // /api/checkout/[id]/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, AuthenticatedRequest } from "@/lib/auth";
+import { AuthenticatedRequest, requireAuthDynamic, RouteContext } from "@/lib/auth";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-        // First check auth status
-        const authCheck = await requireAuth(request);
-        if (authCheck) {
-          return authCheck;
-        }
-    
-        const user = (request as AuthenticatedRequest).user;
+export const GET = requireAuthDynamic(
+  async (
+    request: AuthenticatedRequest,
+    ctx: RouteContext
+  ) => {
+    try {
+      const user = request.user;
+      const params = await ctx.params; // Await the params promise first
+      const { id } = params; // Then destructure
+
       if (!user) {
+        return NextResponse.json(
+          { success: false, error: "Unauthorized" },
+          { status: 401 }
+        );
+      }
+      if (!id) {
         return NextResponse.json(
           { success: false, error: "Unauthorized" },
           { status: 401 }
@@ -76,21 +80,25 @@ export async function GET(
         { status: 500 }
       );
     }
-  };
+  });
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    // First check auth status
-    const authCheck = await requireAuth(request);
-    if (authCheck) {
-      return authCheck;
-    }
-
-    const user = (request as AuthenticatedRequest).user;
+  export const PATCH = requireAuthDynamic(
+    async (
+      request: AuthenticatedRequest,
+      ctx: RouteContext
+    ) => {
+      try {
+        const user = request.user;
+        const params = await ctx.params; // Await the params promise first
+        const { id } = params; // Then destructure
     if (!user) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    
+    if (!id) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }
@@ -146,4 +154,4 @@ export async function PATCH(
       { status: 500 }
     );
   }
-}
+})

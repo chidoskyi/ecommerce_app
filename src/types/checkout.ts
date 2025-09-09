@@ -40,6 +40,8 @@ export interface Checkout {
     quantity: number;
     price: number;
     totalPrice: number;
+    fixedPrice: number;
+    unitPrice?: number;
     selectedUnit: string;
     weight?: number;
     totalWeight?: number;
@@ -61,7 +63,7 @@ export interface Checkout {
     shippingAddress: Address
     billingAddress?: Address
     shippingMethod?: string
-    paymentMethod: 'opay' | 'bank_transfer'
+    paymentMethod: 'opay' | 'bank_transfer' | 'paystack' | 'wallet'
     couponId?: string
     subtotal?: number
     discountAmount?: number
@@ -128,7 +130,7 @@ export interface Checkout {
     onAddressFormSubmit?: () => void; 
     onContinueToPayment?: () => void;
     selectedAddress: Address | null;
-    isLoading: boolean;
+    isLoading?: boolean;
 }
 
   export interface CheckoutStepperProps {

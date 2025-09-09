@@ -1,5 +1,5 @@
 import prisma from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, AuthenticatedRequest } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import {
   getCart,
@@ -9,11 +9,16 @@ import {
   calculateCartSummary,
 } from "../route";
 
+// Define the expected request body type
+interface MergeCartRequest {
+  guestId: string;
+}
+
 export const POST = requireAuth(async (req: NextRequest) => {
-  let requestBody: any = null;
-  
+  let requestBody: MergeCartRequest | null = null;
+
   try {
-    const user = (req as any).user;
+    const user = (req as AuthenticatedRequest).user;
     if (!user) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
@@ -23,7 +28,7 @@ export const POST = requireAuth(async (req: NextRequest) => {
 
     // Read request body once and store it
     requestBody = await req.json();
-    const { guestId } = requestBody;
+    const { guestId } = requestBody as { guestId: string };
     
     if (!guestId) {
       return NextResponse.json(
@@ -106,7 +111,7 @@ export const POST = requireAuth(async (req: NextRequest) => {
               null,
               guestItem.productId,
               guestItem.product.hasFixedPrice,
-              guestItem.selectedUnit
+              guestItem.selectedUnit ?? undefined // Convert null to undefined
             ),
             // Direct check that matches your application's clerkId logic
             tx.cartItem.findFirst({
@@ -165,6 +170,12 @@ export const POST = requireAuth(async (req: NextRequest) => {
 
     // Get final merged cart using helper function
     const { cartItems: mergedCart } = await getCart(clerkUserId, null);
+    
+    // Verify merged cart includes product data
+    if (mergedCart.length > 0 && !mergedCart[0].product) {
+      throw new Error("Merged cart items missing product relation - check getCart function includes");
+    }
+    
     const { subtotal, itemCount, totalWeight } = calculateCartSummary(mergedCart);
 
     return NextResponse.json({
@@ -178,7 +189,7 @@ export const POST = requireAuth(async (req: NextRequest) => {
       message: "Carts merged successfully"
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Cart merge error:", error);
     
     // Additional cleanup attempt if main transaction fails
@@ -198,7 +209,7 @@ export const POST = requireAuth(async (req: NextRequest) => {
       {
         success: false,
         error: process.env.NODE_ENV === "development" 
-          ? error.message 
+          ? (error as Error).message 
           : "Failed to merge carts"
       },
       { status: 500 }

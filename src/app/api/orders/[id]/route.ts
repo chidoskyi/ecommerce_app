@@ -1,41 +1,25 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { AuthenticatedRequest, requireAdmin, requireAuth } from "@/lib/auth";
+import { type AuthenticatedRequest, requireAdminDynamic, requireAuthDynamic } from "@/lib/auth";
 
-// GET - Retrieve a specific order
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// =============================================================================
+// GET - Retrieve a specific order (Users can only see their own orders)
+// =============================================================================
+export const GET = requireAuthDynamic(async (
+  request: AuthenticatedRequest,
+  context: Promise<{ params: { id: string } }>
+) => {
   try {
-    // Authentication check
-    const authResult = await requireAuth(request);
-    if (authResult instanceof NextResponse) {
-      return authResult;
-    }
-
-    const user = (request as AuthenticatedRequest).user;
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const { id } = await params;
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: "Order ID is required" },
-        { status: 400 }
-      );
-    }
+    const user = request.user;
+    const { params } = await context;
+    const { id } = params;
 
     // Fetch order with all required relations
     const order = await prisma.order.findFirst({
       where: {
         id,
         OR: [
-          { userId: user.id }, // Match by user ID
+          { userId: user.id }, // Match by database user ID
           { clerkId: user.clerkId } // Or by clerkId for backward compatibility
         ]
       },
@@ -131,27 +115,20 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
-
-// PUT - Update order status (admin only for most fields)
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// =============================================================================
+// PUT - Update order status (Admin only - ADMIN and MODERATOR roles)
+// =============================================================================
+export const PUT = requireAdminDynamic(async (
+  request: AuthenticatedRequest,
+  context: Promise<{ params: { id: string } }>
+) => {
   try {
-    // First check admin status
-    const adminCheck = await requireAdmin(request);
-    if (adminCheck) {
-      return adminCheck; // Returns the error response if not admin
-    }
+    const admin = request.user; // This is guaranteed to be ADMIN or MODERATOR
+    const { params } = await context;
+    const { id } = params;
 
-    const user = (request as AuthenticatedRequest).user;
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { id } = await params;
     const { status, paymentStatus, notes, trackingNumber, paymentProof } =
       await request.json();
 
@@ -161,17 +138,19 @@ export async function PUT(
     });
 
     if (!existingOrder) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      return NextResponse.json({ 
+        success: false, 
+        error: "Order not found" 
+      }, { status: 404 });
     }
 
     // Build update data - admin can update anything
-    const updateData: any = {};
+    const updateData: Record<string, string | number | boolean | object | undefined> = {};
 
     if (status !== undefined) updateData.status = status;
     if (paymentStatus !== undefined) updateData.paymentStatus = paymentStatus;
     if (notes !== undefined) updateData.notes = notes;
-    if (trackingNumber !== undefined)
-      updateData.trackingNumber = trackingNumber;
+    if (trackingNumber !== undefined) updateData.trackingNumber = trackingNumber;
     if (paymentProof !== undefined) updateData.paymentProof = paymentProof;
 
     // Add timestamps based on status changes
@@ -201,11 +180,16 @@ export async function PUT(
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
         {
+          success: false,
           error: "No updates provided",
         },
         { status: 400 }
       );
     }
+
+    // Add audit trail
+    updateData.lastModifiedBy = admin.id;
+    updateData.lastModifiedAt = new Date();
 
     const order = await prisma.order.update({
       where: { id },
@@ -234,54 +218,57 @@ export async function PUT(
       success: true,
       data: order,
       message: "Order updated successfully",
+      modifiedBy: admin.email // Include who made the change
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Update order error:", error);
     return NextResponse.json(
       {
+        success: false,
         error: "Internal server error",
       },
       { status: 500 }
     );
   }
-}
+});
 
-// DELETE - Cancel order (user can only cancel their own pending orders)
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// =============================================================================
+// DELETE - Cancel order (Users can only cancel their own pending orders)
+// =============================================================================
+export const DELETE = requireAuthDynamic(async (
+  request: AuthenticatedRequest,
+  context: Promise<{ params: { id: string } }>
+) => {
   try {
-    // First check auth status
-    const authCheck = await requireAuth(request);
-    if (authCheck) {
-      return authCheck; // Returns the error response if not admin
-    }
+    const user = request.user;
+    const { params } = await context;
+    const { id } = params;
 
-    const user = await (request as AuthenticatedRequest).user;
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { id } = await params;
-
-    // Find the order
+    // Find the order - user can only access their own orders
     const existingOrder = await prisma.order.findFirst({
       where: {
         id,
-        userId: user.clerkId,
+        OR: [
+          { userId: user.id }, // Match by database user ID
+          { clerkId: user.clerkId } // Or by clerkId for backward compatibility
+        ]
       },
     });
 
     if (!existingOrder) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      return NextResponse.json({ 
+        success: false, 
+        error: "Order not found" 
+      }, { status: 404 });
     }
 
     // Check if order can be cancelled
     if (existingOrder.status !== "PENDING") {
       return NextResponse.json(
         {
+          success: false,
           error: "Only pending orders can be cancelled",
+          currentStatus: existingOrder.status
         },
         { status: 400 }
       );
@@ -293,6 +280,7 @@ export async function DELETE(
       data: {
         status: "CANCELLED",
         cancelledAt: new Date(),
+        // cancelledBy: user.id // Track who cancelled it
       },
     });
 
@@ -300,14 +288,16 @@ export async function DELETE(
       success: true,
       message: "Order cancelled successfully",
       data: order,
+      cancelledBy: user.email
     });
   } catch (error) {
     console.error("Cancel order error:", error);
     return NextResponse.json(
       {
+        success: false,
         error: "Internal server error",
       },
       { status: 500 }
     );
   }
-}
+});

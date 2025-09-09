@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { AuthenticatedRequest, requireAdmin } from "@/lib/auth";
+import { Prisma, OrderStatus, PaymentStatus } from "@prisma/client";
 
 // GET - Fetch all orders with filtering and pagination (admin only)
 export const GET = requireAdmin(async (request: NextRequest) => {
@@ -22,11 +23,11 @@ export const GET = requireAdmin(async (request: NextRequest) => {
     const skip = (page - 1) * limit;
 
     // Build where clause for filtering
-    const where: any = {};
+    const where: Prisma.OrderWhereInput = {};
     
     // Status filters
-    if (status) where.status = status;
-    if (paymentStatus) where.paymentStatus = paymentStatus;
+    if (status) where.status = status as OrderStatus;
+    if (paymentStatus) where.paymentStatus = paymentStatus as PaymentStatus;
 
     // Date filtering
     if (startDate || endDate) {

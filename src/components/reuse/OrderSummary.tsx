@@ -16,7 +16,7 @@ interface OrderSummaryProps {
 }
 
 const OrderSummary: React.FC<OrderSummaryProps> = ({
-  orderItems,
+  // orderItems,
   subtotal,
   deliveryFee,
   total,

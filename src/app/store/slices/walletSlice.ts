@@ -13,6 +13,20 @@ export interface Transaction {
   createdAt: string | Date
 }
 
+interface ApiError {
+  response?: {
+    data?: {
+      error?: string;
+    };
+  };
+  message?: string;
+}
+
+// Type guard for API errors
+function isApiError(error: unknown): error is ApiError {
+  return typeof error === 'object' && error !== null;
+}
+
 export interface WalletBalance {
   balance: number
   currency: string
@@ -93,10 +107,17 @@ export const fetchWalletBalance = createAsyncThunk(
       console.log('Fetched wallet balance response:', response.data)
       
       return response.data.data
-    } catch (error: any) {
-      console.error('Failed to fetch wallet balance:', error)
-      return rejectWithValue(error.response?.data?.message || error.message || 'Failed to fetch wallet balance')
+  } catch (error: unknown) {
+    if (isApiError(error)) {
+      return rejectWithValue(error.response?.data?.error || error.message || 'Failed to fetch wallet balance');
     }
+  
+    if (error instanceof Error) {
+      return rejectWithValue(error.message);
+    }
+  
+    return rejectWithValue('An unexpected error occurred');
+  }
   }
 )
 
@@ -133,9 +154,18 @@ export const fetchTransactions = createAsyncThunk(
         refresh,
         hasMore: pagination.hasMore || transactions.length === limit
       };
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || error.message || 'Failed to fetch transactions');
+
+  } catch (error: unknown) {
+    if (isApiError(error)) {
+      return rejectWithValue(error.response?.data?.error || error.message || 'Failed to fetch transactions');
     }
+  
+    if (error instanceof Error) {
+      return rejectWithValue(error.message);
+    }
+  
+    return rejectWithValue('An unexpected error occurred');
+  }
   }
 );
 
@@ -172,16 +202,24 @@ export const initiateDeposit = createAsyncThunk(
         access_code: result.access_code
       };
       
-    } catch (error: any) {
-      console.error('Deposit initiation error:', error);
-      
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.error ||
-                          error.message || 
-                          'Failed to initiate deposit';
-                          
-      return rejectWithValue(errorMessage);
+    } catch (error: unknown) {
+      console.error("Deposit initiation error:", error);
+    
+      if (isApiError(error)) {
+        return rejectWithValue(
+          error.response?.data?.error ||
+          error.message ||
+          "Failed to fetch transactions"
+        );
+      }
+    
+      if (error instanceof Error) {
+        return rejectWithValue(error.message);
+      }
+    
+      return rejectWithValue("An unexpected error occurred");
     }
+    
   }
 )
 // Wallet slice

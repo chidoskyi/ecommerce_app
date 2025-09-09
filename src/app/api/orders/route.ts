@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { AuthenticatedRequest, requireAuth } from '@/lib/auth'
 import { validateAndCalculate } from '@/lib/bankPaymentHandlers'
+import { CheckoutItem } from '@/types/checkout'
+import { BillingAddress, ShippingAddress } from '@prisma/client'
 
 // GET - Retrieve user's orders
 export const GET = requireAuth(async (request: NextRequest) => {
@@ -20,7 +22,7 @@ export const GET = requireAuth(async (request: NextRequest) => {
     const skip = (page - 1) * limit
 
     // Build where clause - use clerkId for direct filtering
-    const where: any = { clerkId: user.clerkId }
+    const where: Record<string, string | number | boolean | object | undefined> = { clerkId: user.clerkId }
     if (status) where.status = status
     if (paymentStatus) where.paymentStatus = paymentStatus
 
@@ -103,7 +105,6 @@ export const POST = requireAuth(async (request: NextRequest) => {
       totalWeight,
       deliveryFee,
       finalSubtotal,
-      totalAmount,
       shippingAddress,
       billingAddress,
       discountAmount
@@ -128,11 +129,11 @@ export const POST = requireAuth(async (request: NextRequest) => {
         totalPrice: finalTotalPrice,
         totalWeight, // Store total weight
         paymentMethod: paymentMethod || null,
-        shippingAddress,
-        billingAddress, // Include billing address
+        shippingAddress: shippingAddress as ShippingAddress,
+        billingAddress: billingAddress as BillingAddress, // Include billing address
         notes: notes || null,
         items: {
-          create: validatedItems.map((item: any) => ({
+          create: validatedItems.map((item: CheckoutItem) => ({
             productId: item.productId,
             title: item.title,
             sku: item.sku || null, // You might want to get this from product

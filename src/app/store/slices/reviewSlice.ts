@@ -5,15 +5,16 @@ import {
   ReviewStatus,
   ReviewFormData,
   ReviewUpdateData,
-  AdminReviewUpdateData,
+  // AdminReviewUpdateData,
   ReviewFilters,
   PaginationParams,
   PaginationResponse,
   ReviewsResponse,
   AdminReviewsResponse,
-  ApiResponse,
+  // ApiResponse,
 } from "@/types/reviews";
 import api from "@/lib/api";
+import { handleApiError } from "@/lib/error";
 
 // Initial state with TypeScript interface
 interface ReviewState {
@@ -104,6 +105,8 @@ const initialState: ReviewState = {
     status: "APPROVED",
     productId: undefined,
     userId: undefined,
+    page: 1,
+    limit: 10, 
   },
 };
 
@@ -129,13 +132,10 @@ export const fetchReviews = createAsyncThunk(
         `/api/reviews?${queryParams}`
       );
       return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.error ||
-          error.message ||
-          "Failed to fetch reviews"
-      );
-    }
+
+  } catch (error: unknown) { 
+    return rejectWithValue(handleApiError(error) || 'Failed to fetch reviews');
+  } 
   }
 );
 
@@ -157,13 +157,9 @@ export const fetchAdminReviews = createAsyncThunk(
         `/api/admin/reviews?${queryParams}`
       );
       return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.error ||
-          error.message ||
-          "Failed to fetch admin reviews"
-      );
-    }
+  } catch (error: unknown) { 
+    return rejectWithValue(handleApiError(error) || 'Failed to fetch admin reviews');
+  }
   }
 );
 
@@ -174,11 +170,9 @@ export const fetchReviewById = createAsyncThunk(
     try {
       const response = await api.get<Review>(`/api/reviews/${reviewId}`);
       return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.error || error.message || "Review not found"
-      );
-    }
+  } catch (error: unknown) { 
+    return rejectWithValue(handleApiError(error) || 'Review not found');
+  }
   }
 );
 
@@ -192,13 +186,9 @@ export const createReview = createAsyncThunk(
         reviewData
       );
       return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.error ||
-          error.message ||
-          "Failed to create review"
-      );
-    }
+  } catch (error: unknown) { 
+    return rejectWithValue(handleApiError(error) || 'Failed to create review');
+  }
   }
 );
 
@@ -218,13 +208,9 @@ export const updateReview = createAsyncThunk(
         updateData
       );
       return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.error ||
-          error.message ||
-          "Failed to update review"
-      );
-    }
+  } catch (error: unknown) { 
+    return rejectWithValue(handleApiError(error) || 'Failed to update review');
+  }
   }
 );
 
@@ -237,13 +223,9 @@ export const deleteReview = createAsyncThunk(
         `/api/reviews/${reviewId}`
       );
       return { reviewId, message: response.data.message };
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.error ||
-          error.message ||
-          "Failed to delete review"
-      );
-    }
+  } catch (error: unknown) { 
+    return rejectWithValue(handleApiError(error) || 'Failed to delete review');
+  }
   }
 );
 
@@ -271,13 +253,9 @@ export const adminUpdateReview = createAsyncThunk(
         newStatus?: ReviewStatus;
       }>(`/api/admin/reviews?id=${reviewId}`, { action, status, isVerified });
       return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.error ||
-          error.message ||
-          "Failed to update review"
-      );
-    }
+  } catch (error: unknown) { 
+    return rejectWithValue(handleApiError(error) || 'Failed to update review');
+  }
   }
 );
 
@@ -297,11 +275,9 @@ export const bulkUpdateReviews = createAsyncThunk(
         { action, reviewIds }
       );
       return { ...response.data, action, reviewIds };
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.error || error.message || "Bulk operation failed"
-      );
-    }
+  } catch (error: unknown) { 
+    return rejectWithValue(handleApiError(error) || 'Bulk operation failed');
+  }
   }
 );
 
@@ -314,13 +290,9 @@ export const adminDeleteReview = createAsyncThunk(
         `/api/admin/reviews?id=${reviewId}`
       );
       return { reviewId, message: response.data.message };
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.error ||
-          error.message ||
-          "Failed to delete review"
-      );
-    }
+  } catch (error: unknown) { 
+    return rejectWithValue(handleApiError(error) || 'Failed to delete review');
+  }
   }
 );
 
@@ -341,13 +313,9 @@ export const markReviewHelpful = createAsyncThunk(
         helpfulCount: response.data.helpfulCount,
         message: response.data.message,
       };
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.error ||
-          error.message ||
-          "Failed to update helpful count"
-      );
-    }
+  } catch (error: unknown) { 
+    return rejectWithValue(handleApiError(error) || 'Failed to update helpful count');
+  }
   }
 );
 
@@ -604,14 +572,16 @@ const reviewSlice = createSlice({
           state.reviews.forEach((review) => {
             if (reviewIds.includes(review.id)) {
               review.status = newStatus;
-              review.updatedAt = new Date();
+              review.updatedAt = new Date().toISOString();
+
             }
           });
 
           state.adminReviews.forEach((review) => {
             if (reviewIds.includes(review.id)) {
               review.status = newStatus;
-              review.updatedAt = new Date();
+              review.updatedAt = new Date().toISOString();
+
             }
           });
         }

@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAdmin } from '@/lib/auth'
+import { AuthenticatedRequest, requireAdminDynamic, RouteContext } from '@/lib/auth'
 import { Category, Product, UnitPrice } from '@prisma/client';
 
 
@@ -13,15 +13,16 @@ export interface ProductWithRelations extends Product {
   }
 
 // Separate endpoint for status updates only
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export const PATCH = requireAdminDynamic(
+  async (
+    request: AuthenticatedRequest,
+    ctx: RouteContext
+  ) => {
     try {
-      // Apply admin middleware first
-      const adminCheck = await requireAdmin(request);
-      if (adminCheck instanceof NextResponse) {
-        return adminCheck;
-      }
-  
-      const { id } = await params;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const user = request.user;
+      const params = await ctx.params; // Await the params promise first
+      const { id } = params; // Then destructure
       const body = await request.json();
   
       // Extract only the status field from the request body
@@ -75,7 +76,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
             },
             orderBy: { createdAt: 'desc' }
           },
-          unitPrices: true
+          // unitPrices: true
         }
       }) as unknown as ProductWithRelations;
   
@@ -96,4 +97,4 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         { status: 500 }
       );
     }
-  }
+  })

@@ -10,7 +10,7 @@ const ShippingStep: React.FC<ShippingStepProps> = ({
   addressForm,
   onAddressInputChange,
   onChangeAddress,
-  isLoading
+  // isLoading
 }) => {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">

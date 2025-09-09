@@ -1,7 +1,8 @@
-// src/lib/wallet.ts - Updated to use WalletTransaction model
+// src/lib/wallet.ts - Updated with proper TypeScript types
 import prisma from '@/lib/prisma'
 import { paystackService } from './paystack'
 import { nanoid } from 'nanoid'
+import { UserWallet, WalletTransaction, User } from '@prisma/client'
 
 export interface WalletDepositParams {
   userId: string
@@ -26,36 +27,89 @@ export interface WalletBalanceResponse {
   lastActivity: Date | null
 }
 
+export interface WalletWithRelations extends UserWallet {
+  user: User
+  transactions: WalletTransaction[]
+}
+
+export interface DepositInitializationResult {
+  transaction: WalletTransaction
+  paymentUrl: string
+  reference: string
+  accessCode: string
+  transactionId: string
+}
+
+export interface DepositVerificationResult {
+  status: 'verified' | 'already_verified' | 'previously_failed' | 'failed'
+  transaction?: WalletTransaction
+  wallet?: UserWallet
+  message: string
+  paystackResponse?: unknown
+}
+
+export interface PaymentResult {
+  paymentTransaction: WalletTransaction
+  incomeTransaction: WalletTransaction | null
+  senderWallet: UserWallet
+  receiverWallet: UserWallet | null
+}
+
+export interface TransactionHistory {
+  transactions: (WalletTransaction & {
+    wallet: UserWallet
+    user: { id: string; email: string; clerkId: string | null }
+  })[]
+  pagination: {
+    total: number
+    limit: number
+    offset: number
+    hasMore: boolean
+  }
+}
+
+export interface TransactionWithRelations extends WalletTransaction {
+  wallet: UserWallet
+  user: { id: string; email: string; clerkId: string | null }
+}
+
+export interface WebhookProcessResult {
+  processed: boolean
+  event?: string
+  reference?: string
+  status?: string
+}
+
 class WalletService {
 
   // Create a new wallet for a user
-async createWallet(userId: string, clerkId: string) {
-  try {
-    const wallet = await prisma.userWallet.create({
-      data: {
-        userId,
-        clerkId,
-        balance: 0.0,
-        currency: 'NGN',
-        isActive: true,
-        lastActivity: new Date(),
-        pin: null
-      }
-    })
-    return wallet;
-  } catch (error: any) {
-    console.error('Error creating wallet:', error);
-    throw new Error('Failed to create wallet');
+  async createWallet(userId: string, clerkId: string): Promise<UserWallet> {
+    try {
+      const wallet = await prisma.userWallet.create({
+        data: {
+          userId,
+          clerkId,
+          balance: 0.0,
+          currency: 'NGN',
+          isActive: true,
+          lastActivity: new Date(),
+          pin: null
+        }
+      })
+      return wallet;
+    } catch (error) {
+      console.error('Error creating wallet:', error);
+      throw new Error('Failed to create wallet');
+    }
   }
-}
   
   // Create or get user wallet
-  async getOrCreateWallet(userId: string, clerkId: string): Promise<any> {
+  async getOrCreateWallet(userId: string, clerkId?: string): Promise<WalletWithRelations> {
     try {
       let wallet = await prisma.userWallet.findUnique({
         where: { 
           userId: userId,
-          clerkId: clerkId
+          ...(clerkId && { clerkId })
         },
         include: { 
           user: true,
@@ -64,6 +118,10 @@ async createWallet(userId: string, clerkId: string) {
       })
 
       if (!wallet) {
+        if (!clerkId) {
+          throw new Error('ClerkId is required when creating a new wallet');
+        }
+
         wallet = await prisma.userWallet.create({
           data: {
             userId: userId,
@@ -82,14 +140,20 @@ async createWallet(userId: string, clerkId: string) {
       }
 
       return wallet;
-    } catch (error: any) {
-      console.error('Detailed wallet creation error:', {
-        message: error.message,
-        stack: error.stack,
-        code: error.code,
-        meta: error.meta
-      });
-      throw new Error(`Failed to get or create wallet: ${error.message}`);
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error('Detailed wallet creation error:', {
+          message: error.message,
+          stack: error.stack,
+          // Prisma-specific error properties
+          ...(('code' in error) && { code: error.code }),
+          ...(('meta' in error) && { meta: error.meta })
+        });
+        throw new Error(`Failed to get or create wallet: ${error.message}`);
+      }
+      
+      console.error('Unknown wallet creation error:', error);
+      throw new Error('Failed to get or create wallet: Unknown error occurred');
     }
   }
 
@@ -104,13 +168,14 @@ async createWallet(userId: string, clerkId: string) {
         isActive: wallet.isActive,
         lastActivity: wallet.lastActivity
       }
-    } catch (error: any) {
-      throw new Error(`Failed to get wallet balance: ${error.message}`)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to get wallet balance: ${errorMessage}`)
     }
   }
 
   // Initialize wallet deposit via Paystack
-  async initializeDeposit(params: WalletDepositParams): Promise<any> {
+  async initializeDeposit(params: WalletDepositParams): Promise<DepositInitializationResult> {
     const { userId, clerkId, amount, currency = 'NGN', callbackUrl } = params;
   
     try {
@@ -153,8 +218,8 @@ async createWallet(userId: string, clerkId: string) {
         amount: amountInKobo,
         currency: currency,
         email: user.email,
-        first_name: user.name?.split(' ')[0] || user.email.split('@')[0],
-        last_name: user.name?.split(' ').slice(1).join(' ') || '',
+        first_name: user.firstName?.split(' ')[0] || user.email.split('@')[0],
+        last_name: user.lastName?.split(' ').slice(1).join(' ') || '',
         phone: user.phone || '',
         callback_url: callbackUrl,
         metadata: {
@@ -176,7 +241,7 @@ async createWallet(userId: string, clerkId: string) {
         where: { id: walletTransaction.id },
         data: {
           metadata: {
-            ...walletTransaction.metadata as object,
+            ...(walletTransaction.metadata as Record<string, unknown> || {}),
             paystackResponse: paystackResponse.data
           }
         }
@@ -190,19 +255,22 @@ async createWallet(userId: string, clerkId: string) {
         transactionId: walletTransaction.id
       };
 
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
       console.error('Deposit initialization failed:', {
         userId,
         amount,
-        error: error.message,
-        stack: error.stack
+        error: errorMessage,
+        stack: errorStack
       });
-      throw new Error(`Failed to initialize deposit: ${error.message}`);
+      throw new Error(`Failed to initialize deposit: ${errorMessage}`);
     }
   }
 
   // Verify and complete deposit
-  async verifyDeposit(reference: string): Promise<any> {
+  async verifyDeposit(reference: string): Promise<DepositVerificationResult> {
     try {
       // Get wallet transaction
       const walletTransaction = await prisma.walletTransaction.findFirst({
@@ -252,7 +320,7 @@ async createWallet(userId: string, clerkId: string) {
               status: 'SUCCESS',
               balanceAfter: walletTransaction.balanceBefore + walletTransaction.amount,
               metadata: {
-                ...(walletTransaction.metadata as object || {}),
+                ...(walletTransaction.metadata as Record<string, unknown> || {}),
                 verifiedAt: new Date().toISOString(),
                 paystackResponse: verifyResponse.data
               }
@@ -289,7 +357,7 @@ async createWallet(userId: string, clerkId: string) {
           data: { 
             status: 'FAILED',
             metadata: {
-              ...(walletTransaction.metadata as object || {}),
+              ...(walletTransaction.metadata as Record<string, unknown> || {}),
               failureReason,
               paystackResponse: verifyResponse.data
             }
@@ -302,11 +370,14 @@ async createWallet(userId: string, clerkId: string) {
           paystackResponse: verifyResponse
         };
       }
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
       console.error('Verify deposit error:', {
         reference,
-        error: error.message,
-        stack: error.stack
+        error: errorMessage,
+        stack: errorStack
       });
       
       // Update transaction as failed in case of unexpected errors
@@ -316,7 +387,7 @@ async createWallet(userId: string, clerkId: string) {
           data: { 
             status: 'FAILED',
             metadata: {
-              error: error.message,
+              error: errorMessage,
               errorAt: new Date().toISOString()
             }
           }
@@ -325,12 +396,12 @@ async createWallet(userId: string, clerkId: string) {
         console.error('Failed to update transaction status:', updateError);
       }
 
-      throw new Error(`Failed to verify deposit: ${error.message}`);
+      throw new Error(`Failed to verify deposit: ${errorMessage}`);
     }
   }
 
   // Handle Paystack webhook
-  async handlePaystackWebhook(payload: string, signature: string): Promise<any> {
+  async handlePaystackWebhook(payload: string, signature: string): Promise<WebhookProcessResult> {
     try {
       // Validate webhook signature
       if (!paystackService.validateWebhookSignature(payload, signature)) {
@@ -357,7 +428,7 @@ async createWallet(userId: string, clerkId: string) {
             data: {
               status,
               metadata: {
-                ...(walletTransaction.metadata as object || {}),
+                ...(walletTransaction.metadata as Record<string, unknown> || {}),
                 webhookProcessedAt: new Date().toISOString(),
                 webhookEvent: event
               }
@@ -378,19 +449,20 @@ async createWallet(userId: string, clerkId: string) {
       }
 
       return result;
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('Webhook processing error:', error);
-      throw new Error(`Failed to process webhook: ${error.message}`);
+      throw new Error(`Failed to process webhook: ${errorMessage}`);
     }
   }
 
   // Make payment from wallet (for shopping)
-  async makePayment(params: WalletPaymentParams): Promise<any> {
+  async makePayment(params: WalletPaymentParams): Promise<PaymentResult> {
     const { fromUserId, toUserId, amount, description = 'Payment for goods/services' } = params
 
     try {
       const senderWallet = await this.getOrCreateWallet(fromUserId)
-      let receiverWallet = null;
+      let receiverWallet: WalletWithRelations | null = null;
       
       // Only get receiver wallet if it's not a system payment
       if (toUserId !== 'SYSTEM') {
@@ -428,8 +500,8 @@ async createWallet(userId: string, clerkId: string) {
           }
         })
 
-        let receiverWalletTransaction = null;
-        let updatedReceiverWallet = null;
+        let receiverWalletTransaction: WalletTransaction | null = null;
+        let updatedReceiverWallet: UserWallet | null = null;
 
         // Only create receiver transaction if it's not a system payment
         if (toUserId !== 'SYSTEM' && receiverWallet) {
@@ -483,13 +555,14 @@ async createWallet(userId: string, clerkId: string) {
 
       return result
 
-    } catch (error: any) {
-      throw new Error(`Failed to complete payment: ${error.message}`)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to complete payment: ${errorMessage}`)
     }
   }
 
   // Get wallet transaction history
-  async getTransactionHistory(userId: string, limit = 50, offset = 0): Promise<any> {
+  async getTransactionHistory(userId: string, limit = 50, offset = 0): Promise<TransactionHistory> {
     try {
       const transactions = await prisma.walletTransaction.findMany({
         where: { userId },
@@ -518,13 +591,14 @@ async createWallet(userId: string, clerkId: string) {
         }
       }
 
-    } catch (error: any) {
-      throw new Error(`Failed to get transaction history: ${error.message}`)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to get transaction history: ${errorMessage}`)
     }
   }
 
   // Get single transaction
-  async getTransaction(userId: string, reference: string): Promise<any> {
+  async getTransaction(userId: string, reference: string): Promise<TransactionWithRelations> {
     try {
       const transaction = await prisma.walletTransaction.findFirst({
         where: {
@@ -545,13 +619,14 @@ async createWallet(userId: string, clerkId: string) {
 
       return transaction
 
-    } catch (error: any) {
-      throw new Error(`Failed to get transaction: ${error.message}`)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to get transaction: ${errorMessage}`)
     }
   }
 
   // Get transaction by ID
-  async getTransactionById(transactionId: string): Promise<any> {
+  async getTransactionById(transactionId: string): Promise<TransactionWithRelations> {
     try {
       const transaction = await prisma.walletTransaction.findUnique({
         where: { id: transactionId },
@@ -569,8 +644,9 @@ async createWallet(userId: string, clerkId: string) {
 
       return transaction
 
-    } catch (error: any) {
-      throw new Error(`Failed to get transaction: ${error.message}`)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to get transaction: ${errorMessage}`)
     }
   }
 }

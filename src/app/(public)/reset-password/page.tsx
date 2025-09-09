@@ -1,6 +1,6 @@
-// 'use client'
+"use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from "react"
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -23,7 +23,7 @@ export default function ResetPasswordPage() {
   
   const searchParams = useSearchParams()
   const router = useRouter()
-  const token = searchParams.get('token')
+  const token = searchParams?.get('token')
 
   useEffect(() => {
     if (!token) {
@@ -83,7 +83,8 @@ export default function ResetPasswordPage() {
       } else {
         setErrors({ general: data.error || 'Failed to reset password' })
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error("❌ Something went wrong:", error);
       setErrors({ general: 'An error occurred. Please try again.' })
     } finally {
       setIsLoading(false)

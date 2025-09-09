@@ -10,7 +10,6 @@ import ProductCard from "../reuse/ProductCard";
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect } from 'react';
 import { useProducts } from '@/app/store/slices/productSlice';
-import { Product } from '@/types/products';
 
 export default function BestSellingSection() {
   const { products, loading, error, actions } = useProducts();
@@ -22,6 +21,7 @@ export default function BestSellingSection() {
       status: 'ACTIVE',
       limit: 20 // Get more products for the carousel
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filter for best selling products (backup filter in case API doesn't support it)
@@ -101,8 +101,8 @@ export default function BestSellingSection() {
               description={product.description || "No description available."}
               unit={product.unitPrices && product.unitPrices.length > 0 ? product.unitPrices[0].unit : "Per Item"}
               category={product.category?.name || "Best Selling"}
-              rating={product.rating}
-              isFeatured={product.isFeatured}
+              rating={product.reviews?.[0].rating}
+              
              />
           </SwiperSlide>
         ))}

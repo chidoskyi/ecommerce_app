@@ -5,19 +5,15 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
-  User,
+  User as UserIcon,
   Package,
-  CreditCard,
   MapPin,
   Heart,
-  Bell,
   ShieldCheck,
   LogOut,
   Wallet,
-  ChevronDown,
   ChevronRight,
   Upload,
 } from "lucide-react";
@@ -26,16 +22,56 @@ import { useState } from "react";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
-// Client-side utility functions to avoid server-only imports
-const getUserDisplayName = (user: any) => {
-  if (!user) return "";
-  return user.fullName || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.username || "User";
+// Define proper types based on Clerk's UserResource structure
+interface ClerkEmailAddress {
+  emailAddress: string;
+}
+
+interface ClerkUser {
+  fullName: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  username: string | null;
+  primaryEmailAddress: { emailAddress: string } | null;
+  emailAddresses: ClerkEmailAddress[];
+  imageUrl: string;
+}
+
+// Type guard to check if object is a Clerk user
+// function isClerkUser(user: unknown): user is ClerkUser {
+//   return (
+//     typeof user === 'object' &&
+//     user !== null &&
+//     ('fullName' in user || 'firstName' in user || 'username' in user)
+//   );
+// }
+
+// Client-side utility functions with proper typing
+const getUserDisplayName = (user: ClerkUser | null | undefined): string => {
+  if (!user) return "User";
+  
+  return (
+    user.fullName ||
+    `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+    user.username ||
+    "User"
+  );
 };
 
-const getUserEmail = (user: any) => {
+const getUserEmail = (user: ClerkUser | null | undefined): string => {
   if (!user) return "";
-  return user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || "";
+  
+  return (
+    user.primaryEmailAddress?.emailAddress ||
+    user.emailAddresses[0]?.emailAddress ||
+    ""
+  );
 };
+
+// const getAvatarUrl = (user: ClerkUser | null | undefined): string => {
+//   if (!user) return "";
+//   return user.imageUrl || "";
+// };
 
 export default function AccountLayout({
   children,
@@ -47,13 +83,6 @@ export default function AccountLayout({
   const { signOut } = useClerk();
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-
-  const segments = (pathname ?? "").split("/").filter(Boolean);
-  const currentPage = segments[segments.length - 1];
-
-  const formattedName =
-    currentPage.charAt(0).toUpperCase() +
-    currentPage.slice(1).replace(/-/g, " ");
 
   const handleSignOut = async () => {
     try {
@@ -92,11 +121,13 @@ export default function AccountLayout({
     return null;
   }
 
-  const displayName = getUserDisplayName(clerkUser);
-  const email = getUserEmail(clerkUser);
+  // Type assertion - Clerk's user should match our ClerkUser interface
+  const user = clerkUser as unknown as ClerkUser;
+  const displayName = getUserDisplayName(user);
+  const email = getUserEmail(user);
 
   const navigationItems = [
-    { href: "/account/profile", label: "Profile", icon: User },
+    { href: "/account/profile", label: "Profile", icon: UserIcon },
     { href: "/account/orders", label: "Orders", icon: Package },
     { href: "/account/wishlist", label: "Wishlist", icon: Heart },
     { href: "/account/addresses", label: "Addresses", icon: MapPin },
@@ -178,7 +209,7 @@ export default function AccountLayout({
                         <AvatarFallback>
                           {displayName
                             .split(" ")
-                            .map((n) => n[0])
+                            .map((n: string) => n[0])
                             .join("")
                             .toUpperCase()}
                         </AvatarFallback>

@@ -1,6 +1,8 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import api from '@/lib/api';
 import { AdminOrderState, initialState, Order, OrderFilters, OrdersResponse, SingleOrderResponse, UpdateOrderPayload } from '@/types/orders';
+import { ApiError } from 'next/dist/server/api-utils';
+import { AppDispatch, RootState } from '..';
 
 // Async Thunks
 export const fetchOrders = createAsyncThunk<OrdersResponse, Partial<OrderFilters>>(
@@ -32,8 +34,14 @@ export const fetchOrders = createAsyncThunk<OrdersResponse, Partial<OrderFilters
 
       const response = await api.get(`/api/admin/orders?${params.toString()}`);
       return response.data;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.error || error.message || 'Failed to fetch orders');
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error
+          ? error.message
+          : error instanceof ApiError
+          ? error.message
+          : 'Failed to fetch orders'
+      );
     }
   }
 );
@@ -44,11 +52,18 @@ export const fetchOrderById = createAsyncThunk<SingleOrderResponse, string>(
     try {
       const response = await api.get(`/api/admin/orders/${orderId}`);
       return response.data;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.error || error.message || 'Failed to fetch order');
+    } catch (error) {
+          return rejectWithValue(
+        error instanceof Error
+          ? error.message
+          : error instanceof ApiError
+          ? error.message
+          : 'Failed to fetch order'
+      );
     }
   }
 );
+
 
 export const updateOrder = createAsyncThunk<SingleOrderResponse, UpdateOrderPayload>(
   'adminOrders/updateOrder',
@@ -57,8 +72,14 @@ export const updateOrder = createAsyncThunk<SingleOrderResponse, UpdateOrderPayl
       const { id, ...data } = updateData;
       const response = await api.put(`/api/admin/orders/${id}`, data);
       return response.data;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.error || error.message || 'Failed to update order');
+      } catch (error) {
+      return rejectWithValue(
+        error instanceof Error
+          ? error.message
+          : error instanceof ApiError
+          ? error.message
+          : 'Failed to update order'
+      );
     }
   }
 );
@@ -69,8 +90,14 @@ export const cancelOrder = createAsyncThunk<SingleOrderResponse, string>(
     try {
       const response = await api.delete(`/api/admin/orders/${orderId}`);
       return response.data;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.error || error.message || 'Failed to cancel order');
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error
+          ? error.message
+          : error instanceof ApiError
+          ? error.message
+          : 'Failed to cancel order'
+      );
     }
   }
 );
@@ -80,39 +107,57 @@ export const downloadReceipt = createAsyncThunk(
   'adminOrders/downloadReceipt',
   async (orderNumber: string, { rejectWithValue }) => {
     try {
-      const response = await fetch('/api/admin/orders/receipt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ orderNumber }),
-      });
+      console.log('Starting receipt download for order:', orderNumber);
+      
+      const response = await api.post('/api/admin/orders/receipt', 
+        { orderNumber },
+        { 
+          responseType: 'blob' // This is crucial for PDF downloads
+        }
+      );
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to download receipt');
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      // Get the PDF blob from response data
+      const blob = response.data;
+      console.log('Blob size:', blob.size);
+      
+      if (blob.size === 0) {
+        throw new Error('Empty PDF file received');
       }
 
-      // Get the PDF blob
-      const blob = await response.blob();
-      
       // Create download link and trigger download
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `receipt-${orderNumber}.pdf`;
+      a.style.display = 'none'; // Hide the element
+      
+      // Add to DOM, click, then remove
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }, 100);
 
+      console.log('Download initiated successfully');
       return { orderNumber, success: true };
+
     } catch (error) {
+      console.error('Receipt download error:', error);
       return rejectWithValue(
-        error instanceof Error ? error.message : 'Failed to download receipt'
+        error instanceof Error
+          ? error.message
+          : error instanceof ApiError
+          ? error.message
+          : 'Failed to download receipt'
       );
     }
-  }
+        }
 );
 
 // Add bulk operations thunk
@@ -135,8 +180,14 @@ export const bulkUpdateOrderStatus = createAsyncThunk<
         updatedCount: orderIds.length,
         message: `${orderIds.length} orders updated to ${status}`
       };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to update orders');
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error
+          ? error.message
+          : error instanceof ApiError
+          ? error.message
+          : 'Failed to update orders'
+      );
     }
   }
 );
@@ -335,7 +386,7 @@ const adminOrderSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(bulkUpdateOrderStatus.fulfilled, (state, action) => {
+      .addCase(bulkUpdateOrderStatus.fulfilled, (state) => {
         state.loading = false;
         // Clear selected orders after successful bulk update
         state.selectedOrders = [];
@@ -441,12 +492,12 @@ export const createFilterQuery = (filters: Partial<OrderFilters>): string => {
 };
 
 // Action creators for common operations
-export const refreshOrders = (filters?: Partial<OrderFilters>) => (dispatch: any, getState: any) => {
+export const refreshOrders = (filters?: Partial<OrderFilters>) => (dispatch: AppDispatch, getState: () => RootState) => {
   const currentFilters = getState().adminOrders.filters;
   dispatch(fetchOrders({ ...currentFilters, ...filters }));
 };
 
-export const updateOrderStatus = (orderId: string, status: Order['status']) => (dispatch: any) => {
+export const updateOrderStatus = (orderId: string, status: Order['status']) => (dispatch: AppDispatch) => {
   // Optimistic update
   dispatch(optimisticUpdateOrder({ id: orderId, updates: { status } }));
   
@@ -454,7 +505,7 @@ export const updateOrderStatus = (orderId: string, status: Order['status']) => (
   return dispatch(updateOrder({ id: orderId, status }));
 };
 
-export const updatePaymentStatus = (orderId: string, paymentStatus: Order['paymentStatus']) => (dispatch: any) => {
+export const updatePaymentStatus = (orderId: string, paymentStatus: Order['paymentStatus']) => (dispatch: AppDispatch) => {
   // Optimistic update
   dispatch(optimisticUpdateOrder({ id: orderId, updates: { paymentStatus } }));
   
@@ -465,7 +516,7 @@ export const updatePaymentStatus = (orderId: string, paymentStatus: Order['payme
 export const searchOrders =
   (searchTerm: string) =>
   (
-    dispatch: (action: any) => void,
+    dispatch: AppDispatch,
     getState: () => { adminOrders: { filters: OrderFilters } }
   ) => {
     const currentFilters = getState().adminOrders.filters;
@@ -473,7 +524,7 @@ export const searchOrders =
     dispatch(fetchOrders({ ...currentFilters, search: searchTerm, page: 1 }));
   };
 
-export const filterOrdersByDate = (startDate?: Date, endDate?: Date) => (dispatch: any, getState: any) => {
+  export const filterOrdersByDate = (startDate?: Date, endDate?: Date) => (dispatch: AppDispatch, getState: () => RootState) => {
   const currentFilters = getState().adminOrders.filters;
   
   // Store dates as ISO strings in Redux
@@ -499,7 +550,7 @@ export const filterOrdersByDate = (startDate?: Date, endDate?: Date) => (dispatc
   }));
 };
 
-export const filterOrdersByStatus = (status?: string, paymentStatus?: string) => (dispatch: any, getState: any) => {
+export const filterOrdersByStatus = (status?: string, paymentStatus?: string) => (dispatch: AppDispatch, getState: () => RootState) => {
   const currentFilters = getState().adminOrders.filters;
   dispatch(setFilters({ status, paymentStatus, page: 1 }));
   dispatch(fetchOrders({ ...currentFilters, status, paymentStatus, page: 1 }));

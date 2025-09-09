@@ -9,9 +9,9 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   fetchCategories,
-  selectCategories,
-  selectLoading,
-  selectError,
+  // selectCategories,
+  // selectLoading,
+  // selectError,
   selectCategoriesByStatus
 } from "@/app/store/slices/categorySlice";
 import { CategoryStatus } from "@/types/categories";
@@ -20,9 +20,9 @@ function Category() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownTop, setDropdownTop] = useState(0);
   const dispatch = useAppDispatch();
-  const categories = useAppSelector(selectCategories);
-  const loading = useAppSelector(selectLoading);
-  const error = useAppSelector(selectError);
+  // const categories = useAppSelector(selectCategories);
+  // const loading = useAppSelector(selectLoading);
+  // const error = useAppSelector(selectError);
   const buttonRef = React.useRef<HTMLButtonElement>(null);
 
   const toggleDropdown = () => {

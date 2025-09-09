@@ -1,7 +1,9 @@
 // app/api/admin/reviews/route.js
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdmin, AuthenticatedRequest } from "@/lib/auth";
+import { Prisma, ReviewStatus } from "@prisma/client";
+
 
 // export async function GET(request: NextRequest) {
 //   try {
@@ -80,27 +82,26 @@ import { requireAdmin, AuthenticatedRequest } from "@/lib/auth";
 // }
 
 // app/api/admin/reviews/route.js 
-export async function GET(request: NextRequest) {
-  try {
-    // Apply admin middleware
-    const adminCheck = await requireAdmin(request);
-    if (adminCheck instanceof NextResponse) {
-      return adminCheck;
-    }
-
+export const GET = requireAdmin(
+  async (
+    request: AuthenticatedRequest
+  ) => {
+    try{
     const user = (request as AuthenticatedRequest).user;
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status") || "PENDING";
+    const statusParam = searchParams.get("status") || "PENDING";
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
     const skip = (page - 1) * limit;
-
-    const where = status === "all" ? {} : { status };
-
+    
+    // Type-safe where clause construction
+    const where: Prisma.ReviewWhereInput = statusParam === "all" 
+      ? {} 
+      : { status: statusParam as ReviewStatus };
+    
     const [reviews, totalCount, statusCounts] = await Promise.all([
       prisma.review.findMany({
         where,
@@ -133,13 +134,13 @@ export async function GET(request: NextRequest) {
         },
       }),
     ]);
-
+    
     // Format status counts for admin dashboard
     const counts = statusCounts.reduce((acc, item) => {
       acc[item.status] = item._count.status;
       return acc;
-    }, {});
-
+    }, {} as Record<string, number>);
+    
     return NextResponse.json({
       reviews,
       pagination: {
@@ -157,15 +158,14 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+})
 
-export async function PUT(request: NextRequest) {
-  try {
-    // Apply admin middleware
-    const adminCheck = await requireAdmin(request);
-    if (adminCheck instanceof NextResponse) {
-      return adminCheck;
-    }
+export const POST = requireAdmin(
+  async (
+    request: AuthenticatedRequest
+  ) => {
+
+    try{
 
     const user = (request as AuthenticatedRequest).user;
     if (!user) {
@@ -243,13 +243,9 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Build update data with proper typing
-    const updateData: {
-      status: string;
-      isVerified?: boolean;
-      updatedAt: Date;
-    } = {
-      status: finalStatus,
+    // Build update data with proper Prisma typing - FIXED
+    const updateData: Prisma.ReviewUpdateInput = {
+      status: finalStatus as ReviewStatus,
       updatedAt: new Date(),
     };
 
@@ -306,13 +302,15 @@ export async function PUT(request: NextRequest) {
       message,
       previousStatus: existingReview.status,
       newStatus: finalStatus,
-      timestamp: updateData.updatedAt.toISOString(),
+      timestamp: updatedReview.updatedAt.toISOString(),
     });
   } catch (error) {
     console.error("Update review error:", error);
-
-    // Enhanced error handling
-    if (error.code === "P2025") {
+  
+    // Enhanced error handling with proper type checking
+    const prismaError = error as { code?: string; message?: string };
+    
+    if (prismaError.code === "P2025") {
       return NextResponse.json(
         {
           error: "Review not found",
@@ -320,8 +318,8 @@ export async function PUT(request: NextRequest) {
         { status: 404 }
       );
     }
-
-    if (error.code === "P2002") {
+  
+    if (prismaError.code === "P2002") {
       return NextResponse.json(
         {
           error: "Database constraint violation",
@@ -329,24 +327,27 @@ export async function PUT(request: NextRequest) {
         { status: 409 }
       );
     }
-
+  
     return NextResponse.json(
       {
         error: "Internal server error",
         timestamp: new Date().toISOString(),
+        // Only include details in development
+        ...(process.env.NODE_ENV === 'development' && { 
+          details: prismaError.message 
+        })
       },
       { status: 500 }
     );
   }
-}
+})
 
-export async function DELETE(request: NextRequest) {
-  try {
-    // Apply admin middleware
-    const adminCheck = await requireAdmin(request);
-    if (adminCheck instanceof NextResponse) {
-      return adminCheck;
-    }
+export const DELETE = requireAdmin(
+  async (
+    request: AuthenticatedRequest
+  ) => {
+
+    try{
 
     const user = (request as AuthenticatedRequest).user;
     if (!user) {
@@ -377,4 +378,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+})

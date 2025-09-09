@@ -2,11 +2,11 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { X, ArrowLeft } from 'lucide-react';
-import { AppDispatch } from '@/app/store';
+// import { AppDispatch } from '@/app/store';
 import {
-  createAddress,
+  // createAddress,
   selectAddressLoading
 } from '@/app/store/slices/addressSlice';
 import { Address } from '@/types';
@@ -24,7 +24,7 @@ export const AddNewAddressModal: React.FC<AddNewAddressModalProps> = ({
   onSave,
   showBackButton = false 
 }) => {
-  const dispatch = useDispatch<AppDispatch>();
+  // const dispatch = useDispatch<AppDispatch>();
   const addressLoading = useSelector(selectAddressLoading);
   
   const [formData, setFormData] = useState<Omit<Address, "id">>({
@@ -131,14 +131,27 @@ export const AddNewAddressModal: React.FC<AddNewAddressModalProps> = ({
       });
       setErrors({});
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to save address:', error);
-      // Handle API errors
-      if (error.message) {
-        alert(`Failed to save address: ${error.message}`);
-      } else {
-        alert('Failed to save address. Please try again.');
+      
+      // Handle API errors with proper typing
+      let errorMessage = 'Failed to save address. Please try again.';
+      
+      if (error instanceof Error) {
+        errorMessage = `Failed to save address: ${error.message}`;
+      } else if (typeof error === 'object' && error !== null) {
+        // Handle axios-like error structure
+        const apiError = error as { message?: string; response?: { data?: { message?: string } } };
+        if (apiError.message) {
+          errorMessage = `Failed to save address: ${apiError.message}`;
+        } else if (apiError.response?.data?.message) {
+          errorMessage = `Failed to save address: ${apiError.response.data.message}`;
+        }
+      } else if (typeof error === 'string') {
+        errorMessage = `Failed to save address: ${error}`;
       }
+      
+      alert(errorMessage);
     }
   };
 

@@ -1,18 +1,78 @@
 // /api/checkout/route.ts (with internal handlers)
 import prisma from "@/lib/prisma";
 import { v4 as uuidv4 } from "uuid";
-import { CheckoutStatus, PaymentStatus, OrderStatus } from "@prisma/client";
+import { CheckoutStatus, PaymentStatus, OrderStatus, User, Address, CartItem } from "@prisma/client";
 import EmailService from "@/lib/emailService";
+import { AuthenticatedUser } from "./auth";
 
 const emailService = new EmailService();
 
+// Request data interface
+interface CheckoutRequestData {
+  cartItems: CartItem[];
+  shippingAddress: Address;
+  billingAddress?: Address;
+  couponId?: string;
+  subtotal?: number;
+  discountAmount?: number;
+  currency?: string;
+}
+
+// Pricing information interface
+interface PricingInfo {
+  fixedPrice: number | null;
+  unitPrice: number | null;
+  selectedUnit: string | null;
+  totalPrice: number;
+}
+
+// Validated item interface
+interface ValidatedItem {
+  productId: string;
+  title: string;
+  quantity: number;
+  fixedPrice: number | null;
+  unitPrice: number | null;
+  selectedUnit: string | null;
+  totalPrice: number;
+  weight: number;
+  totalWeight: number;
+  price: number;
+}
+
+// Calculation result interface
+interface CalculationResult {
+  userData: User;
+  validatedItems: ValidatedItem[];
+  totalWeight: number;
+  deliveryFee: number;
+  finalSubtotal: number;
+  totalAmount: number;
+  shippingAddress: Address;
+  billingAddress: Address;
+  couponId?: string;
+  discountAmount: number;
+  currency: string;
+}
+
+// User interface for the validation function
+interface ValidationUser {
+  id: string;
+  clerkId?: string;
+  email: string;
+  role?: string;
+}
+  
+
 // Shared validation and calculation function
-export async function validateAndCalculate(user: any, requestData: any) {
+export async function validateAndCalculate(
+  user: ValidationUser, 
+  requestData: CheckoutRequestData
+): Promise<CalculationResult> {
   const {
-    cartItems, // Expecting cartItems with product data
+    cartItems,
     shippingAddress,
     billingAddress,
-    shippingMethod,
     couponId,
     subtotal,
     discountAmount = 0,
@@ -44,7 +104,7 @@ export async function validateAndCalculate(user: any, requestData: any) {
   // Calculate totals using cart item data directly
   let calculatedSubtotal = 0;
   let totalWeight = 0;
-  const validatedItems = [];
+  const validatedItems: ValidatedItem[] = [];
 
   for (const item of cartItems) {
     // Validate product data exists
@@ -57,22 +117,22 @@ export async function validateAndCalculate(user: any, requestData: any) {
     }
 
     // Handle unit selection format (could be string or {unit, price} object)
-    const selectedUnit =
+    const selectedUnit: string | null =
       typeof item.selectedUnit === "object"
         ? item.selectedUnit.unit
-        : item.selectedUnit;
+        : item.selectedUnit || null;
 
-    const unitPrice =
+    const unitPrice: number | undefined =
       typeof item.selectedUnit === "object"
         ? item.selectedUnit.price
-        : item.unitPrice;
+        : item.unitPrice || undefined;
 
     // Calculate item price
     let itemPrice = 0;
-    let pricingInfo = {
-      fixedPrice: null as number | null,
-      unitPrice: null as number | null,
-      selectedUnit: null as string | null,
+    let pricingInfo: PricingInfo = {
+      fixedPrice: null,
+      unitPrice: null,
+      selectedUnit: null,
       totalPrice: 0,
     };
 
@@ -91,7 +151,7 @@ export async function validateAndCalculate(user: any, requestData: any) {
       // Validate the selected unit exists in product's unitPrices
       if (
         item.product.unitPrices &&
-        !item.product.unitPrices.some((u) => u.unit === selectedUnit)
+        !item.product.unitPrices.some((u: UnitPrice) => u.unit === selectedUnit)
       ) {
         throw new Error(
           `Selected unit "${selectedUnit}" is not valid for product ${item.product.name}`
@@ -124,19 +184,24 @@ export async function validateAndCalculate(user: any, requestData: any) {
       );
     }
 
-    const itemWeight = Number(item.product.weight) * item.quantity;
+    const itemWeight: number = Number(item.product.weight) * item.quantity;
     calculatedSubtotal += pricingInfo.totalPrice;
     totalWeight += itemWeight;
 
-    validatedItems.push({
+    const validatedItem: ValidatedItem = {
       productId: item.productId,
       title: item.product.name,
       quantity: item.quantity,
-      ...pricingInfo,
+      fixedPrice: pricingInfo.fixedPrice,
+      unitPrice: pricingInfo.unitPrice,
+      selectedUnit: pricingInfo.selectedUnit,
+      totalPrice: pricingInfo.totalPrice,
       weight: Number(item.product.weight),
       totalWeight: itemWeight,
       price: itemPrice,
-    });
+    };
+
+    validatedItems.push(validatedItem);
   }
 
   // Calculate dynamic delivery fee
@@ -148,8 +213,8 @@ export async function validateAndCalculate(user: any, requestData: any) {
   // }
 
   // Use provided subtotal if available, otherwise use calculated one
-  const finalSubtotal = subtotal || calculatedSubtotal;
-  const totalAmount = finalSubtotal + deliveryFee - discountAmount;
+  const finalSubtotal: number = subtotal || calculatedSubtotal;
+  const totalAmount: number = finalSubtotal + deliveryFee - discountAmount;
 
   return {
     userData,
@@ -160,18 +225,18 @@ export async function validateAndCalculate(user: any, requestData: any) {
     totalAmount,
     shippingAddress,
     billingAddress: billingAddress || shippingAddress,
-    shippingMethod,
     couponId,
     discountAmount,
     currency,
   };
 }
 
+
 // Bank transfer payment handler
 export async function handleBankTransferPayment(
-  user: any,
-  calculatedData: any
-) {
+  user: AuthenticatedUser,
+  calculatedData: CalculationResult
+): Promise<void> {
   const {
     userData,
     validatedItems,
@@ -181,7 +246,6 @@ export async function handleBankTransferPayment(
     totalAmount,
     shippingAddress,
     billingAddress,
-    shippingMethod,
     couponId,
     discountAmount,
     currency,
@@ -285,6 +349,14 @@ export async function handleBankTransferPayment(
         },
       });
     }
+
+        // ===== CALCULATE ORDER AGE ONCE =====
+        const maxOrderAge = 24 * 60 * 60 * 1000; // 24 hours
+        let orderAge = 0;
+        
+        if (existingOrder) {
+          orderAge = Date.now() - existingOrder.createdAt.getTime();
+        }
 
     // ===== PREVENT DUPLICATE PENDING ORDERS =====
 
@@ -480,28 +552,14 @@ export async function handleBankTransferPayment(
       }
     }
 
-    // ===== HANDLE EXISTING FAILED ORDERS =====
-
+   // ===== HANDLE EXISTING FAILED ORDERS =====
     // If we have a failed order or expired pending order
-    if (
-      existingOrder &&
-      (existingOrder.status === "FAILED" || orderAge > maxOrderAge)
-    ) {
-      console.log(
-        "Found existing failed/expired order:",
-        existingOrder.id,
-        "Status:",
-        existingOrder.status
-      );
-
-      const orderAge = Date.now() - existingOrder.createdAt.getTime();
-      const maxOrderAge = 24 * 60 * 60 * 1000; // 24 hours
+    if (existingOrder && (existingOrder.status === "FAILED" || orderAge > maxOrderAge)) {
+      console.log("Found existing failed/expired order:", existingOrder.id, "Status:", existingOrder.status);
 
       // Check if order is expired or failed
       if (orderAge > maxOrderAge || existingOrder.status === "FAILED") {
-        console.log(
-          "Order is expired or failed, cancelling and cleaning up..."
-        );
+        console.log("Order is expired or failed, cancelling and cleaning up...");
 
         // Cancel expired order
         await prisma.order.update({

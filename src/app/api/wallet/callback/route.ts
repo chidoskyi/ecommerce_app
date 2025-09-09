@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
           `${process.env.NEXT_PUBLIC_APP_URL}/account/wallet?payment=failed&reference=${paymentReference}`
         );
       }
-    } catch (verificationError: any) {
+    } catch (verificationError: unknown) {
       console.error('Payment verification error:', verificationError);
       
       // Redirect to error page with reference for debugging
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Deposit callback error:', error);
     
     // Redirect to error page

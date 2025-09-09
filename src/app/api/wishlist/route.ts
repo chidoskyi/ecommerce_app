@@ -1,17 +1,14 @@
 // app/api/wishlist/route.ts - Fixed with correct middleware usage
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, AuthenticatedRequest } from "@/lib/auth";
 import { ProductStatus } from "@prisma/client";
 
 // GET - Retrieve user's wishlist
 export const GET = requireAuth(async (request: NextRequest) => {
   try {
     // Get user from the authenticated request
-    const user = (request as any).user;
-    const token = (request as any).token;
-
-    console.log(`🛍️ GET wishlist for user: ${user.id} (has token: ${!!token})`);
+    const user = (request as AuthenticatedRequest).user;
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
@@ -22,7 +19,7 @@ export const GET = requireAuth(async (request: NextRequest) => {
 
     const [wishlistItems, total] = await Promise.all([
       prisma.wishlistItem.findMany({
-        where: { userId: user.id },
+        where: { userId: user?.id },
         include: {
           product: {
             select: {
@@ -44,7 +41,7 @@ export const GET = requireAuth(async (request: NextRequest) => {
         take: limit,
       }),
       prisma.wishlistItem.count({
-        where: { userId: user.id },
+        where: { userId: user?.id },
       }),
     ]);
 
@@ -62,8 +59,8 @@ export const GET = requireAuth(async (request: NextRequest) => {
         pages: Math.ceil(total / limit),
       },
       user: {
-        id: user.id,
-        email: user.email,
+        id: user?.id,
+        email: user?.email,
       },
     });
   } catch (error) {
@@ -82,12 +79,7 @@ export const GET = requireAuth(async (request: NextRequest) => {
 export const POST = requireAuth(async (request: NextRequest) => {
   try {
     // Get user from the authenticated request
-    const user = (request as any).user;
-    const token = (request as any).token;
-
-    console.log(
-      `➕ POST wishlist for user: ${user.id} (has token: ${!!token})`
-    );
+    const user = (request as AuthenticatedRequest).user;
 
     const body = await request.json();
     const { productId } = body;
@@ -147,7 +139,7 @@ export const POST = requireAuth(async (request: NextRequest) => {
     const existingItem = await prisma.wishlistItem.findUnique({
       where: {
         userId_productId: {
-          userId: user.id,
+          userId: user?.id || '',
           productId,
         },
       },
@@ -167,7 +159,7 @@ export const POST = requireAuth(async (request: NextRequest) => {
     // Add to wishlist
     const wishlistItem = await prisma.wishlistItem.create({
       data: {
-        userId: user.id,
+        userId: user?.id || '',
         productId: product.id,
       },
       include: {
@@ -196,8 +188,8 @@ export const POST = requireAuth(async (request: NextRequest) => {
         message: "Product added to wishlist",
         item: wishlistItem,
         user: {
-          id: user.id,
-          email: user.email,
+          id: user?.id,
+          email: user?.email,
         },
       },
       { status: 201 }
@@ -214,18 +206,11 @@ export const POST = requireAuth(async (request: NextRequest) => {
   }
 });
 
-
-
 // PUT - Toggle wishlist item (add if not exists, remove if exists)
 export const PUT = requireAuth(async (request: NextRequest) => {
   try {
     // Get user from the authenticated request
-    const user = (request as any).user;
-    const token = (request as any).token;
-
-    console.log(
-      `🔄 PUT wishlist toggle for user: ${user.id} (has token: ${!!token})`
-    );
+    const user = (request as AuthenticatedRequest).user;
 
     const body = await request.json();
     const { productId } = body;
@@ -248,10 +233,10 @@ export const PUT = requireAuth(async (request: NextRequest) => {
       select: {
         id: true,
         name: true,
-        isActive: true,
+        status: true,
         images: true,
         category: true,
-        brand: true,
+
         slug: true,
       },
     });
@@ -270,7 +255,7 @@ export const PUT = requireAuth(async (request: NextRequest) => {
     const existingItem = await prisma.wishlistItem.findUnique({
       where: {
         userId_productId: {
-          userId: user.id,
+          userId: user?.id || '',
           productId,
         },
       },
@@ -291,8 +276,8 @@ export const PUT = requireAuth(async (request: NextRequest) => {
         inWishlist: false,
         productId,
         user: {
-          id: user.id,
-          email: user.email,
+          id: user?.id || '',
+          email: user?.email || '',
         },
       });
     } else {
@@ -309,7 +294,7 @@ export const PUT = requireAuth(async (request: NextRequest) => {
 
       const wishlistItem = await prisma.wishlistItem.create({
         data: {
-          userId: user.id,
+          userId: user?.id || '',
           productId,
         },
         include: {
@@ -319,11 +304,9 @@ export const PUT = requireAuth(async (request: NextRequest) => {
               name: true,
               description: true,
               images: true,
-              stock: true,
               category: true,
-              brand: true,
+              status: true,
               slug: true,
-              isActive: true,
             },
           },
         },
@@ -339,8 +322,8 @@ export const PUT = requireAuth(async (request: NextRequest) => {
         inWishlist: true,
         productId,
         user: {
-          id: user.id,
-          email: user.email,
+          id: user?.id,
+          email: user?.email,
         },
       });
     }
@@ -359,12 +342,7 @@ export const PUT = requireAuth(async (request: NextRequest) => {
 // PATCH - Update wishlist item (for future use - notes, priority, etc.)
 export const PATCH = requireAuth(async (request: NextRequest) => {
   try {
-    const user = (request as any).user;
-    const token = (request as any).token;
-
-    console.log(
-      `🔧 PATCH wishlist for user: ${user.id} (has token: ${!!token})`
-    );
+    const user = (request as AuthenticatedRequest).user;
 
     const body = await request.json();
     const { itemId, notes, priority } = body;
@@ -383,7 +361,7 @@ export const PATCH = requireAuth(async (request: NextRequest) => {
     const existingItem = await prisma.wishlistItem.findFirst({
       where: {
         id: itemId,
-        userId: user.id,
+        userId: user?.id || '',
       },
     });
 
@@ -425,8 +403,8 @@ export const PATCH = requireAuth(async (request: NextRequest) => {
       message: "Wishlist item updated",
       item: updatedItem,
       user: {
-        id: user.id,
-        email: user.email,
+        id: user?.id || '',
+        email: user?.email,
       },
     });
   } catch (error) {
@@ -445,8 +423,7 @@ export const PATCH = requireAuth(async (request: NextRequest) => {
 export const DELETE = requireAuth(async (request: NextRequest) => {
   try {
     // Get user from the authenticated request
-    const user = (request as any).user;
-
+    const user = (request as AuthenticatedRequest).user;
 
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get("productId");
@@ -464,7 +441,8 @@ export const DELETE = requireAuth(async (request: NextRequest) => {
       );
     }
 
-    let deleteCondition: any = { userId: user.id };
+    const deleteCondition: { userId: string; id?: string; productId?: string } =
+      { userId: user?.id || "" };
 
     if (itemId) {
       deleteCondition.id = itemId;
@@ -498,8 +476,8 @@ export const DELETE = requireAuth(async (request: NextRequest) => {
       success: true,
       message: "Product removed from wishlist",
       user: {
-        id: user.id,
-        email: user.email,
+        id: user?.id,
+        email: user?.email,
       },
     });
   } catch (error) {

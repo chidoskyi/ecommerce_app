@@ -1,6 +1,10 @@
 // app/api/carts/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+// import { CartItem } from "@/types/carts";
+// import { Product } from "@/types/products";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
+import { CategoryStatus, PriceType, Prisma, ProductStatus } from "@prisma/client";
 
 function generateGuestId() {
   const timestamp = Date.now().toString(36);
@@ -8,11 +12,61 @@ function generateGuestId() {
   return `guest_${timestamp}_${randomStr}`;
 }
 
+export type CartItemWithProduct = {
+  id: string;
+  clerkId: string | null;
+  guestId: string | null;
+  productId: string;
+  quantity: number;
+  selectedUnit: string | null;
+  unitPrice: number | null;
+  fixedPrice: number | null;
+  weight: number | null;
+  totalWeight: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+  userId: string | null;
+  product: {
+    id: string;
+    name: string;
+    status: ProductStatus;
+    rating: number | null;
+    images: string[];
+    fixedPrice: number;
+    weight: number | null;
+    description: string | null;
+    slug: string;
+    hasFixedPrice: boolean;
+    priceType: PriceType;
+    categoryId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    // ... other product fields
+    category: {
+      id: string;
+      name: string;
+      status: CategoryStatus;
+      createdAt: Date;
+      updatedAt: Date;
+      description: string | null;
+      slug: string;
+      image: string | null;
+    } | null;
+    unitPrices: {
+      unit: string;
+      price: number;
+    }[];
+  };
+};
+
 // helper function
 export const getCart = async (
   clerkId: string | null,
   guestId: string | null
-) => {
+): Promise<{
+  cartItems: CartItemWithProduct[];
+  clerkId: string | null;
+}> => {
   console.log(
     `[getCart] Searching for cart - clerkId: ${clerkId}, guestId: ${guestId}`
   );
@@ -31,7 +85,7 @@ export const getCart = async (
       product: {
         include: {
           category: true,
-          unitPrices: true,
+          // unitPrices: true,
         },
       },
     },
@@ -64,7 +118,7 @@ export const findExistingCartItem = async (
   });
 };
 
-export const calculateCartSummary = (cartItems: any[]) => {
+export const calculateCartSummary = (cartItems: CartItemWithProduct[]) => {
   const subtotal = cartItems.reduce((sum, item) => {
     let itemPrice = 0;
 
@@ -80,18 +134,22 @@ export const calculateCartSummary = (cartItems: any[]) => {
   }, 0);
 
   const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  const totalWeight = cartItems.reduce(
-    (sum, item) => sum + (item.product?.weight || 0) * item.quantity,
-    0
-  );
+
+  const totalWeight = cartItems.reduce((sum, item) => {
+    const weight = item.product?.weight;
+    // Check if it's a number (including floats)
+    const numericWeight =
+      typeof weight === "number" && !isNaN(weight) ? weight : 0;
+    return sum + numericWeight * item.quantity;
+  }, 0);
 
   return { subtotal, itemCount, totalWeight };
 };
 
 export const validatePricingData = (
-  product: any,
-  unit?: string,
-  price?: number
+  product: CartItemWithProduct["product"],
+  unit: string | null | undefined, // Accept both null and undefined
+  price: number | null
 ) => {
   if (product.hasFixedPrice) {
     return product.fixedPrice !== null && product.fixedPrice !== undefined;
@@ -101,11 +159,11 @@ export const validatePricingData = (
 };
 
 // Transform cart items to match frontend expectations
-export const transformCartItems = (cartItems: any[]) => {
+export const transformCartItems = (cartItems: CartItemWithProduct[]) => {
   return cartItems.map((item) => ({
     ...item,
     weight: item.product?.weight || 0, // Include weight from product
-    totalWeight: (item.product?.weight || 0) * item.quantity, // Calculate total weight
+    totalWeight: (Number(item.product?.weight) || 0) * item.quantity, // Calculate total weight
     selectedUnit:
       item.selectedUnit && item.unitPrice
         ? {
@@ -143,7 +201,8 @@ export const GET = async (req: NextRequest) => {
     // Get cart with clerkId directly
     const { cartItems, clerkId } = await getCart(clerkUserId, guestId);
     const transformedItems = transformCartItems(cartItems);
-    const { subtotal, itemCount, totalWeight } = calculateCartSummary(cartItems); 
+    const { subtotal, itemCount, totalWeight } =
+      calculateCartSummary(cartItems);
 
     return NextResponse.json({
       success: true,
@@ -216,7 +275,10 @@ export async function POST(req: NextRequest) {
     // Verify product exists
     const product = await prisma.product.findUnique({
       where: { id: productId },
-      include: { category: true, unitPrices: true },
+      include: {
+        category: true,
+        // unitPrices: true
+      },
     });
 
     if (!product) {
@@ -267,39 +329,47 @@ export async function POST(req: NextRequest) {
         },
         include: {
           product: {
-            include: { category: true, unitPrices: true },
+            include: {
+              category: true,
+              // unitPrices: true
+            },
           },
         },
       });
     } else {
-      // Create new cart item
-      const cartItemData: any = {
-        productId,
+      // Create new cart item using Prisma's proper relationship syntax
+      const createData: Prisma.CartItemCreateInput = {
         quantity,
+        product: {
+          connect: { id: productId }
+        },
       };
-
-      // Set user or guest identification using clerkId directly
+    
+      // Set user or guest identification
       if (clerkUserId) {
-        cartItemData.clerkId = clerkUserId;
-        cartItemData.guestId = null; // Explicitly set guestId to null for users
+        createData.clerkId = clerkUserId;
+        createData.guestId = null;
       } else {
-        cartItemData.clerkId = null; // Explicitly set clerkId to null for guests
-        cartItemData.guestId = finalGuestId;
+        createData.clerkId = null;
+        createData.guestId = finalGuestId;
       }
-
+    
       // Add pricing data
       if (product.hasFixedPrice) {
-        cartItemData.fixedPrice = product.fixedPrice;
+        createData.fixedPrice = product.fixedPrice;
       } else {
-        cartItemData.selectedUnit = unit;
-        cartItemData.unitPrice = price;
+        createData.selectedUnit = unit;
+        createData.unitPrice = price;
       }
-
+    
       cartItem = await prisma.cartItem.create({
-        data: cartItemData,
+        data: createData,
         include: {
           product: {
-            include: { category: true, unitPrices: true },
+            include: {
+              category: true,
+              // unitPrices: true,
+            },
           },
         },
       });
@@ -308,7 +378,8 @@ export async function POST(req: NextRequest) {
     // Get updated cart summary using getCart helper
     const { cartItems } = await getCart(clerkUserId, finalGuestId);
     const transformedItems = transformCartItems(cartItems);
-    const { subtotal, itemCount, totalWeight } = calculateCartSummary(cartItems); 
+    const { subtotal, itemCount, totalWeight } =
+      calculateCartSummary(cartItems);
 
     return NextResponse.json({
       success: true,
@@ -373,7 +444,10 @@ export const PUT = async (req: NextRequest) => {
     }
 
     // Build where condition using clerkId
-    const whereCondition: any = { id: cartItemId };
+    const whereCondition: Record<
+      string,
+      string | number | boolean | object | undefined
+    > = { id: cartItemId };
     if (clerkUserId) {
       whereCondition.clerkId = clerkUserId;
     } else {
@@ -432,7 +506,7 @@ export const PUT = async (req: NextRequest) => {
           product: {
             include: {
               category: true,
-              unitPrices: true,
+              // unitPrices: true,
             },
           },
         },
@@ -451,7 +525,8 @@ export const PUT = async (req: NextRequest) => {
     console.log("📋 Cart items count:", cartItems.length);
 
     const transformedItems = transformCartItems(cartItems);
-    const { subtotal, itemCount, totalWeight } = calculateCartSummary(cartItems);
+    const { subtotal, itemCount, totalWeight } =
+      calculateCartSummary(cartItems);
 
     console.log("💰 Cart summary:", { subtotal, itemCount });
 
@@ -479,14 +554,16 @@ export const PUT = async (req: NextRequest) => {
     });
 
     return NextResponse.json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("💥 Cart PUT API error:", {
-      message: error.message,
-      code: error.code,
-      stack: error.stack?.split("\n").slice(0, 5),
+      message: error instanceof Error ? error.message : "Unknown error",
+      code:
+        error instanceof PrismaClientKnownRequestError
+          ? error.code
+          : "Unknown code",
     });
 
-    if (error.code === "P2025") {
+    if (error instanceof PrismaClientKnownRequestError) {
       return NextResponse.json(
         {
           success: false,
@@ -499,7 +576,9 @@ export const PUT = async (req: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: `Database error: ${error.message}`,
+        error: `Database error: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
       },
       { status: 500 }
     );
@@ -584,7 +663,8 @@ export const DELETE = async (req: NextRequest) => {
       // Return updated cart summary
       const { cartItems } = await getCart(userId, guestId);
       const transformedItems = transformCartItems(cartItems);
-      const { subtotal, itemCount, totalWeight } = calculateCartSummary(cartItems);
+      const { subtotal, itemCount, totalWeight } =
+        calculateCartSummary(cartItems);
 
       return NextResponse.json({
         success: true,
@@ -604,6 +684,7 @@ export const DELETE = async (req: NextRequest) => {
       });
     } else if (cartItemId) {
       // Delete specific item entirely
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const whereCondition = userId
         ? { id: cartItemId, clerkId: userId }
         : { id: cartItemId, guestId };
@@ -615,7 +696,8 @@ export const DELETE = async (req: NextRequest) => {
       // Return updated cart summary
       const { cartItems } = await getCart(userId, guestId);
       const transformedItems = transformCartItems(cartItems);
-      const { subtotal, itemCount, totalWeight } = calculateCartSummary(cartItems);
+      const { subtotal, itemCount, totalWeight } =
+        calculateCartSummary(cartItems);
 
       return NextResponse.json({
         success: true,
@@ -639,10 +721,10 @@ export const DELETE = async (req: NextRequest) => {
         { status: 400 }
       );
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Cart DELETE API error:", error);
 
-    if (error.code === "P2025") {
+    if (error instanceof PrismaClientKnownRequestError) {
       return NextResponse.json(
         {
           success: false,

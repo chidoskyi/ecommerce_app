@@ -3,7 +3,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
-  Trash2,
   Package,
   Heart,
   Search,
@@ -24,7 +23,6 @@ import { useSelector, useDispatch } from "react-redux";
 import {
   fetchWishlist,
   removeItem,
-  toggleItem,
   clearWishlist,
   selectWishlistItems,
   selectWishlistLoading,
@@ -65,7 +63,7 @@ export default function Wishlist() {
   const {
     categories,
     loading: categoriesLoading,
-    error: categoriesError,
+    // error: categoriesError,
   } = useCategories();
 
   // Filter categories with ACTIVE status
@@ -176,7 +174,7 @@ export default function Wishlist() {
         // Category filter
         const matchesCategory =
           selectedCategory === "All Categories" ||
-          item.product.category === selectedCategory;
+          item.product.category?.id === selectedCategory;
 
         return matchesSearch && matchesCategory;
       })
@@ -504,21 +502,19 @@ export default function Wishlist() {
                     id={item.product.id}
                     name={item.product.name}
                     slug={item.product.slug}
-                    // Try these alternative price props based on your earlier error:
                     hasFixedPrice={item.product.hasFixedPrice ?? false}
                     fixedPrice={
                       item.product.hasFixedPrice
-                        ? item.product.fixedPrice
-                        : item.product.displayPrice
+                        ? item.product.fixedPrice ?? 0
+                        : item.product.displayPrice ?? 0
                     }
                     unitPrices={item.product.unitPrices || []}
-                    // OR if you have different field names:
-                    // price={item.product.price}
-                    // unit={item.product.unitPrices?.[0]?.unit || "Per Item"}
                     images={item.product.images}
                     viewMode={viewMode}
                     onRemove={() => handleRemoveItem(item.product.id)}
                     isRemoving={loading}
+                    category={item.product.category?.name || ''} // Extract the name from the category object
+                    description={item.product.description || ""} // Add this
                   />
                 ))}
               </div>

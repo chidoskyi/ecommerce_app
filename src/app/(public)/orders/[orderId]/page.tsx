@@ -1,8 +1,8 @@
 "use client"
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useDispatch, useSelector } from "react-redux";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 import {
   ArrowLeft,
   Package,
@@ -10,17 +10,11 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  Download,
   RefreshCw,
   Mail,
   Phone,
   MapPin,
-  Calendar,
-  CreditCard,
-  Eye,
   Copy,
-  ExternalLink,
-  Star,
   MessageCircle,
   FileText,
   ShoppingBag,
@@ -97,17 +91,18 @@ const PAYMENT_STATUSES = {
 };
 
 export default function OrderDetailsPage() {
-  const { orderId } = useParams();
+  const params = useParams();
+  const orderId = params?.orderId as string | undefined;
   const router = useRouter();
-  const dispatch = useDispatch();
-  const { token, userId, isAuthenticated } = useAuth();
+  const dispatch = useAppDispatch();
+  const { token, isAuthenticated } = useAuth();
   const [cartCleared, setCartCleared] = useState(false);
   
   // Redux selectors
-  const orderData = useSelector(selectCurrentOrder);
-  const loading = useSelector(selectLoading);
-  const error = useSelector(selectError);
-  const userIdentification = useSelector(selectUserIdentification);
+  const orderData = useAppSelector(selectCurrentOrder);
+  const loading = useAppSelector(selectLoading);
+  const error = useAppSelector(selectError);
+  const userIdentification = useAppSelector(selectUserIdentification);
   const { user: clerkUser, isSignedIn } = useUser();
   
   const [refreshing, setRefreshing] = useState(false);
@@ -129,34 +124,9 @@ export default function OrderDetailsPage() {
       
       return () => clearTimeout(timer);
     }
-  }, [orderData?.status]);
+  }, [orderData?.status, showReviewModal]);
 
-  // Clear cart after successful payment
-  useEffect(() => {
-    if (orderData?.paymentStatus?.toLowerCase() === 'paid' && !cartCleared) {
-      clearCartAfterPayment();
-    }
-  }, [orderData?.paymentStatus, cartCleared]);
-
-  const fetchOrderDetails = async (showRefreshIndicator = false) => {
-    if (!token || !orderId) return;
-
-    try {
-      if (showRefreshIndicator) {
-        setRefreshing(true);
-      }
-        // Refresh Redux store
-        dispatch(fetchOrderById(orderId));
-        toast.success("Order details refreshed");
-    } catch (error) {
-      console.error("Error refreshing order:", error);
-      toast.error("Failed to refresh order details");
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const clearCartAfterPayment = async () => {
+  const clearCartAfterPayment = useCallback(async () => {
     if (cartCleared) return;
 
     const storageUserId = StorageUtil.getUserId();
@@ -194,51 +164,87 @@ export default function OrderDetailsPage() {
     } catch (error) {
       console.error("❌ Error clearing cart:", error);
     }
-  };
+  }, [cartCleared, dispatch, userIdentification, clerkUser, isSignedIn]);
 
-  const handleDownloadReceipt = async () => {
-    if (!orderData?.orderNumber || !token) return;
+  // Clear cart after successful payment
+  useEffect(() => {
+    if (orderData?.paymentStatus?.toLowerCase() === 'paid' && !cartCleared) {
+      clearCartAfterPayment();
+    }
+  }, [orderData?.paymentStatus, cartCleared, clearCartAfterPayment]);
+
+
+
+
+
+  // Clear cart after successful payment
+  useEffect(() => {
+    if (orderData?.paymentStatus?.toLowerCase() === 'paid' && !cartCleared) {
+      clearCartAfterPayment();
+    }
+  }, [orderData?.paymentStatus, cartCleared, clearCartAfterPayment]);
+
+    const fetchOrderDetails = async (showRefreshIndicator = false) => {
+    if (!token || !orderId) return;
 
     try {
-      const response = await fetch("/api/orders/receipt", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "x-auth-token": token,
-          "x-user-id": userId || "",
-        },
-        body: JSON.stringify({
-          orderNumber: orderData.orderNumber,
-        }),
-      });
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.style.display = "none";
-        a.href = url;
-        a.download = `receipt-${orderData.orderNumber}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        toast.success("Receipt downloaded successfully");
-      } else {
-        toast.error("Failed to download receipt");
+      if (showRefreshIndicator) {
+        setRefreshing(true);
       }
+        // Refresh Redux store
+        dispatch(fetchOrderById(orderId));
+        toast.success("Order details refreshed");
     } catch (error) {
-      console.error("Receipt download error:", error);
-      toast.error("Failed to download receipt");
+      console.error("Error refreshing order:", error);
+      toast.error("Failed to refresh order details");
+    } finally {
+      setRefreshing(false);
     }
   };
+
+  // const handleDownloadReceipt = async () => {
+  //   if (!orderData?.orderNumber || !token) return;
+
+  //   try {
+  //     const response = await fetch("/api/orders/receipt", {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //         Authorization: `Bearer ${token}`,
+  //         "x-auth-token": token,
+  //         "x-user-id": userId || "",
+  //       },
+  //       body: JSON.stringify({
+  //         orderNumber: orderData.orderNumber,
+  //       }),
+  //     });
+
+  //     if (response.ok) {
+  //       const blob = await response.blob();
+  //       const url = window.URL.createObjectURL(blob);
+  //       const a = document.createElement("a");
+  //       a.style.display = "none";
+  //       a.href = url;
+  //       a.download = `receipt-${orderData.orderNumber}.pdf`;
+  //       document.body.appendChild(a);
+  //       a.click();
+  //       window.URL.revokeObjectURL(url);
+  //       document.body.removeChild(a);
+  //       toast.success("Receipt downloaded successfully");
+  //     } else {
+  //       toast.error("Failed to download receipt");
+  //     }
+  //   } catch (error) {
+  //     console.error("Receipt download error:", error);
+  //     toast.error("Failed to download receipt");
+  //   }
+  // };
 
   const handleContinueShopping = () => {
     router.push("/");
   };
 
-  const copyToClipboard = (text, label) => {
+  const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => {
       toast.success(`${label} copied to clipboard`);
     });
@@ -309,8 +315,11 @@ export default function OrderDetailsPage() {
     return null;
   }
 
-  const statusConfig = ORDER_STATUSES[orderData.status?.toLowerCase()] || ORDER_STATUSES.pending;
-  const paymentStatusConfig = PAYMENT_STATUSES[orderData.paymentStatus?.toLowerCase()] || PAYMENT_STATUSES.pending;
+  const statusKey = (orderData.status?.toLowerCase() ?? "pending") as keyof typeof ORDER_STATUSES;
+  const paymentStatusKey = (orderData.paymentStatus?.toLowerCase() ?? "pending") as keyof typeof PAYMENT_STATUSES;
+
+  const statusConfig = ORDER_STATUSES[statusKey] || ORDER_STATUSES.pending;
+  const paymentStatusConfig = PAYMENT_STATUSES[paymentStatusKey] || PAYMENT_STATUSES.pending;
   const StatusIcon = statusConfig.icon;
 
   return (
@@ -458,15 +467,16 @@ export default function OrderDetailsPage() {
               </h2>
               <div className="space-y-4">
                 {orderData.items?.map((item, index) => {
+                  
                   const itemPrice = getItemPrice(item);
                   return (
                     <div
                       key={index}
                       className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
                     >
-                      {item.image && (
+                      {item.product?.images[0] && (
                         <Image
-                          src={item.image}
+                          src={item.product?.images[0]}
                           alt={item.title}
                           width={64}
                           height={64}
@@ -580,6 +590,7 @@ export default function OrderDetailsPage() {
                       </span>
                       <button
                         onClick={() =>
+                          orderData.transactionId &&
                           copyToClipboard(
                             orderData.transactionId,
                             "Transaction ID"

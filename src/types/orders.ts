@@ -3,7 +3,7 @@ import { Invoice } from "./invoice";
 import { Product } from "./products";
 import { CheckoutItem } from "./checkout";
 import { User } from "./users";
-import { BillingAddress, ShippingAddress } from "@prisma/client";
+import { BillingAddress, PaymentStatus, ShippingAddress } from "@prisma/client";
 
 // Order Types aligned with Prisma schema
 export interface Order {
@@ -32,14 +32,16 @@ export interface Order {
   shippingAddress: Address;
   paymentMethod: string | null;
   paymentId: string | null;
-  transactionId: string | null;
+  transactionId?: string | null;
   notes: string | null;
   createdAt: Date;
+  paidAt: Date;
   updatedAt: Date;
   cancelledAt: Date | null;
   processedAt: Date | null;
   items: CheckoutItem[];
   product: Product[]
+  [key: string]: unknown;
 }
 
 export interface OrderItem {
@@ -171,12 +173,12 @@ export interface OrderFilters {
   limit: number;
   searchQuery?: string;
   statusFilter?: string;
-  dateRange?: {
-    from: string | null; // ISO string
-    to: string | null; // ISO string
+  dateRange?: { 
+    from: string | null;
+    to: string | null;
   };
   status?: string;
-  paymentStatus?: string;
+  paymentStatus?: PaymentStatus;
   startDate?: string; // ISO string
   endDate?: string; // ISO string
   search?: string;

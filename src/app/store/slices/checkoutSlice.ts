@@ -233,9 +233,9 @@ const checkoutSlice = createSlice({
       state.orderError = null;
     },
 
-    setCurrentOrder: (state, action: PayloadAction<any>) => {
-        state.currentOrder = action.payload;
-      },
+    setCurrentOrder: (state, action: PayloadAction<Order | null>) => {
+      state.currentOrder = action.payload;
+    },
 
     // Reset checkout state
     resetCheckoutState: () => initialState,

@@ -3,11 +3,41 @@ import prisma from "@/lib/prisma";
 import { walletService } from "@/lib/wallet";
 import { v4 as uuidv4 } from "uuid";
 import EmailService from "@/lib/emailService";
+import { Address, User } from "@prisma/client";
+import { AuthenticatedUser } from "./auth";
 
 const emailService = new EmailService();
 
+// Validated item interface
+interface ValidatedItem {
+  productId: string;
+  title: string;
+  quantity: number;
+  fixedPrice: number | null;
+  unitPrice: number | null;
+  selectedUnit: string | null;
+  totalPrice: number;
+  weight: number;
+  totalWeight: number;
+  price: number;
+}
+
+interface CalculationResult {
+  userData: User;
+  validatedItems: ValidatedItem[];
+  totalWeight: number;
+  deliveryFee: number;
+  finalSubtotal: number;
+  totalAmount: number;
+  shippingAddress: Address;
+  billingAddress: Address;
+  couponId?: string;
+  discountAmount: number;
+  currency: string;
+}
+
 // Wallet payment handler with transaction management
-export async function handleWalletPayment(user: any, calculatedData: any) {
+export async function handleWalletPayment(user: AuthenticatedUser, calculatedData: CalculationResult) {
   const {
     userData,
     validatedItems,
@@ -17,7 +47,6 @@ export async function handleWalletPayment(user: any, calculatedData: any) {
     totalAmount,
     shippingAddress,
     billingAddress,
-    shippingMethod,
     couponId,
     discountAmount,
     currency,
@@ -350,7 +379,6 @@ export async function handleWalletPayment(user: any, calculatedData: any) {
                 isActive: true,
                 shippingAddress: cleanShippingAddress,
                 billingAddress: cleanBillingAddress,
-                shippingMethod,
                 paymentMethod: "wallet",
                 paymentStatus: "PAID",
                 couponId,
@@ -534,7 +562,6 @@ export async function handleWalletPayment(user: any, calculatedData: any) {
         isActive: true,
         shippingAddress: cleanShippingAddress,
         billingAddress: cleanBillingAddress,
-        shippingMethod,
         paymentMethod: "wallet",
         paymentStatus: "UNPAID",
         couponId,

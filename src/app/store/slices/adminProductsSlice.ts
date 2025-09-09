@@ -3,6 +3,34 @@ import api from '@/lib/api';
 import { SkuGenerator } from '@/utils/skuGenerator';
 import { AdminProductsState, CreateProductData, DeleteProductResponse, Pagination, Product, ProductFilters, ProductsResponse, UpdateProductData } from '@/types/products';
 import { Category } from '@/types/categories';
+import { ApiError } from 'next/dist/server/api-utils';
+
+interface ApiResponse<T> {
+  data: T;
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+}
+
+// Alternative response structure (direct data)
+interface DirectProductsResponse {
+  products: Product[];
+  pagination?: Pagination;
+  total?: number;
+}
+
+// Wrapper response structure (nested data)
+interface WrappedProductsResponse {
+  data: {
+    products: Product[];
+    pagination?: Pagination;
+    total?: number;
+  };
+}
+
+// Union type for possible response structures
+type ProductsApiResponse = ApiResponse<ProductsResponse> | DirectProductsResponse | WrappedProductsResponse;
+
 
 
 // Generate unique SKU from product name
@@ -47,12 +75,21 @@ export const generateProductSku = createAsyncThunk<
                 categoryData = categoryResponse.data as Category;
               }
               // Check if the response itself is the category data
-              else if ('name' in categoryResponse) {
+              else if ('name' in categoryResponse && typeof categoryResponse.name === 'string') {
                 categoryData = categoryResponse as Category;
               }
-              // Handle case where response is wrapped differently
-              else if (typeof categoryResponse === 'object') {
-                categoryData = (categoryResponse as any).data || categoryResponse;
+              // Handle case where response is wrapped differently with proper typing
+              else if (typeof categoryResponse === 'object' && categoryResponse !== null) {
+                // Use type assertion instead of any
+                const responseObj = categoryResponse as { data?: unknown };
+                
+                // Check if it has a data property that looks like a Category
+                if (responseObj.data && typeof responseObj.data === 'object' && responseObj.data !== null && 'name' in responseObj.data) {
+                  categoryData = responseObj.data as Category;
+                } else {
+                  // If no valid data structure found, try to use the response as-is
+                  categoryData = categoryResponse as Category;
+                }
               }
             }
             
@@ -249,13 +286,32 @@ export const fetchProducts = createAsyncThunk<
 
       const url = `/api/admin/products?${queryParams.toString()}`;
 
-      const response = await api.get<ProductsResponse>(url);
+      const response = await api.get<ProductsResponse>(url) as ProductsApiResponse;
       
-      // Handle response properly - check if response has data property or is direct data
-      const data = (response as any)?.data || response;
+      // Type-safe response handling
+      let data: ProductsResponse;
       
-      const result = {
-        products: data.products || data || [],
+      // Check if response has a nested data property (axios-style response)
+      if ('data' in response && response.data && typeof response.data === 'object') {
+        // Handle wrapped response structure
+        const wrappedData = response.data as DirectProductsResponse;
+        data = {
+          products: wrappedData.products || [],
+          pagination: wrappedData.pagination,
+          total: wrappedData.total
+        };
+      } else {
+        // Handle direct response structure
+        const directData = response as DirectProductsResponse;
+        data = {
+          products: directData.products || [],
+          pagination: directData.pagination,
+          total: directData.total
+        };
+      }
+      
+      const result: ProductsResponse = {
+        products: data.products || [],
         pagination: data.pagination || {
           count: data.products?.length || 0,
           total: data.total || data.products?.length || 0,
@@ -364,24 +420,17 @@ export const createProduct = createAsyncThunk<
       }
 
       return createdProduct;
-    } catch (error: any) {
-      console.error('❌ Frontend: Create product error:', error);
-      
-      const apiError = error.response?.data;
+    } catch (error) {
       return rejectWithValue(
-        apiError?.error || 
-        apiError?.message || 
-        error.message ||
-        'Failed to create product'
+        error instanceof Error
+          ? error.message
+          : error instanceof ApiError
+          ? error.message
+          : 'Failed to create product'
       );
     }
   }
 );
-
-
-// =============================================
-// 2. UPLOAD IMAGES TO EXISTING PRODUCT
-// =============================================
 
 export const uploadProductImages = createAsyncThunk<
   { urls: string[]; product: Product },
@@ -415,23 +464,17 @@ export const uploadProductImages = createAsyncThunk<
 
       console.log("✅ Frontend: Upload successful", response.data);
       return response.data;
-    } catch (error: any) {
-      console.error('❌ Frontend: Upload error:', error);
-      console.error('❌ Error response:', error.response?.data);
-      
-      const apiError = error.response?.data;
+    } catch (error) {
       return rejectWithValue(
-        apiError?.error || 
-        error.message ||
-        'Failed to upload images'
+        error instanceof Error
+          ? error.message
+          : error instanceof ApiError
+          ? error.message
+          : 'Failed to upload images'
       );
     }
   }
 );
-
-// =============================================
-// 3. DELETE PRODUCT IMAGES
-// =============================================
 
 export const deleteProductImage = createAsyncThunk<
   Product,
@@ -454,14 +497,13 @@ export const deleteProductImage = createAsyncThunk<
 
       console.log("✅ Frontend: Image deleted successfully");
       return response.data.product;
-    } catch (error: any) {
-      console.error('❌ Frontend: Delete image error:', error);
-      
-      const apiError = error.response?.data;
+    } catch (error) {
       return rejectWithValue(
-        apiError?.error || 
-        error.message ||
-        'Failed to delete image'
+        error instanceof Error
+          ? error.message
+          : error instanceof ApiError
+          ? error.message
+          : 'Failed to delete image'
       );
     }
   }
@@ -501,12 +543,13 @@ export const updateProduct = createAsyncThunk<
 
       console.log('✅ Product update response:', response.data);
       return response.data.product;
-    } catch (error: any) {
-      console.error('❌ Update product error:', error);
+    } catch (error) {
       return rejectWithValue(
-        error.response?.data?.error || 
-        error.message ||
-        'Failed to update product'
+        error instanceof Error
+          ? error.message
+          : error instanceof ApiError
+          ? error.message
+          : 'Failed to update product'
       );
     }
   }
@@ -541,8 +584,9 @@ export const updateProductStatus = createAsyncThunk<
   'adminProducts/updateProductStatus',
   async ({ id, status }, { rejectWithValue, getState }) => {
     try {
-      const state = getState() as { adminProducts: AdminProductsState };
-      const product = state.adminProducts.products.find(p => p.id === id);
+      // Properly type the getState return value
+      const state = (getState() as { adminProducts: AdminProductsState }).adminProducts;
+      const product = state.products.find(p => p.id === id);
       
       if (!product) {
         return rejectWithValue('Product not found');
@@ -550,8 +594,9 @@ export const updateProductStatus = createAsyncThunk<
 
       const response = await api.patch<Product>(`/api/admin/products/${id}/status`, { status });
       
-      // Handle response properly
-      const data = (response as any)?.data || response;
+      // Handle response properly without using any
+      // Axios responses always have data in response.data
+      const data: Product = response.data;
       return data;
     } catch (error) {
       console.error('Update product status error:', error);
@@ -634,9 +679,9 @@ const adminProductsSlice = createSlice({
     },
     
     // Reset state
-    resetState: (state) => {
-      return initialState;
-    },
+    // resetState: (state) => {
+    //   return initialState;
+    // },
 
     // Update pagination
     updatePagination: (state, action: PayloadAction<Partial<Pagination>>) => {
@@ -862,7 +907,7 @@ export const {
   setSelectedProduct,
   clearSelectedProduct,
   clearError,
-  resetState,
+  // resetState,
   updatePagination,
   setGeneratedSku,
   clearGeneratedSku,

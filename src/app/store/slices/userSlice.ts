@@ -1,8 +1,9 @@
-// Updated userSlice.ts with debugging
+// Updated userSlice.ts with proper TypeScript types
 
 import api from '@/lib/api';
 import { User, UserState } from '@/types/users';
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { RootState } from '..';
 
 // Initial state
 export const initialState: UserState = {
@@ -12,25 +13,50 @@ export const initialState: UserState = {
   isAuthenticated: false,
 };
 
+interface ApiError {
+  response?: {
+    data?: {
+      error?: string;
+    };
+  };
+  message?: string;
+}
+
+interface UserApiResponse {
+  user: User;
+}
+
+// Type guard for API errors
+function isApiError(error: unknown): error is ApiError {
+  return typeof error === 'object' && error !== null;
+}
+
 // Async thunk for fetching user data
-export const fetchUser = createAsyncThunk(
+export const fetchUser = createAsyncThunk<
+  User,
+  void,
+  { rejectValue: string }
+>(
   'user/fetchUser',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get('/api/users', {
+      const response = await api.get<UserApiResponse>('/api/users', {
         headers: {
           'Content-Type': 'application/json',
         },
       });
       
       return response.data.user;
-    } catch (error: any) {
-      if (error.response) {
-        return rejectWithValue(error.response.data.error || 'Failed to fetch user');
+    } catch (error: unknown) {
+      if (isApiError(error)) {
+        return rejectWithValue(error.response?.data?.error || error.message || 'Failed to fetch user');
       }
-      return rejectWithValue(
-        error.message || 'An unexpected error occurred'
-      );
+    
+      if (error instanceof Error) {
+        return rejectWithValue(error.message);
+      }
+    
+      return rejectWithValue('An unexpected error occurred');
     }
   }
 );
@@ -73,7 +99,7 @@ const userSlice = createSlice({
         state.isLoading = false;
         state.user = null;
         state.isAuthenticated = false;
-        state.error = action.payload as string;
+        state.error = action.payload || 'Failed to fetch user';
       });
   },
 });
@@ -81,61 +107,152 @@ const userSlice = createSlice({
 // Export actions
 export const { clearUser, clearError, updateUser, setAuthenticated } = userSlice.actions;
 
-// Enhanced selectors with debugging
-export const selectUser = (state: any) => {
-  const user = state?.user?.user || null;
-  return user;
+// Properly typed selectors
+export const selectUser = (state: RootState): User | null => {
+  return state.user.user;
 };
 
-export const selectIsLoading = (state: any) => state?.user?.isLoading || false;
-export const selectError = (state: any) => state?.user?.error || null;
-export const selectIsAuthenticated = (state: any) => state?.user?.isAuthenticated || false;
+export const selectIsLoading = (state: RootState): boolean => {
+  return state.user.isLoading;
+};
 
-// Enhanced admin selector with debugging
-export const selectIsAdmin = (state: any) => {
-  const user = state?.user?.user;
+export const selectError = (state: RootState): string | null => {
+  return state.user.error;
+};
+
+export const selectIsAuthenticated = (state: RootState): boolean => {
+  return state.user.isAuthenticated;
+};
+
+// Enhanced admin selector with proper typing
+export const selectIsAdmin = (state: RootState): boolean => {
+  const user = state.user.user;
   
-  // Try multiple possible ways the role might be stored
   if (!user) return false;
   
-  // Check different possible role field names
-  if (user.role === 'ADMIN') return true;
-  if (user.role === 'admin') return true;
-  if (user.userType === 'ADMIN') return true;
-  if (user.userType === 'admin') return true;
-  if (user.type === 'ADMIN') return true;
-  if (user.type === 'admin') return true;
-  if (user.isAdmin === true) return true;
-  if (user.admin === true) return true;
+  // Check different possible role field names with proper type checking
+  if ('role' in user && typeof user.role === 'string') {
+    if (user.role === "ADMIN") return true;
+  }
+  
+  if ('userType' in user && typeof user.userType === 'string') {
+    if (user.userType === 'ADMIN' || user.userType === 'admin') return true;
+  }
+  
+  if ('type' in user && typeof user.type === 'string') {
+    if (user.type === 'ADMIN' || user.type === 'admin') return true;
+  }
+  
+  if ('isAdmin' in user && typeof user.isAdmin === 'boolean') {
+    if (user.isAdmin === true) return true;
+  }
+  
+  if ('admin' in user && typeof user.admin === 'boolean') {
+    if (user.admin === true) return true;
+  }
   
   // Check if permissions array includes admin
-  if (Array.isArray(user.permissions) && user.permissions.includes('ADMIN')) return true;
-  if (Array.isArray(user.roles) && user.roles.includes('ADMIN')) return true;
+  if ('permissions' in user && Array.isArray(user.permissions)) {
+    if (user.permissions.includes('ADMIN')) return true;
+  }
+  
+  if ('roles' in user && Array.isArray(user.roles)) {
+    if (user.roles.includes('ADMIN')) return true;
+  }
   
   return false;
 };
 
-// Helper selectors for user display
-export const selectUserDisplayName = (state: any) => {
-  const user = state?.user?.user;
+// Helper selectors for user display with proper typing
+export const selectUserDisplayName = (state: RootState): string => {
+  const user = state.user.user;
+  
   if (!user) return 'User';
-  if (user.firstName && user.lastName) {
-    return `${user.firstName} ${user.lastName}`;
+  
+  // Type-safe property access with proper fallbacks
+  const firstName = 'firstName' in user && typeof user.firstName === 'string' ? user.firstName : null;
+  const lastName = 'lastName' in user && typeof user.lastName === 'string' ? user.lastName : null;
+  const name = 'name' in user && typeof user.name === 'string' ? user.name : null;
+  const email = 'email' in user && typeof user.email === 'string' ? user.email : null;
+  
+  if (firstName && lastName) {
+    return `${firstName} ${lastName}`;
   }
-  if (user.name) return user.name; // Use name field if available
-  if (user.firstName) return user.firstName;
-  if (user.lastName) return user.lastName;
-  return user.email?.split('@')[0] || 'User';
+  
+  if (name) return name;
+  if (firstName) return firstName;
+  if (lastName) return lastName;
+  
+  if (email) {
+    return email.split('@')[0] || 'User';
+  }
+  
+  return 'User';
 };
 
-export const selectUserInitial = (state: any) => {
-  const user = state?.user?.user;
+export const selectUserInitial = (state: RootState): string => {
+  const user = state.user.user;
+  
   if (!user) return 'U';
-  if (user.initial) return user.initial; // Use provided initial
-  if (user.firstName) return user.firstName.charAt(0).toUpperCase();
-  if (user.name) return user.name.charAt(0).toUpperCase();
-  if (user.email) return user.email.charAt(0).toUpperCase();
+  
+  // Type-safe property access
+  if ('initial' in user && typeof user.initial === 'string') {
+    return user.initial;
+  }
+  
+  if ('firstName' in user && typeof user.firstName === 'string') {
+    return user.firstName.charAt(0).toUpperCase();
+  }
+  
+  if ('name' in user && typeof user.name === 'string') {
+    return user.name.charAt(0).toUpperCase();
+  }
+  
+  if ('email' in user && typeof user.email === 'string') {
+    return user.email.charAt(0).toUpperCase();
+  }
+  
   return 'U';
+};
+
+// Additional type-safe selectors
+export const selectUserEmail = (state: RootState): string | null => {
+  const user = state.user.user;
+  return user && 'email' in user && typeof user.email === 'string' ? user.email : null;
+};
+
+export const selectUserRole = (state: RootState): string | null => {
+  const user = state.user.user;
+  
+  if (!user) return null;
+  
+  if ('role' in user && typeof user.role === 'string') return user.role;
+  if ('userType' in user && typeof user.userType === 'string') return user.userType;
+  if ('type' in user && typeof user.type === 'string') return user.type;
+  
+  return null;
+};
+
+export const selectUserPermissions = (state: RootState): string[] => {
+  const user = state.user.user;
+  
+  if (!user) return [];
+  
+  if ('permissions' in user && Array.isArray(user.permissions)) {
+    // Ensure all items are strings
+    return user.permissions.filter((permission): permission is string => 
+      typeof permission === 'string'
+    );
+  }
+  
+  if ('roles' in user && Array.isArray(user.roles)) {
+    // Ensure all items are strings
+    return user.roles.filter((role): role is string => 
+      typeof role === 'string'
+    );
+  }
+  
+  return [];
 };
 
 export default userSlice.reducer;

@@ -2,7 +2,6 @@
 
 import { User, ThumbsUp } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
 import { StarRating } from "./StarRating";
 import { ReviewModal } from "./ReviewModal";
 import Image from "next/image";
@@ -15,7 +14,7 @@ import {
   selectPagination,
   selectLoading,
   selectErrors,
-  selectFilters,
+  // selectFilters,
 } from "@/app/store/slices/reviewSlice";
 import type {
   CustomerReviewsProps,
@@ -23,19 +22,20 @@ import type {
   Review,
   ReviewFormData,
 } from "@/types/reviews";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 
 export const CustomerReviews = ({
   productId,
   initialRating = 0,
   initialReviewCount = 0,
 }: CustomerReviewsProps) => {
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
 
   // Redux selectors
-  const reviews = useSelector(selectReviews);
-  const pagination = useSelector(selectPagination);
-  const loading = useSelector(selectLoading);
-  const errors = useSelector(selectErrors);
+  const reviews = useAppSelector(selectReviews);
+  const pagination = useAppSelector(selectPagination);
+  const loading = useAppSelector(selectLoading);
+  const errors = useAppSelector(selectErrors);
   // const filters = useSelector(selectFilters);
 
   // Local state
@@ -103,6 +103,7 @@ export const CustomerReviews = ({
   // Handle review submission
   const handleSubmitReview = async (reviewData: ReviewFormData) => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const result = await dispatch(
         createReview({
           ...reviewData,

@@ -124,6 +124,7 @@ export const deleteImage = async (publicId: string): Promise<{ result: string }>
 };
 
 // Default export
+// eslint-disable-next-line import/no-anonymous-default-export
 export default {
   CloudinaryUploader,
   initCloudinary,

@@ -1,17 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { walletService } from '@/lib/wallet'
-import prisma from '@/lib/prisma'
 import { AuthenticatedRequest, requireAuth } from '@/lib/auth'
 
 // app/api/wallet/verify/route.ts
-export async function POST(request: NextRequest) {
+export const POST = requireAuth(
+  async (
+    request: AuthenticatedRequest
+  ) => {
   try {
-    const authCheck = await requireAuth(request)
-    if(authCheck){
-      return authCheck
-    }
   
-    const user = (request as AuthenticatedRequest).user;
+    const user = request.user;
     
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -34,19 +32,19 @@ export async function POST(request: NextRequest) {
       data: result
     })
 
-  } catch (error: any) {
-    console.error('Deposit verification error:', error)
+  } catch (error: unknown) {
+    console.error('Deposit verification error:', error instanceof Error ? error.message : 'Unknown error')
     
     return NextResponse.json(
       { 
         success: false, 
         error: 'Failed to verify deposit',
-        message: error.message 
+        message: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     )
   }
-}
+})
 
 // export async function POST(request: NextRequest) {
 //   try {

@@ -14,10 +14,8 @@ import {
   MapPin, 
   CreditCard, 
   Package,
-  Download,
   ArrowLeft,
   Copy,
-  ExternalLink
 } from "lucide-react";
 import { PriceFormatter } from "@/components/reuse/FormatCurrency";
 import { AppDispatch } from "@/app/store";
@@ -27,29 +25,44 @@ import {
     selectLoading,
     selectError,
   } from "@/app/store/slices/orderSlice";
+import { CheckoutItem } from "@/types/checkout";
 
+// Update the interface to match Next.js 15's expectations
 interface OrderPageProps {
-  params: {
-    orderId: string;
-  };
+  params: Promise<{ orderId: string }>;
 }
 
 const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
   const [copied, setCopied] = useState(false);
+  const [resolvedParams, setResolvedParams] = useState<{ orderId: string } | null>(null);
+
+  // Resolve the params promise on component mount
+  useEffect(() => {
+    const resolveParams = async () => {
+      try {
+        const resolved = await params;
+        setResolvedParams(resolved);
+      } catch (error) {
+        console.error("Failed to resolve params:", error);
+      }
+    };
+    
+    resolveParams();
+  }, [params]);
 
   // Redux state
   const order = useSelector(selectCurrentOrder);
   const isLoading = useSelector(selectLoading);
   const error = useSelector(selectError);
 
-  // Fetch order on mount
+  // Fetch order when params are resolved
   useEffect(() => {
-    if (params.orderId) {
-      dispatch(fetchOrderById(params.orderId));
+    if (resolvedParams?.orderId) {
+      dispatch(fetchOrderById(resolvedParams.orderId));
     }
-  }, [dispatch, params.orderId]);
+  }, [dispatch, resolvedParams]);
 
   // Copy order ID to clipboard
   const copyOrderId = async () => {
@@ -58,12 +71,17 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
         await navigator.clipboard.writeText(order.id);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
-      } catch (err) {
-        console.error('Failed to copy order ID');
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          console.error("❌ Failed to copy order ID:", err.message);
+        } else {
+          console.error("❌ Failed to copy order ID:", err);
+        }
       }
     }
   };
 
+  // Rest of your component remains the same...
   // Get status configuration
   const getStatusConfig = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -164,7 +182,7 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
               Order Not Found
             </h3>
             <p className="text-gray-600 mb-8">
-              We couldn't find the order you're looking for. Please check the order ID and try again.
+              We couldn&apos;t find the order you&apos;re looking for. Please check the order ID and try again.
             </p>
             <div className="flex gap-4 justify-center">
               <button
@@ -204,22 +222,6 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
             <ArrowLeft className="w-5 h-5" />
             Back
           </button>
-          
-          <div className="flex gap-3">
-            {order.paymentMethod === 'bank_transfer' && order.status === 'pending' && (
-              <Link href={`/invoice/${order.id}`}>
-                <button className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors">
-                  <ExternalLink className="w-4 h-4" />
-                  View Invoice
-                </button>
-              </Link>
-            )}
-            
-            <button className="flex items-center gap-2 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors">
-              <Download className="w-4 h-4" />
-              Download Receipt
-            </button>
-          </div>
         </div>
 
         {/* Order Status Card */}
@@ -259,10 +261,10 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
           <div className="border-t border-gray-200 pt-4">
             <div className="flex items-center gap-4 text-sm text-gray-600">
               <span>Placed: {new Date(order.createdAt || '').toLocaleDateString()}</span>
-              {order.estimatedDelivery && (
+              {order.totalShipping && (
                 <>
                   <span>•</span>
-                  <span>Est. Delivery: {new Date(order.estimatedDelivery).toLocaleDateString()}</span>
+                  <span>Est. Delivery: {new Date(order.totalShipping).toLocaleDateString()}</span>
                 </>
               )}
             </div>
@@ -279,15 +281,15 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
               </h3>
               
               <div className="space-y-4">
-                {order.items?.map((item: any, index: number) => (
+                {order.items?.map((item: CheckoutItem, index: number) => (
                   <div key={index} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
                     <div className="w-16 h-16 bg-gray-200 rounded-lg flex-shrink-0">
-                      {item.image ? (
+                      {item.product?.images[0] ? (
                         <Image
-                          src={item.image}
+                          src={item.product?.images[0]}
                           width={64}
                           height={64}
-                          alt={item.name || item.title}
+                          alt={item.title || item.title}
                           className="w-full h-full object-cover rounded-lg"
                         />
                       ) : (
@@ -299,11 +301,11 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
                     
                     <div className="flex-1 min-w-0">
                       <h4 className="font-medium text-gray-900 truncate">
-                        {item.name || item.title}
+                        {item.title || item.title}
                       </h4>
                       <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
                         <span>Qty: {item.quantity}</span>
-                        {item.unit && <span>Unit: {item.unit}</span>}
+                        {item.selectedUnit && <span>Unit: {item.selectedUnit}</span>}
                         {item.weight && <span>Weight: {item.weight}</span>}
                       </div>
                     </div>
@@ -356,54 +358,29 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
               <div className="space-y-3">
                 <div className="flex justify-between text-gray-600">
                   <span>Subtotal</span>
-                  <PriceFormatter amount={order.subtotal || 0} showDecimals />
+                  <PriceFormatter amount={order.subtotalPrice || 0} showDecimals />
                 </div>
                 
                 <div className="flex justify-between text-gray-600">
                   <span>Delivery Fee</span>
-                  <PriceFormatter amount={order.deliveryFee || 0} showDecimals />
+                  <PriceFormatter amount={order.totalShipping || 0} showDecimals />
                 </div>
-                
-                {order.discountAmount && (
-                  <div className="flex justify-between text-green-600">
-                    <span>Discount</span>
-                    <span>-<PriceFormatter amount={order.discountAmount} showDecimals /></span>
-                  </div>
-                )}
                 
                 <div className="border-t border-gray-200 pt-3">
                   <div className="flex justify-between text-lg font-semibold text-gray-900">
                     <span>Total</span>
-                    <PriceFormatter amount={order.total || 0} showDecimals />
+                    <PriceFormatter amount={order.totalPrice || 0} showDecimals />
                   </div>
                 </div>
               </div>
 
-              {/* Payment Method */}
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <h4 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
-                  <CreditCard className="w-4 h-4" />
-                  Payment Method
-                </h4>
-                <p className="text-gray-600 capitalize">
-                  {order.paymentMethod?.replace('_', ' ') || 'Not specified'}
-                </p>
-                {order.paymentReference && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Ref: {order.paymentReference}
-                  </p>
-                )}
-              </div>
-
               {/* Action Buttons */}
               <div className="mt-6 space-y-3">
-                {order.paymentMethod === 'bank_transfer' && order.paymentStatus === 'pending' && (
-                  <Link href={`/invoice/${order.id}`}>
-                    <button className="w-full bg-orange-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-orange-700 transition-colors">
-                      Complete Payment
-                    </button>
-                  </Link>
-                )}
+                <Link href={`/invoice/${order.id}`}>
+                  <button className="w-full bg-orange-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-orange-700 transition-colors">
+                    View Invoice
+                  </button>
+                </Link>
                 
                 <Link href="/orders">
                   <button className="w-full bg-gray-200 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-300 transition-colors">

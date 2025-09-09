@@ -1,15 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { AuthenticatedRequest, requireAdmin, requireAuth } from '@/lib/auth'
+import { PaymentStatus } from '@prisma/client'
 
 // POST - Record a payment against an invoice
-export async function POST(request: NextRequest) {
-  try {
-          // First check admin status
-  const authCheck = await requireAuth(request);
-  if (authCheck) {
-    return authCheck; // Returns the error response if not admin
-  }
+export const POST = requireAdmin(
+  async (
+    request: AuthenticatedRequest,
+  ) => {
+    try {
 
     const user = (request as AuthenticatedRequest).user
     if (!user) {
@@ -123,7 +122,7 @@ export async function POST(request: NextRequest) {
             amount: parseFloat(amount),
             currency: 'NGN',
             netAmount: parseFloat(amount),
-            status: 'SUCCESS',
+            status: PaymentStatus.PAID,
             providerTransactionId: transactionId,
             customerDetails: {
               name: invoice.customerName,
@@ -221,18 +220,16 @@ export async function POST(request: NextRequest) {
       error: 'Internal server error' 
     }, { status: 500 })
   }
-}
+})
 
 // GET - Get payment history for an invoice
-export async function GET(request: NextRequest) {
+export const GET = requireAuth(
+  async (
+    request: AuthenticatedRequest,
+  ) => {
   try {
-          // First check admin status
-  const authCheck = await requireAuth(request);
-  if (authCheck) {
-    return authCheck; // Returns the error response if not admin
-  }
 
-    const user = (request as AuthenticatedRequest).user
+    const user = request.user
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -311,16 +308,15 @@ export async function GET(request: NextRequest) {
       error: 'Internal server error' 
     }, { status: 500 })
   }
-}
+})
 
 // PUT - Admin endpoint to verify/reject bank transfer payments
-export async function PUT(request: NextRequest) {
+export const PUT = requireAdmin(
+  async (
+    request: AuthenticatedRequest,
+  ) => {
   try {
-          // First check admin status
-  const authCheck = await requireAdmin(request);
-  if (authCheck) {
-    return authCheck; // Returns the error response if not admin
-  }
+
     const user = (request as AuthenticatedRequest).user
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -436,4 +432,4 @@ export async function PUT(request: NextRequest) {
       error: 'Internal server error' 
     }, { status: 500 })
   }
-}
+})

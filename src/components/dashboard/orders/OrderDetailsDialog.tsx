@@ -11,7 +11,7 @@ import { PriceFormatter } from '@/components/reuse/FormatCurrency';
 import {
   selectCurrentOrder,
   selectActionLoading,
-  updateOrderStatus,
+  // updateOrderStatus,
   clearCurrentOrder
 } from '@/app/store/slices/adminOrderSlice';
 import { Address } from '@/types';

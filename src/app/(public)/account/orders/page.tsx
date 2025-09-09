@@ -11,8 +11,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Eye,
-  Download,
   Package,
   Truck,
   CheckCircle,
@@ -181,9 +179,9 @@ export default function OrdersPage() {
 
   console.log("DEBUG - Rendering orders list, count:", orders.length);
 
-  const handleDownloadInvoice = (orderId: string) => {
-    console.log(`Downloading invoice for order ${orderId}`);
-  };
+  // const handleDownloadInvoice = (orderId: string) => {
+  //   console.log(`Downloading invoice for order ${orderId}`);
+  // };
 
   const getStatusConfig = (status: string) => {
     const normalizedStatus = status?.toLowerCase() || "pending";

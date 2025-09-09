@@ -2,8 +2,8 @@ import { Product, UnitPrice } from "./products";
 
 export interface CartItem {
   id: string;
-  guestId?: string;
-  userId: string;
+  guestId?: string | null;
+  userId: string | null;
   product: Product;
   fixedPrice?: number;
   selectedUnit?: string;
@@ -27,7 +27,7 @@ export interface CartItemWithProduct extends CartItem {
 export interface CartResponse {
   success: boolean;
   data: {
-    items: any[];
+    items: CartItem[];
     subtotal: number;
     itemCount: number;
     isAuthenticated: boolean;
@@ -61,6 +61,8 @@ export interface CartSidebarProps {
   onUpdateQuantity: (itemId: string, newQuantity: number) => void;
   onRemoveItem: (itemId: string) => void;
 }
+
+
 
 
 

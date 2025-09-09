@@ -4,53 +4,54 @@ import { ProductStatus } from "@prisma/client";
 import { Filters } from ".";
 import { Category } from "./categories";
 
-export interface UnitPrice {
-  unit: string;
-  price: number;
-}
 export type PriceType = "FIXED" | "VARIABLE";
+  export interface UnitPrice {
+    unit: string;
+    price: number;
+  }
 
-export interface Product {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  hasFixedPrice: boolean;
-  priceType: PriceType;
-  fixedPrice: number;
-  unitPrices: UnitPrice[] | null;
-  price?: number;
-  sku: string;
-  quantity: number;
-  categoryId: string | null;
-  category?: {
+  export interface Product {
     id: string;
     name: string;
     slug: string;
-  } | null;
-  status: ProductStatus;
-  isFeatured: boolean;
-  isFruit?: boolean;
-  isVegetable?: boolean;
-  isTrending: boolean;
-  isDealOfTheDay: boolean;
-  isBestSelling: boolean;
-  isNewArrival: boolean;
-  rating: number | null;
-  averageRating?: number;
-  salesCount?: number;
-  reviewCount?: number;
-  reviews: Review[];
-  displayPrice?: number;
-  priceRange?: {
-    min: number;
-    max: number;
-  } | null;
-  images: string[];
-  weight: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
+    description: string | null;
+    hasFixedPrice: boolean;
+    priceType: PriceType;
+    fixedPrice: number;
+    unitPrices: UnitPrice[] | null;
+    price?: number;
+    sku: string;
+    quantity: number;
+    categoryId: string | null;
+    category?: {
+      id: string;
+      name: string;
+      slug: string;
+    } | null;
+    status: ProductStatus;
+    isFeatured: boolean;
+    isFruit?: boolean;
+    isVegetable?: boolean;
+    isTrending: boolean;
+    isDealOfTheDay: boolean;
+    isBestSelling: boolean;
+    isNewArrival: boolean;
+    rating: number | null;
+    averageRating?: number;
+    salesCount?: number;
+    reviewCount?: number;
+    reviews: Review[];
+    displayPrice?: number;
+    priceRange?: {
+      min: number;
+      max: number;
+    } | null;
+    images: string[];
+    newImageFiles: string[];
+    weight: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
 
 export interface NewProduct {
   name: string;
@@ -111,19 +112,33 @@ export interface ProductState {
 }
 
 
+export interface FilterParams {
+  search: string;
+  category: string | null;
+  sortBy: string;
+  sortOrder: string;
+  page: number;
+  [key: string]: string | number | boolean | null | undefined;
+}
+
+
 
 export interface ProductCardProps {
   id?: string;
   name: string;
-  hasFixedPrice: boolean;
-  fixedPrice: number;
+  hasFixedPrice?: boolean;
+  fixedPrice?: number;
+  price?: number;
   slug: string;
-  unitPrices?: UnitPrice[];
+  unit?: string;
+  category: string;
+  description: string;
+  unitPrices?: UnitPrice[]| null;
   images?: string[];
   rating?: number;
-  viewMode: "grid" | "list";
-  onRemove: () => void;
-  isRemoving: boolean;
+  viewMode?: "grid" | "list";
+  onRemove?: () => void;
+  isRemoving?: boolean;
 }
 
 export interface ProductWithDetails extends Product {
@@ -330,12 +345,7 @@ export type ProductFormState = {
   createdAt: string;
 };
 
-export interface ProductImage {
-  file?: File;
-  previewUrl?: string;
-  url?: string;
-  isNew?: boolean;
-}
+
 
 export interface ProductViewDialogProps {
   product: Product;
@@ -377,21 +387,28 @@ export const productToFormState = (product?: Product): ProductFormState => {
   return baseForm;
 };
 
-export function formStateToApiData(formData: ProductFormState): any {
+export interface ProductImage {
+  file?: File;
+  previewUrl?: string;
+  url?: string;
+  isNew?: boolean;
+}
+
+export function formStateToApiData(formData: ProductFormState): Product {
   console.log("🔧 Converting form state to API data");
   console.log("🔧 Form images:", formData.images);
 
-  const data: any = {
+  const data: Product = {
     name: formData.name,
     description: formData.description,
     hasFixedPrice: formData.hasFixedPrice,
-    priceType: formData.priceType,
+    priceType: formData.priceType as Product["priceType"],
     sku: formData.sku,
-    status: formData.status.toUpperCase(),
+    status: formData.status as Product["status"],
     isFeatured: formData.isFeatured,
     isTrending: formData.isTrending,
-    isFruit: formData.isFruit, // FIXED: Use correct property
-    isVegetable: formData.isVegetable, // FIXED: Use correct property
+    isFruit: formData.isFruit,
+    isVegetable: formData.isVegetable,
     isDealOfTheDay: formData.isDealOfTheDay,
     isNewArrival: formData.isNewArrival,
     slug: formData.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
@@ -426,15 +443,7 @@ export function formStateToApiData(formData: ProductFormState): any {
     const processedImages = [];
     const newFiles = [];
 
-    formData.images.forEach((image, index) => {
-      console.log(`🔧 Processing image ${index}:`, {
-        type: typeof image,
-        isFile: image instanceof File,
-        hasFile: image?.file instanceof File,
-        hasPreviewUrl: !!image?.previewUrl,
-        isString: typeof image === "string",
-        hasUrl: !!image?.url,
-      });
+    formData.images.forEach((image) => {
 
       // Handle different image formats
       if (image instanceof File) {
@@ -455,7 +464,7 @@ export function formStateToApiData(formData: ProductFormState): any {
     });
 
     // Return URLs for existing images, files will be handled separately
-    data.images = processedImages;
+    data.images = (processedImages);
     data.newImageFiles = newFiles;
 
     console.log("🔧 Final API data:", {

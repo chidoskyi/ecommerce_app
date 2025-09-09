@@ -1,11 +1,10 @@
-// pages/OrderListPage.tsx - Fixed Redux Connected
+// pages/OrderListPage.tsx - Mobile Responsive Version
 "use client";
 
 import React, { useEffect, useCallback, useMemo } from "react";
-import { useSelector, useDispatch } from 'react-redux';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "react-toastify";
-import { Order, OrderStatus } from "@/types/orders";
+import { Order, OrderStatus, OrderFilters as OrderFiltersType } from "@/types/orders";
 import { OrderDetailsDialog } from "@/components/dashboard/orders/OrderDetailsDialog";
 import { OrderTable } from "@/components/dashboard/orders/OrderTable";
 import { OrderFilters } from "@/components/dashboard/orders/OrderFilters";
@@ -27,18 +26,19 @@ import {
   bulkUpdateOrderStatus,
 } from '@/app/store/slices/adminOrderSlice';
 import { PriceFormatter } from "@/components/reuse/FormatCurrency";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 
 export const OrdersList: React.FC = () => {
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   
   // Redux selectors
-  const orders = useSelector(selectOrders);
-  const currentOrder = useSelector(selectCurrentOrder);
-  const loading = useSelector(selectOrdersLoading);
-  const error = useSelector(selectOrdersError);
-  const filters = useSelector(selectOrdersFilters);
-  const pagination = useSelector(selectOrdersPagination);
-  const stats = useSelector(selectOrdersStats);
+  const orders = useAppSelector(selectOrders);
+  const currentOrder = useAppSelector(selectCurrentOrder);
+  const loading = useAppSelector(selectOrdersLoading);
+  const error = useAppSelector(selectOrdersError);
+  const filters = useAppSelector(selectOrdersFilters);
+  const pagination = useAppSelector(selectOrdersPagination);
+  const stats = useAppSelector(selectOrdersStats);
 
   // Local state for UI interactions
   const [selectedOrders, setSelectedOrders] = React.useState<string[]>([]);
@@ -66,6 +66,7 @@ export const OrdersList: React.FC = () => {
       search: filters.searchQuery,
       status: filters.statusFilter !== "all" ? filters.statusFilter : undefined,
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     filters.page,
     filters.limit,
@@ -77,7 +78,7 @@ export const OrdersList: React.FC = () => {
 
   // Fetch orders on component mount and when filters change
   useEffect(() => {
-    dispatch<any>(fetchOrders(apiFilters));
+    dispatch(fetchOrders(apiFilters));
   }, [dispatch, apiFilters]);
 
   // Handle errors with toast notifications
@@ -167,85 +168,119 @@ export const OrdersList: React.FC = () => {
   }, [dispatch]);
 
   // Handle filters change
-  const handleFiltersChange = useCallback((newFilters: any): void => {
-    // Convert Date objects to ISO strings for Redux state
-    const serializedFilters = {
-      ...newFilters,
-      dateRange: newFilters.dateRange ? {
-        from: newFilters.dateRange.from 
-          ? (newFilters.dateRange.from instanceof Date 
-             ? newFilters.dateRange.from.toISOString() 
-             : newFilters.dateRange.from)
-          : null,
-        to: newFilters.dateRange.to 
-          ? (newFilters.dateRange.to instanceof Date 
-             ? newFilters.dateRange.to.toISOString() 
-             : newFilters.dateRange.to)
-          : null,
-      } : null
+  const handleFiltersChange = useCallback((newFilters: Partial<OrderFiltersType>): void => {
+    // Convert UI filters to the format expected by Redux
+    const serializedFilters: Partial<OrderFiltersType> = {
+      // Map searchQuery to search
+      search: newFilters.searchQuery,
+      
+      // Map statusFilter to status (convert "all" to undefined)
+      status: newFilters.statusFilter === 'all' ? undefined : newFilters.statusFilter,
+      
+      // Map dateRange to startDate/endDate (convert Date objects to ISO strings)
+      startDate: newFilters.dateRange?.from 
+        ? (newFilters.dateRange.from instanceof Date 
+           ? newFilters.dateRange.from.toISOString() 
+           : typeof newFilters.dateRange.from === 'string'
+           ? newFilters.dateRange.from
+           : undefined)
+        : undefined,
+      
+      endDate: newFilters.dateRange?.to 
+        ? (newFilters.dateRange.to instanceof Date 
+           ? newFilters.dateRange.to.toISOString() 
+           : typeof newFilters.dateRange.to === 'string'
+           ? newFilters.dateRange.to
+           : undefined)
+        : undefined,
+      
+      // Preserve existing pagination if needed, or reset to page 1
+      page: 1, // Typically you want to reset to page 1 when filters change
     };
     
-    dispatch(setFilters(serializedFilters));
+    // Remove undefined values to avoid overwriting existing filters
+    const cleanedFilters = Object.fromEntries(
+      Object.entries(serializedFilters).filter(([value]) => value !== undefined)
+    ) as Partial<OrderFiltersType>;
+    
+    dispatch(setFilters(cleanedFilters));
   }, [dispatch]);
 
   // Memoize props to prevent unnecessary re-renders
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const memoizedSortConfig = useMemo(() => sortConfig, [sortConfig.key, sortConfig.direction]);
   const memoizedSelectedOrders = useMemo(() => selectedOrders, [selectedOrders]);
 
   return (
-    <div className="">
-      <div className="flex flex-col space-y-6">
+    <div className="p-3 sm:p-6">
+      <div className="flex flex-col space-y-4 sm:space-y-6">
+        {/* Header */}
         <div className="flex flex-col space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">Order Management</h1>
-          <p className="text-muted-foreground">View and manage customer orders</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Order Management</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">View and manage customer orders</p>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+                Total Orders
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+              <div className="text-xl sm:text-2xl font-bold">{stats.total}</div>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
+          
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+                Pending
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+              <div className="text-xl sm:text-2xl font-bold text-yellow-600">{stats.pending}</div>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Completed</CardTitle>
+          
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+                Completed
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.confirmed}</div>
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+              <div className="text-xl sm:text-2xl font-bold text-blue-600">{stats.confirmed}</div>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
+          
+          <Card className="shadow-sm col-span-2 lg:col-span-1">
+            <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+                Total Revenue
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+              <div className="text-xl sm:text-2xl font-bold text-green-600">
                 <PriceFormatter amount={stats.totalRevenue} />
               </div>
             </CardContent>
           </Card>
         </div>
 
+        {/* Orders Table Section */}
         <div className="flex flex-col space-y-4">
           <Card className="shadow-md border-gray-300">
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
               <div className="flex items-center justify-between">
-                <CardTitle>Orders</CardTitle>
+                <CardTitle className="text-lg sm:text-xl">Orders</CardTitle>
               </div>
-              <CardDescription>View and manage all customer orders</CardDescription>
+              <CardDescription className="text-sm">
+                View and manage all customer orders
+              </CardDescription>
               
+              {/* Filters Section - Mobile Optimized */}
               <div className="pt-4">
                 <OrderFilters
                   selectedOrdersCount={selectedOrders.length}
@@ -256,27 +291,32 @@ export const OrdersList: React.FC = () => {
               </div>
             </CardHeader>
             
-            <CardContent>
-              <OrderTable
-                filteredOrders={filteredOrders}
-                loading={loading}
-                selectedOrders={memoizedSelectedOrders}
-                sortConfig={memoizedSortConfig}
-                onSort={handleSort}
-                onSelectOrder={handleSelectOrder}
-                onSelectAllOrders={handleSelectAllOrders}
-                onStatusChange={handleStatusChange}
-                onViewDetails={handleViewDetails}
-              />
+            <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+              {/* Orders Table */}
+              <div className="overflow-hidden">
+                <OrderTable
+                  filteredOrders={filteredOrders}
+                  loading={loading}
+                  selectedOrders={memoizedSelectedOrders}
+                  sortConfig={memoizedSortConfig}
+                  onSort={handleSort}
+                  onSelectOrder={handleSelectOrder}
+                  onSelectAllOrders={handleSelectAllOrders}
+                  onStatusChange={handleStatusChange}
+                  onViewDetails={handleViewDetails}
+                />
+              </div>
               
               {/* Pagination */}
               {pagination && pagination.pages > 1 && (
-                <div className="mt-4 flex justify-center">
-                  <CategoryPagination
-                    currentPage={pagination.page}
-                    totalPages={pagination.pages}
-                    onPageChange={handlePageChange}
-                  />
+                <div className="mt-4 sm:mt-6 flex justify-center">
+                  <div className="w-full sm:w-auto">
+                    <CategoryPagination
+                      currentPage={pagination.page}
+                      totalPages={pagination.pages}
+                      onPageChange={handlePageChange}
+                    />
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -284,6 +324,7 @@ export const OrdersList: React.FC = () => {
         </div>
       </div>
 
+      {/* Order Details Dialog */}
       <OrderDetailsDialog
         order={currentOrder}
         isOpen={isOrderDetailsOpen}

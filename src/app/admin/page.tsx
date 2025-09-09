@@ -1,63 +1,123 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DollarSign, Package, ShoppingCart, Loader2 } from "lucide-react";
+import {
+  DollarSign,
+  Package,
+  ShoppingCart,
+  Loader2,
+  LucideIcon,
+} from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { RecentProductsTable } from "@/components/dashboard/RecentOrdersTable";
 import api from "@/lib/api";
+import { Order } from "@/types/orders";
+
+export interface Metric {
+  title: string;
+  value: string;
+  change?: string;
+  link?: string;
+  href?: string;
+  isPositive?: boolean;
+  icon?: LucideIcon;
+  lastUpdated?: Date;
+}
+
+export interface DashboardMetadata {
+  period: string;
+  revenueComparison: string;
+  ordersComparison: string;
+}
+
+export interface DashboardResponse {
+  metrics: Metric[];
+  orders: Order[];
+  lastUpdated?: string;
+  metadata?: DashboardMetadata;
+}
+
+export interface DashboardData {
+  metrics: Metric[];
+  orders: Order[];
+  lastUpdated?: Date;
+  metadata?: DashboardMetadata;
+}
+
+export interface ApiError {
+  response?: {
+    status: number;
+    data?: {
+      message: string;
+    };
+  };
+  message: string;
+}
 
 export default function Dashboard() {
-  const [dashboardData, setDashboardData] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(
+    null
+  );
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   // Fetch dashboard data from API
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const fetchDashboardData = async (): Promise<void> => {
       try {
         setIsLoading(true);
 
-        const response = await api.get("/api/admin/dashboard/metrics", {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          withCredentials: true, // Include cookies for authentication
-        });
-
-        // Axios response.data contains the JSON response
-        const data: dashboardData = response.data;
-
-        // Add icons to metrics
-        const metricsWithIcons = data.metrics.map((metric) => {
-          let icon;
-          switch (metric.title) {
-            case "Total Revenue":
-              icon = DollarSign;
-              break;
-            case "Total Order":
-              icon = ShoppingCart;
-              break;
-            case "Total Products":
-              icon = Package;
-              break;
-            default:
-              icon = DollarSign;
+        const response = await api.get<DashboardResponse>(
+          "/api/admin/dashboard/metrics",
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            withCredentials: true,
           }
-          return { ...metric, icon };
-        });
+        );
 
-        setDashboardData({
+        const data: DashboardResponse = response.data;
+
+        const metricsWithIcons: Metric[] = data.metrics.map(
+          (metric: Metric) => {
+            let icon: LucideIcon;
+            switch (metric.title) {
+              case "Total Revenue":
+                icon = DollarSign;
+                break;
+              case "Total Order":
+                icon = ShoppingCart;
+                break;
+              case "Total Products":
+                icon = Package;
+                break;
+              default:
+                icon = DollarSign;
+            }
+            return { ...metric, icon };
+          }
+        );
+
+        const transformedData: DashboardData = {
           ...data,
           metrics: metricsWithIcons,
-        });
-      } catch (error: any) {
-        console.error("Error fetching dashboard data:", error);
+          lastUpdated: data.lastUpdated
+            ? new Date(data.lastUpdated)
+            : undefined,
+        };
+
+        setDashboardData(transformedData);
+      } catch (err: unknown) {
+        console.error("Error fetching dashboard data:", err);
+        const error = err as ApiError;
+
         if (error.response?.status === 401) {
-          // Redirect to login if unauthorized
           router.push("/admin/login");
           return;
         }
+
         setError(
           error.response?.data?.message ||
             error.message ||
@@ -71,26 +131,13 @@ export default function Dashboard() {
     fetchDashboardData();
   }, [router]);
 
-  // Handle metric click navigation
-  const handleMetricClick = (metric: any) => {
+  const handleMetricClick = (metric: Metric): void => {
     if (metric.href) {
       router.push(metric.href);
     }
-
-    // Track analytics
     console.log(`Metric clicked: ${metric.title}`);
-
-    // Additional specific actions based on metric type
-    if (metric.title === "Total Revenue") {
-      trackRevenueClick();
-    }
   };
 
-  const trackRevenueClick = () => {
-    console.log("Revenue metric interaction tracked");
-  };
-
-  // Loading state
   if (isLoading) {
     return (
       <div className="p-0 md:p-6">
@@ -104,7 +151,6 @@ export default function Dashboard() {
     );
   }
 
-  // Error state
   if (error) {
     return (
       <div className="p-0 md:p-6">
@@ -126,7 +172,6 @@ export default function Dashboard() {
     );
   }
 
-  // No data state
   if (!dashboardData) {
     return (
       <div className="p-0 md:p-6">
@@ -149,14 +194,13 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
         {dashboardData.lastUpdated && (
           <p className="text-sm text-gray-500">
-            Last updated: {new Date(dashboardData.lastUpdated).toLocaleString()}
+            Last updated: {dashboardData.lastUpdated.toLocaleString()}
           </p>
         )}
       </div>
 
-      {/* Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-        {metrics.map((metric: any, index: number) => (
+        {metrics.map((metric: Metric, index: number) => (
           <div
             key={index}
             onClick={() => handleMetricClick(metric)}
@@ -165,17 +209,16 @@ export default function Dashboard() {
             <MetricCard
               title={metric.title}
               value={metric.value}
-              change={metric.change}
-              link={metric.link}
-              href={metric.href}
-              isPositive={metric.isPositive}
-              icon={metric.icon}
+              change={metric.change || ""}
+              link={metric.link || ""}
+              href={metric.href || ""}
+              isPositive={metric.isPositive || false}
+              icon={metric.icon ? metric.icon.name : undefined} // Adjust based on what MetricCard expects
             />
           </div>
         ))}
       </div>
 
-      {/* Recent Products Table */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <h1 className="text-2xl font-bold mb-6">Recent Orders</h1>
         <div className="lg:col-span-2 bg-white rounded-lg shadow">
@@ -183,13 +226,12 @@ export default function Dashboard() {
             <RecentProductsTable orders={orders} />
           ) : (
             <div className="p-6 text-center text-gray-500">
-              No recent products found
+              No recent orders found
             </div>
           )}
         </div>
       </div>
 
-      {/* Optional: Show comparison metadata */}
       {dashboardData.metadata && (
         <div className="mt-8 p-4 bg-gray-50 rounded-lg">
           <h3 className="text-sm font-medium text-gray-700 mb-2">

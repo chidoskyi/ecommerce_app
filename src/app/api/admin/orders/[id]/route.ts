@@ -1,42 +1,33 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { AuthenticatedRequest, requireAdmin, requireAuth } from "@/lib/auth";
+import { type AuthenticatedRequest, requireAdminDynamic, requireAuthDynamic, RouteContext } from "@/lib/auth";
+import { Prisma } from "@prisma/client";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    // Authentication check
-    const authResult = await requireAuth(request);
-    if (authResult instanceof NextResponse) {
-      return authResult;
-    }
-
-    const user = (request as AuthenticatedRequest).user;
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const { id } = await params;
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: "Order ID is required" },
-        { status: 400 }
-      );
-    }
+// =============================================================================
+// GET - Retrieve a specific order (Admins see all, Users see only their own)
+// =============================================================================
+export const GET = requireAuthDynamic(
+  async (
+    request: AuthenticatedRequest,
+    ctx: RouteContext
+  ) => {
+    try {
+      const user = request.user;
+      const params = await ctx.params; // Await the params promise first
+      const { id } = params; // Then destructure
 
     // Check if user is admin
-    const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
+    const isAdmin = user.role === "ADMIN" || user.role === "MODERATOR";
 
     // Build where clause based on user role
-    const whereClause: any = { id };
+    const whereClause: Prisma.OrderWhereInput = { id };
+
     if (!isAdmin) {
       // Non-admin users can only access their own orders
-      whereClause.OR = [{ userId: user.id }, { clerkId: user.clerkId }];
+      whereClause.OR = [
+        { userId: user.id },
+        { clerkId: user.clerkId }
+      ];
     }
 
     // Fetch order with all required relations
@@ -137,34 +128,26 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
-// PUT - Update order status (admin only for most fields)
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    // First check admin status
-    const adminCheck = await requireAdmin(request);
-    if (adminCheck) {
-      return adminCheck; // Returns the error response if not admin
-    }
+// =============================================================================
+// PUT - Update order status (Admin only - ADMIN and MODERATOR roles)
+// =============================================================================
+export const PUT = requireAdminDynamic(
+  async (
+    request: AuthenticatedRequest,
+    ctx: RouteContext
+  ) => {
+    try {
+      const admin = request.user;
+      const params = await ctx.params; // Await the params promise first
+      const { id } = params; // Then destructure
 
-    const user = (request as AuthenticatedRequest).user;
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { id } = await params;
     const {
       status,
       paymentStatus,
       notes,
-      trackingNumber,
-      paymentProof,
       shippingAddress,
-      billingAddress,
     } = await request.json();
 
     // Find the order (admin can access any order)
@@ -173,31 +156,39 @@ export async function PUT(
     });
 
     if (!existingOrder) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      return NextResponse.json({ 
+        success: false,
+        error: "Order not found" 
+      }, { status: 404 });
     }
 
     // Build update data - admin can update anything
-    const updateData: any = {};
+    const updateData: Prisma.OrderUpdateInput = {};
 
     if (status !== undefined) updateData.status = status;
     if (paymentStatus !== undefined) updateData.paymentStatus = paymentStatus;
     if (notes !== undefined) updateData.notes = notes;
-    if (trackingNumber !== undefined)
-      updateData.trackingNumber = trackingNumber;
-    if (paymentProof !== undefined) updateData.paymentProof = paymentProof;
-    if (shippingAddress !== undefined)
-      updateData.shippingAddress = shippingAddress;
-    if (billingAddress !== undefined)
-      updateData.billingAddress = billingAddress;
-
+    if (shippingAddress !== undefined) updateData.shippingAddress = shippingAddress;
+    
     // Add timestamps based on status changes
     if (status) {
       switch (status) {
         case "PROCESSING":
+        case "CONFIRMED":
           updateData.processedAt = new Date();
+          // Auto-mark as paid when confirming/processing the order if not already paid
+          if (existingOrder.paymentStatus !== "PAID") {
+            updateData.paymentStatus = "PAID";
+            updateData.paidAt = new Date();
+          }
           break;
         case "SHIPPED":
           updateData.shippedAt = new Date();
+          // Ensure payment is marked as paid when shipping
+          if (existingOrder.paymentStatus !== "PAID") {
+            updateData.paymentStatus = "PAID";
+            updateData.paidAt = new Date();
+          }
           break;
         case "DELIVERED":
           updateData.deliveredAt = new Date();
@@ -207,7 +198,7 @@ export async function PUT(
           break;
       }
     }
-
+    
     // Add payment timestamps
     if (paymentStatus === "PAID") {
       updateData.paidAt = new Date();
@@ -217,6 +208,7 @@ export async function PUT(
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
         {
+          success: false,
           error: "No updates provided",
         },
         { status: 400 }
@@ -304,40 +296,32 @@ export async function PUT(
       success: true,
       data: transformedOrder,
       message: "Order updated successfully",
+      modifiedBy: admin.email // Include who made the change
     });
   } catch (error) {
     console.error("Update order error:", error);
     return NextResponse.json(
       {
+        success: false,
         error: "Internal server error",
       },
       { status: 500 }
     );
   }
-}
+});
 
-// DELETE - Cancel/Delete order (admin only)
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const adminCheck = await requireAdmin(request);
-    if (adminCheck) {
-      return adminCheck; // Returns the error response if not admin
-    }
-    const user = (request as AuthenticatedRequest).user;
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { id } = await params;
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: "Order ID is required" },
-        { status: 400 }
-      );
-    }
+// =============================================================================
+// DELETE - Cancel order (Admin only)
+// =============================================================================
+export const DELETE = requireAdminDynamic(
+  async (
+    request: AuthenticatedRequest,
+    ctx: RouteContext
+  ) => {
+    try {
+      const admin = request.user;
+      const params = await ctx.params; // Await the params promise first
+      const { id } = params; // Then destructure
 
     // Check if order exists
     const existingOrder = await prisma.order.findUnique({
@@ -361,6 +345,7 @@ export async function DELETE(
         {
           success: false,
           error: "Cannot cancel order that has been shipped or delivered",
+          currentStatus: existingOrder.status
         },
         { status: 400 }
       );
@@ -372,11 +357,10 @@ export async function DELETE(
       data: {
         status: "CANCELLED",
         cancelledAt: new Date(),
+        // cancelledBy: admin.id, // Track who cancelled it
         notes: existingOrder.notes
-          ? `${
-              existingOrder.notes
-            }\n\nOrder cancelled by admin on ${new Date().toISOString()}`
-          : `Order cancelled by admin on ${new Date().toISOString()}`,
+          ? `${existingOrder.notes}\n\nOrder cancelled by admin (${admin.email}) on ${new Date().toISOString()}`
+          : `Order cancelled by admin (${admin.email}) on ${new Date().toISOString()}`,
       },
       include: {
         items: {
@@ -402,6 +386,7 @@ export async function DELETE(
       success: true,
       data: cancelledOrder,
       message: "Order cancelled successfully",
+      cancelledBy: admin.email // Include who cancelled it
     });
   } catch (error) {
     console.error("Cancel order error:", error);
@@ -413,4 +398,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

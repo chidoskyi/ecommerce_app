@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { ProductCardProps } from "../../types";
-import { Heart, Minus, ShoppingCart } from "lucide-react";
+import { ProductCardProps } from "@/types/products";
+import { Heart, ShoppingCart } from "lucide-react";
 import React, { useState } from "react";
 import Link from "next/link";
 import { PriceFormatter } from "./FormatCurrency";
@@ -15,10 +15,8 @@ export default function CategoryProductCard({
   name,
   price,
   slug,
-  originalPrice = undefined,
   image,
   rating = undefined,
-  inStock = true,
   unit = undefined,
 }: ProductCardProps) {
   const [isHovered, setIsHovered] = useState(false);
@@ -28,9 +26,9 @@ export default function CategoryProductCard({
   const productSlug = slug || `${slugify(name)}-${id}`;
 
   // Helper function to safely handle null/undefined values
-  const hasValue = (value?: number | null): value is number => {
-    return value !== null && value !== undefined;
-  };
+  // const hasValue = (value?: number | null): value is number => {
+  //   return value !== null && value !== undefined;
+  // };
 
   // Handle click on card (excluding buttons)
   const handleCardClick = (e: React.MouseEvent) => {

@@ -1,18 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { requireAuth, AuthenticatedRequest } from "@/lib/auth";
-import { Address } from '@/types';
+import { requireAuth, type AuthenticatedRequest } from "@/lib/auth";
+import { AddressType } from '@prisma/client';
 
-export const GET = requireAuth(async (request: NextRequest) => {
+interface AddressUpdateData {
+  type?: AddressType;
+  firstName?: string;
+  lastName?: string;
+  address?: string;
+  state?: string;
+  city?: string;
+  country?: string;
+  zip?: string;
+  phone?: string | null;
+  isDefault?: boolean;
+}
+
+export const GET = requireAuth(async (request: AuthenticatedRequest) => {
   try {
-       // Get user from the authenticated request
-    const user = (request as any).user;
-    const token = (request as any).token;
-
-    console.log(`🛍️ GET wishlist for user: ${user.id} (has token: ${!!token})`);
+    // Get user from the authenticated request
+    const user = request.user;
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const addresses = await prisma.address.findMany({
@@ -21,21 +31,23 @@ export const GET = requireAuth(async (request: NextRequest) => {
         { isDefault: 'desc' },
         { createdAt: 'desc' }
       ]
-    })
+    });
 
-    return NextResponse.json(addresses)
+    return NextResponse.json(addresses);
   } catch (error) {
-    console.error('Get addresses error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Get addresses error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' }, 
+      { status: 500 }
+    );
   }
-})
+});
 
 export const POST = requireAuth(async (request: NextRequest) => {
   try {
      // Get user from the authenticated request
     const user = (request as AuthenticatedRequest).user;
 
-    console.log(`🛍️ GET wishlist for user: ${user.id} (has token: ${!!token})`);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -95,10 +107,8 @@ export const POST = requireAuth(async (request: NextRequest) => {
 export const PUT = requireAuth(async (request: NextRequest) => {
   try {
            // Get user from the authenticated request
-    const user = (request as any).user;
-    const token = (request as any).token;
+    const user = (request as AuthenticatedRequest).user;
 
-    console.log(`🛍️ GET wishlist for user: ${user.id} (has token: ${!!token})`);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -134,7 +144,7 @@ export const PUT = requireAuth(async (request: NextRequest) => {
     }
 
     // Prepare update data (only include provided fields)
-    const updateData = {}
+    const updateData: AddressUpdateData = {};
     if (type) updateData.type = type
     if (firstName) updateData.firstName = firstName
     if (lastName) updateData.lastName = lastName
@@ -160,10 +170,8 @@ export const PUT = requireAuth(async (request: NextRequest) => {
 
 export const DELETE = requireAuth(async (request: NextRequest) => {
   try {
-    const user = (request as any).user;
-    const token = (request as any).token;
+    const user = (request as AuthenticatedRequest).user;
 
-    console.log(`🛍️ GET wishlist for user: ${user.id} (has token: ${!!token})`);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

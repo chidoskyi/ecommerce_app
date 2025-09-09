@@ -1,28 +1,28 @@
 // app/api/dashboard/metrics/route.js
 import { NextResponse, NextRequest } from 'next/server'
-import { requireAdmin } from '@/lib/auth'
+import { AuthenticatedRequest, requireAdmin } from '@/lib/auth'
 import prisma from '@/lib/prisma'
-import { 
-  getProductDisplayPrice, 
-  getFormattedPriceDisplay, 
-  calculateOrderItemTotal 
-} from '@/utils/pricing-utils'
+
+
+// import { 
+//   getProductDisplayPrice
+// } from '@/utils/pricing-utils'
 
 // Helper function to get product price based on pricing type (using utils)
-const getProductPrice = (product, unit = null) => {
-  return getProductDisplayPrice(product, unit)
-}
+// const getProductPrice = (product, unit = null) => {
+//   return getProductDisplayPrice(product, unit)
+// }
 
 // Helper function to get all possible prices for a variable product
-const getVariablePrices = (product) => {
-  if (!product.hasFixedPrice && product.unitPrices?.length > 0) {
-    return product.unitPrices.map(up => ({
-      unit: up.unit,
-      price: up.price
-    }))
-  }
-  return []
-}
+// const getVariablePrices = (product) => {
+//   if (!product.hasFixedPrice && product.unitPrices?.length > 0) {
+//     return product.unitPrices.map(up => ({
+//       unit: up.unit,
+//       price: up.price
+//     }))
+//   }
+//   return []
+// }
 
 // Get products count from database
 const getProductsCount = async () => {
@@ -149,6 +149,7 @@ const getProductsByDateRange = async (startDate: Date, endDate: Date) => {
 }
 
 // Calculate metrics with growth percentages
+// Calculate metrics with growth percentages
 const getMetricsWithGrowth = async () => {
   try {
     const now = new Date()
@@ -170,17 +171,17 @@ const getMetricsWithGrowth = async () => {
     const prevOrders = await getOrdersByDateRange(lastMonth, thisMonth)
     const prevNewProducts = await getProductsByDateRange(lastMonth, thisMonth)
     
-    // Calculate growth percentages (handle division by zero)
-    const revenueGrowth = prevRevenue > 0 
-      ? ((currentRevenue - prevRevenue) / prevRevenue * 100).toFixed(0)
+    // Calculate growth values as numbers
+    const revenueGrowthValue = prevRevenue > 0 
+      ? ((currentRevenue - prevRevenue) / prevRevenue * 100)
       : currentRevenue > 0 ? 100 : 0
       
-    const ordersGrowth = prevOrders > 0
-      ? ((currentOrders - prevOrders) / prevOrders * 100).toFixed(0)
+    const ordersGrowthValue = prevOrders > 0
+      ? ((currentOrders - prevOrders) / prevOrders * 100)
       : currentOrders > 0 ? 100 : 0
       
-    const productsGrowth = prevNewProducts > 0
-      ? ((currentNewProducts - prevNewProducts) / prevNewProducts * 100).toFixed(0)
+    const productsGrowthValue = prevNewProducts > 0
+      ? ((currentNewProducts - prevNewProducts) / prevNewProducts * 100)
       : currentNewProducts > 0 ? 100 : 0
     
     return {
@@ -188,22 +189,22 @@ const getMetricsWithGrowth = async () => {
         total: totalRevenue,
         current: currentRevenue,
         previous: prevRevenue,
-        growth: `${revenueGrowth}%`,
-        isPositive: parseFloat(revenueGrowth) >= 0
+        growth: `${revenueGrowthValue.toFixed(0)}%`,
+        isPositive: revenueGrowthValue >= 0
       },
       orders: {
         total: totalOrders,
         current: currentOrders,
         previous: prevOrders,
-        growth: `${ordersGrowth}%`,
-        isPositive: parseFloat(ordersGrowth) >= 0
+        growth: `${ordersGrowthValue.toFixed(0)}%`,
+        isPositive: ordersGrowthValue >= 0
       },
       products: {
         total: totalProducts,
         current: currentNewProducts,
         previous: prevNewProducts,
-        growth: `${productsGrowth}%`,
-        isPositive: parseFloat(productsGrowth) >= 0
+        growth: `${productsGrowthValue.toFixed(0)}%`,
+        isPositive: productsGrowthValue >= 0
       }
     }
   } catch (error) {
@@ -211,99 +212,100 @@ const getMetricsWithGrowth = async () => {
     throw new Error('Failed to calculate metrics')
   }
 }
-
+  
 // Get recent products for the table
 const getRecentOrders = async (limit = 6) => {
-    try {
-      console.log('Fetching recent orders with limit:', limit);
-      
-      const orders = await prisma.order.findMany({
-        take: limit,
-        orderBy: {
-          createdAt: 'desc'
-        },
-        include: {
-          user: true,
-          items: {
-            include: {
-              product: {
-                include: {
-                  category: true
-                }
+  try {
+    console.log('Fetching recent orders with limit:', limit);
+    
+    const orders = await prisma.order.findMany({
+      take: limit,
+      orderBy: {
+        createdAt: 'desc'
+      },
+      include: {
+        user: true,
+        items: {
+          include: {
+            product: {
+              include: {
+                category: true
               }
             }
-          },
-          shippingAddress: true,
-          payments: true
+          }
+        },
+        // shippingAddress: true,
+        payments: true
+      }
+    });
+
+    // Transform order data for display
+    return orders.map(order => {
+      // Calculate order totals
+      const totalItems = order.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+      
+      // Use the totalPrice from the database instead of recalculating
+      const totalPrice = order.totalPrice || 0;
+
+      // FIXED: Proper customer name handling
+      const customerName = (() => {
+        if (order.user?.firstName && order.user?.lastName) {
+          return `${order.user.firstName} ${order.user.lastName}`;
         }
-      });
-  
-    //   console.log('Raw orders data from Prisma:', JSON.stringify(orders, null, 2));
-    //   console.log('Number of orders fetched:', orders.length);
-  
-      // Transform order data for display
-      return orders.map(order => {
-        // console.log('Processing order ID:', order.id);
-        // console.log('Order items count:', order.items?.length || 0);
-        
-        // Calculate order totals - use items instead of orderItems
-        const totalItems = order.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-        const totalPrice = order.items?.reduce((sum, item) => sum + item.totalPrice, 0) || 0;
-  
-        // console.log('Calculated totals - items:', totalItems, 'amount:', totalPrice);
-  
-        const transformedOrder = {
-          id: order.id,
-          orderNumber: order.orderNumber || `ORDER-${order.id.slice(-8).toUpperCase()}`,
-          customerName: order.user?.firstName && order.user?.lastName || 'Guest Customer',
-          customerEmail: order.user?.email || 'No email',
-          status: order.status,
-          totalItems,
-          totalPrice,
-          createdAt: order.createdAt,
-          updatedAt: order.updatedAt,
-          // Shipping information
-          shippingAddress: order.shippingAddress ? {
-            street: order.shippingAddress.address,
-            city: order.shippingAddress.city,
-            state: order.shippingAddress.state,
-            zipCode: order.shippingAddress.zip,
-            country: order.shippingAddress.country
-          } : null,
-          // Payment information
-          paymentStatus: order.paymentStatus || 'PENDING',
-          paymentMethod: order.paymentMethod || 'Unknown',
-          // Order items details
-          items: order.items?.map(item => ({
-            productName: item.product?.name || 'Unknown Product',
-            category: item.product?.category?.name || 'Uncategorized',
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            totalPrice: item.totalPrice
-          })) || []
-        };
-  
-        // console.log('Transformed order:', JSON.stringify(transformedOrder, null, 2));
-        return transformedOrder;
-      });
-    } catch (error) {
-      console.error('Error fetching recent orders:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-      return [];
-    }
-  };
+        if (order.user?.firstName) {
+          return order.user.firstName;
+        }
+        if (order.user?.lastName) {
+          return order.user.lastName;
+        }
+        return 'Guest Customer';
+      })();
+
+      const transformedOrder = {
+        id: order.id,
+        orderNumber: order.orderNumber || `ORDER-${order.id.slice(-8).toUpperCase()}`,
+        customerName: customerName, // ← Now this will show full name properly
+        customerEmail: order.user?.email || 'No email',
+        status: order.status,
+        totalItems,
+        totalPrice, // ← Use database totalPrice
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        // Shipping information
+        shippingAddress: order.shippingAddress ? {
+          street: order.shippingAddress.address,
+          city: order.shippingAddress.city,
+          state: order.shippingAddress.state,
+          zipCode: order.shippingAddress.zip,
+          country: order.shippingAddress.country
+        } : null,
+        // Payment information
+        paymentStatus: order.paymentStatus || 'PENDING',
+        paymentMethod: order.paymentMethod || 'Unknown',
+        // Order items details
+        items: order.items?.map(item => ({
+          productName: item.product?.name || 'Unknown Product',
+          category: item.product?.category?.name || 'Uncategorized',
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice
+        })) || []
+      };
+
+      return transformedOrder;
+    });
+  } catch (error) {
+    console.error('Error fetching recent orders:', error);
+    return [];
+  }
+};
 
 // Main API route handler
-export async function GET(request: NextRequest) {
+export const GET = requireAdmin(async (request: NextRequest) => {
   try {
-    // Apply admin middleware
-    const adminCheck = await requireAdmin(request);
-    if (adminCheck instanceof NextResponse) {
-      return adminCheck;
+    const user = (request as AuthenticatedRequest).user;
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Fetch all metrics
@@ -316,7 +318,7 @@ export async function GET(request: NextRequest) {
       metrics: [
         {
           title: "Total Revenue",
-          value: `$${metrics.revenue.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+          value: `₦${metrics.revenue.total.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`,
           change: metrics.revenue.growth,
           isPositive: metrics.revenue.isPositive,
           link: "Total Revenue",
@@ -326,7 +328,7 @@ export async function GET(request: NextRequest) {
           title: "Total Order",
           value: metrics.orders.total.toLocaleString(),
           change: metrics.orders.growth,
-          isPositive: metrics.orders.isPositive,
+          // isPositive: metrics.orders.isPositive,
           link: "Manage Orders",
           href: "/admin/orders"
         },
@@ -334,7 +336,7 @@ export async function GET(request: NextRequest) {
           title: "Total Products",
           value: metrics.products.total.toLocaleString(),
           change: metrics.products.growth,
-          isPositive: metrics.products.isPositive,
+          // isPositive: metrics.products.isPositive,
           link: "Manage Products",
           href: "/admin/products"
         }
@@ -353,45 +355,21 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json(dashboardData)
   } catch (error) {
-    console.error('Dashboard API Error:', error)
+    console.error('Dashboard API Error:', error);
+    
+    // Proper type checking
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : 'An unknown error occurred';
     
     // Return structured error response
     return NextResponse.json(
       { 
         error: 'Failed to fetch dashboard data',
-        message: error.message,
+        message: errorMessage,
         timestamp: new Date().toISOString()
       },
       { status: 500 }
-    )
+    );
   }
-}
-
-// Health check endpoint
-export async function HEAD(request: NextRequest) {
-  try {
-    // Apply admin middleware
-    const adminCheck = await requireAdmin(request);
-    if (adminCheck instanceof NextResponse) {
-      return adminCheck;
-    }
-
-    // Simple database connectivity check
-    await prisma.$queryRaw`SELECT 1`
-    return new NextResponse(null, { 
-      status: 200,
-      headers: {
-        'X-Database-Status': 'connected',
-        'X-Auth-Status': 'authenticated'
-      }
-    })
-  } catch (error) {
-    return new NextResponse(null, { 
-      status: 503,
-      headers: {
-        'X-Database-Status': 'disconnected',
-        'X-Error': error.message
-      }
-    })
-  }
-}
+})

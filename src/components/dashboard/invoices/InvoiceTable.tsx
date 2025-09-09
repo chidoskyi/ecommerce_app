@@ -33,7 +33,7 @@ export function InvoiceTable({
   invoices,
   loading,
   selectedInvoices,
-  sortConfig,
+  // sortConfig,
   onSort,
   onSelectAll,
   onSelectInvoice,

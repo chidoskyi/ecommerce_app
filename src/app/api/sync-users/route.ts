@@ -2,12 +2,13 @@
 import { auth } from "@clerk/nextjs/server";
 import { updateUser, getUser } from "@/lib/users";
 import { NextRequest, NextResponse } from "next/server";
+import { UserProfile } from "@/types/users";
 
 // Add logging helper for consistency
-function log(message: string, data?: any) {
+function log<T>(message: string, data?: string | number | boolean | object | T) {
   const timestamp = new Date().toISOString();
   console.log(
-    `[SYNC_USERS ${timestamp}] ${message}`,
+    `[USER ${timestamp}] ${message}`,
     data ? JSON.stringify(data, null, 2) : ""
   );
 }
@@ -71,7 +72,21 @@ export async function POST(req: NextRequest) {
     });
 
     // Prepare update data (only include database-managed fields)
-    const updateData: any = {};
+    const updateData: UserProfile = {
+      id: existingUser.id,
+      email: existingUser.email,
+      firstName: existingUser.firstName,
+      lastName: existingUser.lastName,
+      phone: null,
+      avatar: null,
+      role: "USER",
+      status: "ACTIVE",
+      emailVerified: false,
+      dateOfBirth: null,
+        lastLoginAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+    };
 
     // Only update fields that are provided and different from current values
     if (phone !== undefined && phone !== existingUser.phone) {
@@ -166,12 +181,12 @@ export async function POST(req: NextRequest) {
       {
         message: "User updated successfully",
         user: {
-          id: updatedUser.id,
-          firstName: updatedUser.firstName,
-          lastName: updatedUser.lastName,
-          phone: updatedUser.phone,
-          dateOfBirth: updatedUser.dateOfBirth,
-          role: updatedUser.role,
+          id: updatedUser?.user?.id,
+          firstName: updatedUser?.user?.firstName,
+          lastName: updatedUser?.user?.lastName,
+          phone: updatedUser?.user?.phone,
+          dateOfBirth: updatedUser?.user?.dateOfBirth,
+          role: updatedUser?.user?.role,
         },
       },
       { status: 200 }

@@ -22,6 +22,7 @@ export default function CommunitySection() {
 
     try {
       // Use axios instead of fetch
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const response = await axios.post('/api/newsletter', { email })
 
       setIsSuccess(true)
@@ -30,12 +31,31 @@ export default function CommunitySection() {
       // Hide success message after 5 seconds
       setTimeout(() => setIsSuccess(false), 5000)
       
-    } catch (error: any) {
-      // Axios error handling
-      const errorMessage = error.response?.data?.error || 
-                          error.message || 
-                          'Something went wrong. Please try again.'
-      setError(errorMessage)
+    } catch (error: unknown) {
+      // Proper error handling without any
+      let errorMessage = 'Something went wrong. Please try again.';
+      
+      // Type guard for axios-like errors
+      if (error && typeof error === 'object') {
+        const axiosError = error as {
+          response?: {
+            data?: { error?: string; message?: string };
+          };
+          message?: string;
+        };
+        
+        if (axiosError.response?.data?.error) {
+          errorMessage = axiosError.response.data.error;
+        } else if (axiosError.response?.data?.message) {
+          errorMessage = axiosError.response.data.message;
+        } else if (axiosError.message) {
+          errorMessage = axiosError.message;
+        }
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false)
     }

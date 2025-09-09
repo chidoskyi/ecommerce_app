@@ -1,3 +1,4 @@
+// app/store/reducers.ts
 import { combineReducers } from "@reduxjs/toolkit";
 import addressReducer from "./slices/addressSlice";
 import cartReducer from "./slices/cartSlice";

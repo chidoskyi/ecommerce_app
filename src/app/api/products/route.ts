@@ -1,6 +1,8 @@
 // Enhanced helper functions with comprehensive logging
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Review } from "@/types/reviews";
+import { UnitPrice } from "@/types/unitPrices";
 
 // GET - Fetch products with pagination, filtering, and search
 export async function GET(request: NextRequest) {
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") || "ACTIVE";
 
     // Build where conditions
-    const whereConditions: any[] = [{ status: status.toUpperCase() }];
+    const whereConditions: Record<string, string | number | boolean | object | undefined>[] = [{ status: status.toUpperCase() }];
 
     // Category filter
     if (categoryName && categoryName.toLowerCase() !== "all") {
@@ -68,10 +70,10 @@ export async function GET(request: NextRequest) {
 
     // Price Filter (simplified and more reliable)
     if (minPrice !== undefined || maxPrice !== undefined) {
-      const priceConditions: any[] = [];
+      const priceConditions: Record<string, string | number | boolean | object | undefined>[] = [];
 
       // Handle fixed price products
-      const fixedPriceCondition: any = { hasFixedPrice: true };
+      const fixedPriceCondition: Record<string, string | number | boolean | object | undefined> = { hasFixedPrice: true };
       if (minPrice !== undefined)
         fixedPriceCondition.fixedPrice = { gte: minPrice };
       if (maxPrice !== undefined)
@@ -79,7 +81,7 @@ export async function GET(request: NextRequest) {
       priceConditions.push(fixedPriceCondition);
 
       // Handle unit price products
-      const unitPriceCondition: any = {
+      const unitPriceCondition: Record<string, string | number | boolean | object | undefined> = {
         hasFixedPrice: false,
         unitPrices: { some: {} },
       };
@@ -117,7 +119,7 @@ export async function GET(request: NextRequest) {
         : { AND: whereConditions };
 
     // Sort options
-    let orderBy: any;
+    let orderBy: Record<string, string | number | boolean | object | undefined>;
     const isPriceSort = sortBy === "priceAsc" || sortBy === "priceDesc";
 
     if (isPriceSort) {
@@ -158,7 +160,7 @@ export async function GET(request: NextRequest) {
 
     // Process products
     const productsWithRatings = products.map((product) => {
-      const ratings = product.reviews.map((r) => r.rating);
+      const ratings = product.reviews.map((r: Review) => r.rating);
       const averageRating = ratings.length
         ? parseFloat(
             (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(2)
@@ -172,9 +174,9 @@ export async function GET(request: NextRequest) {
         priceInfo = { displayPrice: product.fixedPrice, priceType: "fixed" };
         sortPrice = product.fixedPrice;
       } else if (product.unitPrices?.length) {
-        const validPrices = product.unitPrices.filter((up) => up.price > 0);
+        const validPrices = product.unitPrices.filter((up: UnitPrice) => up.price > 0);
         if (validPrices.length) {
-          const prices = validPrices.map((up) => up.price);
+          const prices = validPrices.map((up: UnitPrice) => up.price);
           const minPrice = Math.min(...prices);
           priceInfo = {
             displayPrice: minPrice,
@@ -200,7 +202,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Handle price sorting in memory if needed
-    let finalProducts = isPriceSort
+    const finalProducts = isPriceSort
       ? [...productsWithRatings].sort((a, b) =>
           sortBy === "priceAsc"
             ? a.sortPrice - b.sortPrice
@@ -209,7 +211,8 @@ export async function GET(request: NextRequest) {
       : productsWithRatings;
 
     // Remove internal field before returning
-    const cleanProducts = finalProducts.map(({ sortPrice, ...rest }) => rest);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const cleanProducts = finalProducts.map(({ sortPrice, ...rest } ) => rest);
 
     return NextResponse.json({
       success: true,

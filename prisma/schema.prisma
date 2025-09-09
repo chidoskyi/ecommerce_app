@@ -24,7 +24,6 @@ enum UserStatus {
   ACTIVE
   INACTIVE
   SUSPENDED
-  BANNED
 }
 
 enum CategoryStatus {
@@ -188,6 +187,7 @@ enum InvoicePaymentStatus {
   OVERDUE
   FAILED
   REFUNDED
+  CANCELLED
 }
 
 enum InvoicePaymentType {
@@ -311,7 +311,7 @@ model Product {
   isDealOfTheDay Boolean       @default(false)
   isNewArrival   Boolean       @default(false)
   rating         Float?        @default(0.0)
-  averageRating         Float?        @default(0.0)
+  averageRating  Float?        @default(0.0)
   images         String[]      @default([])
   weight         Float? // in kg, optional
 
@@ -389,6 +389,7 @@ model Order {
   id              String          @id @default(auto()) @map("_id") @db.ObjectId
   orderNumber     String          @unique
   clerkId         String
+  customerName    String?
   userId          String?         @db.ObjectId
   email           String
   phone           String?
@@ -405,10 +406,15 @@ model Order {
   paymentId       String?
   transactionId   String?
   notes           String?
+  orderAge        Int?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   cancelledAt     DateTime?
   processedAt     DateTime?
+  deliveredAt     DateTime?
+  shippedAt       DateTime?
+  totalWeight     Float           @default(0.0)
+  paidAt          DateTime? // Add this field  
 
   // Relations
   user     User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -462,6 +468,7 @@ model WishlistItem {
   userId    String   @db.ObjectId
   productId String   @db.ObjectId
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)

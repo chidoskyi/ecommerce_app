@@ -1,7 +1,7 @@
 // pages/CategoriesPage.tsx
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import { Search, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "react-toastify";
 import { CategoryForm } from "@/components/dashboard/categories/CategoryForm";
 import { CategoryTable } from "@/components/dashboard/categories/CategoryTable";
-import { Category, NewCategory, SortConfig } from "@/types/categories";
+import { Category, CategoryStatus, CreateCategoryData, NewCategory, SortConfig } from "@/types/categories";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch } from "@/app/store";
 import {
@@ -38,6 +38,7 @@ import {
   clearCurrentCategory,
   clearError,
   uploadCategoryImages,
+  deleteCategoryImage,
 } from "@/app/store/slices/adminCategorySlice";
 
 export default function CategoriesPage() {
@@ -72,33 +73,14 @@ export default function CategoriesPage() {
 
   // Local state for UI
   const [searchQuery, setSearchQuery] = React.useState<string>("");
-  const [isAddCategoryOpen, setIsAddCategoryOpen] = React.useState<boolean>(false);
-  const [isEditCategoryOpen, setIsEditCategoryOpen] = React.useState<boolean>(false);
+  const [isAddCategoryOpen, setIsAddCategoryOpen] =
+    React.useState<boolean>(false);
+  const [isEditCategoryOpen, setIsEditCategoryOpen] =
+    React.useState<boolean>(false);
   const [sortConfig, setSortConfig] = React.useState<SortConfig>({
     key: "name",
     direction: "asc",
   });
-
-  // Debounced search function
-  // const debouncedSearch = useCallback(
-  //   (() => {
-  //     let timeoutId: NodeJS.Timeout;
-  //     return (query: string) => {
-  //       clearTimeout(timeoutId);
-  //       timeoutId = setTimeout(() => {
-  //         console.log('🔍 CategoriesPage: Searching with query:', query);
-  //         dispatch(fetchCategories({
-  //           search: query || undefined,
-  //           sortBy: sortConfig.key,
-  //           sortOrder: sortConfig.direction,
-  //           page: 1, // Reset to first page on search
-  //           limit: 10
-  //         }));
-  //       }, 300); // 300ms debounce
-  //     };
-  //   })(),
-  //   [dispatch] // Remove sortConfig and pagination from dependencies
-  // );
 
   // Fetch categories on component mount only
   useEffect(() => {
@@ -127,10 +109,11 @@ export default function CategoriesPage() {
         })
       );
     }
+     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortConfig.key, sortConfig.direction, dispatch]);
 
   // Handle search query changes with ref to avoid dependency issues
-  const searchTimeoutRef = React.useRef<NodeJS.Timeout>();
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Clear previous timeout
@@ -158,6 +141,7 @@ export default function CategoriesPage() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
+     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, dispatch]); // Only depend on searchQuery and dispatch
 
   // Handle errors
@@ -174,49 +158,107 @@ export default function CategoriesPage() {
   ): Promise<void> => {
     try {
       console.log("🚀 CategoriesPage: Adding category:", category);
-
-      const categoryData = category;
-
-      // If there's an image file, we need to create category first, then upload image
-      if (category.image instanceof File) {
-        // First create category without image
-        const categoryWithoutImage = {
-          ...category,
-          image: null,
-        };
-
-        const createdCategory = await dispatch(
-          createCategory(categoryWithoutImage)
-        ).unwrap();
-
-        // Then upload image to the created category
-        const uploadResult = await dispatch(
-          uploadCategoryImages({
-            categoryId: createdCategory.id.toString(),
-            files: [category.image],
-          })
-        ).unwrap();
-
-        // Finally update the category with the image URL
-        await dispatch(
-          updateCategory({
-            id: createdCategory.id.toString(),
-            ...createdCategory,
-            image: uploadResult.url,
-          })
-        ).unwrap();
+  
+      // Helper function to prepare category data for creation (API format)
+      const prepareCategoryForCreate = (cat: Category | NewCategory): CreateCategoryData => ({
+        name: cat.name,
+        // slug: cat.slug,
+        description: cat.description ?? undefined,
+        image: null, // Always null initially for API
+        status: cat.status || CategoryStatus.ACTIVE,
+      });
+  
+      // Type-safe check for File objects
+      const hasImageFile = category.image instanceof File;
+  
+      if (hasImageFile) {
+        // Create category without image first
+        const categoryForCreate = prepareCategoryForCreate(category);
+  
+        let createdCategory: Category | undefined;
+        let uploadResult: { url: string; category: Category };
+  
+        try {
+          // Step 1: Create category without image
+          createdCategory = await dispatch(
+            createCategory(categoryForCreate)
+          ).unwrap();
+  
+          // Step 2: Upload image to the created category
+          if (!createdCategory) {
+            throw new Error("Failed to create category");
+          }
+  
+          uploadResult = await dispatch(
+            uploadCategoryImages({
+              categoryId: createdCategory.id.toString(),
+              files: [category.image as File], // Now TypeScript knows this is a File
+            })
+          ).unwrap();
+  
+          // Step 3: Update category with image URL
+          await dispatch(
+            updateCategory({
+              id: createdCategory.id.toString(),
+              name: createdCategory.name,
+              description: createdCategory.description ?? undefined,
+              image: uploadResult.url,
+              status: createdCategory.status,
+              createdAt: createdCategory.createdAt,
+              updatedAt: createdCategory.updatedAt,
+              productsCount: createdCategory.productsCount,
+            })
+          ).unwrap();
+  
+        } catch (uploadError) {
+          // If image upload or update fails after category creation,
+          // we could optionally clean up the created category
+          console.error("Error during image upload process:", uploadError);
+          
+          // Option 1: Leave category without image
+          if (createdCategory) {
+            console.warn("Category created but image upload failed:", createdCategory.id);
+          }
+          
+          // Option 2: Delete the created category (uncomment if needed)
+          // if (createdCategory) {
+          //   try {
+          //     await dispatch(deleteCategory(createdCategory.id.toString())).unwrap();
+          //     console.log("Cleaned up category after image upload failure");
+          //   } catch (cleanupError) {
+          //     console.error("Failed to cleanup category:", cleanupError);
+          //   }
+          // }
+          
+          throw new Error("Failed to upload category image");
+        }
       } else {
-        // No image file, just create the category
-        await dispatch(createCategory(categoryData)).unwrap();
+        // No image file, create category directly
+        // Handle string URLs or null values
+        const categoryForCreate: CreateCategoryData = {
+          ...prepareCategoryForCreate(category),
+          image: typeof category.image === 'string' ? category.image : null,
+        };
+        await dispatch(createCategory(categoryForCreate)).unwrap();
       }
-
+  
+      // Success: Close modal and show success message
       setIsAddCategoryOpen(false);
       toast.success("Category added successfully");
+      
     } catch (error) {
       console.error("Error adding category:", error);
+      
+      // More specific error messages based on error type
+      if (error instanceof Error) {
+        toast.error(error.message || "Failed to add category. Please try again.");
+      } else {
+        toast.error("Failed to add category. Please try again.");
+      }
+      
+      // Don't close modal on error so user can retry
     }
   };
-
   const handleEditCategory = async (
     updatedCategory: Category
   ): Promise<void> => {
@@ -225,7 +267,13 @@ export default function CategoriesPage() {
       await dispatch(
         updateCategory({
           id: updatedCategory.id.toString(),
-          ...updatedCategory,
+          name: updatedCategory.name,
+          description: updatedCategory.description ?? undefined,
+          image: updatedCategory.image ?? undefined,
+          status: updatedCategory.status,
+          createdAt: updatedCategory.createdAt,
+          updatedAt: updatedCategory.updatedAt,
+          productsCount: updatedCategory.productsCount,
         })
       ).unwrap();
       setIsEditCategoryOpen(false);
@@ -247,11 +295,26 @@ export default function CategoriesPage() {
         return;
       }
 
+      // Delete category image first (if it exists)
+      try {
+        await dispatch(
+          deleteCategoryImage({
+            categoryId: categoryId.toString(),
+          })
+        ).unwrap();
+      } catch (imageError) {
+        // Log but don't fail the entire operation if image deletion fails
+        console.warn("Failed to delete category image:", imageError);
+      }
+
       console.log("🚀 CategoriesPage: Deleting category:", categoryId);
+
+      // Delete the category
       await dispatch(deleteCategory(categoryId.toString())).unwrap();
       toast.success("Category deleted successfully");
     } catch (error) {
       console.error("Error deleting category:", error);
+      toast.error("Failed to delete category. Please try again.");
     }
   };
 
@@ -302,75 +365,96 @@ export default function CategoriesPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Categories</h1>
-        <p className="text-muted-foreground">Manage product categories</p>
-      </div>
+    <div className="min-h-screen bg-gray-50/50 p-3 sm:p-4 md:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
+        {/* Header Section - Mobile Optimized */}
+        <div className="space-y-2 sm:space-y-3">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-gray-900">
+            Categories
+          </h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            Manage product categories
+          </p>
+        </div>
 
-      <div className="flex flex-col space-y-4">
-        <Card className="shadow-md border-gray-300">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg md:text-2xl">
-                Product Categories
-              </CardTitle>
-              <Dialog
-                open={isAddCategoryOpen}
-                onOpenChange={setIsAddCategoryOpen}
-              >
-                <DialogTrigger asChild>
-                  <Button
-                    className="flex cursor-pointer items-center px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 bg-gradient-to-r from-blue-600 to-cyan-500 hover:bg-gradient-to-r hover:from-blue-700 hover:to-cyan-600 text-white shadow-lg shadow-blue-500/25"
-                    disabled={creating}
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>{creating ? "Adding..." : "Add Category"}</span>
-                  </Button>
-                </DialogTrigger>
-              </Dialog>
-            </div>
-            <CardDescription>
-              Organize your products with categories
-            </CardDescription>
-            <div className="pt-4">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Search categories..."
-                  className="pl-8"
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                />
+        {/* Main Content Card */}
+        <Card className="shadow-sm sm:shadow-md border-gray-200 bg-white">
+          <CardHeader className="pb-3 sm:pb-4 px-3 sm:px-6">
+            {/* Card Header - Mobile Stacked Layout */}
+            <div className="space-y-3 sm:space-y-4">
+              {/* Title and Add Button Row */}
+              <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+                <div className="space-y-1">
+                  <CardTitle className="text-lg sm:text-xl lg:text-2xl text-gray-900">
+                    Product Categories
+                  </CardTitle>
+                  <CardDescription className="text-sm sm:text-base">
+                    Organize your products with categories
+                  </CardDescription>
+                </div>
+                
+                {/* Add Category Button - Full width on mobile */}
+                <Dialog
+                  open={isAddCategoryOpen}
+                  onOpenChange={setIsAddCategoryOpen}
+                >
+                  <DialogTrigger asChild>
+                    <Button
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-3 rounded-lg text-sm font-semibold transition-all duration-200 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/30 transform hover:scale-[1.02]"
+                      disabled={creating}
+                    >
+                      <Plus className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate">
+                        {creating ? "Adding..." : "Add Category"}
+                      </span>
+                    </Button>
+                  </DialogTrigger>
+                </Dialog>
+              </div>
+
+              {/* Search Bar - Full width */}
+              <div className="w-full">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    placeholder="Search categories..."
+                    className="w-full pl-10 pr-4 py-2.5 sm:py-3 text-sm sm:text-base border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg"
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                  />
+                </div>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <CategoryTable
-              categories={categories}
-              loading={loading || deleting}
-              searchQuery={searchQuery}
-              sortConfig={sortConfig}
-              onSort={handleSort}
-              onEdit={handleEditClick}
-              onDelete={handleDeleteCategory}
-              onStatusChange={handleStatusChange}
-              // Fix the pagination props to match your API response format
-              currentPage={pagination?.page || 1} // Use 'page' instead of 'currentPage'
-              totalPages={pagination?.pages || 1} // Use 'pages' instead of 'totalPages'
-              onPageChange={(page) => {
-                dispatch(
-                  fetchCategories({
-                    search: searchQuery || undefined,
-                    sortBy: sortConfig.key,
-                    sortOrder: sortConfig.direction,
-                    page: page,
-                    limit: 10,
-                  })
-                );
-              }}
-            />
+          
+          {/* Card Content - Responsive Padding */}
+          <CardContent className="px-0 sm:px-6 pb-6">
+            <div className="w-full overflow-hidden p-2 md:p-2">
+              <CategoryTable
+                categories={categories}
+                loading={loading || deleting}
+                searchQuery={searchQuery}
+                sortConfig={sortConfig}
+                onSort={handleSort}
+                onEdit={handleEditClick}
+                onDelete={handleDeleteCategory}
+                onStatusChange={handleStatusChange}
+                currentPage={pagination?.page || 1}
+                totalPages={pagination?.pages || 1}
+                onPageChange={(page) => {
+                  dispatch(
+                    fetchCategories({
+                      search: searchQuery || undefined,
+                      sortBy: sortConfig.key,
+                      sortOrder: sortConfig.direction,
+                      page: page,
+                      limit: 10,
+                    })
+                  );
+                }}
+              />
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -1,6 +1,10 @@
 export interface User {
   id: string;
   email: string;
+  fullName: string;
+  username: string;
+  primaryEmailAddress: string;
+  emailAddresses: string;
   password: string;
   firstName: string | null;
   lastName: string | null;
@@ -9,9 +13,6 @@ export interface User {
   role: 'USER' | 'ADMIN' | 'MODERATOR';
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'BANNED';
   emailVerified: boolean;
-  emailVerificationToken: string | null;
-  passwordResetToken: string | null;
-  passwordResetExpires: Date | null;
   lastLoginAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -42,6 +43,7 @@ export interface UserProfile {
   role: 'USER' | 'ADMIN' | 'MODERATOR';
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'BANNED';
   emailVerified: boolean;
+  dateOfBirth: Date | null;
   lastLoginAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -83,21 +85,26 @@ export interface UserState {
 }
 
 
+export interface DateRangeFilter {
+    gte?: Date;
+    lte?: Date;
+  }
+
+
 
 
 export interface UserFilters {
-  status?: string;
-  role?: string;
+  status?: UserStatus;
+  role?: UserRole;
   emailVerified?: boolean;
+  createdAt?: DateRangeFilter;
+  lastLoginAt?: DateRangeFilter;
+  search?: string;
   email?: string;
   firstName?: string;
   lastName?: string;
   phone?: string;
-  createdAfter?: string;
-  createdBefore?: string;
-  lastLoginAfter?: string;
-  lastLoginBefore?: string;
-  search?: string;
+  [key: string]: string | number | boolean | object | undefined;
 }
 
 export interface UserQueryParams {

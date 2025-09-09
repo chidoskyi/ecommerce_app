@@ -7,29 +7,21 @@ import axios from "axios";
 import api from "@/lib/api";
 import { createSelector } from '@reduxjs/toolkit';
 import { StorageUtil, STORAGE_KEYS } from '@/lib/storageKeys';
+import { RootState } from "..";
+import { handleApiError } from "@/lib/error";
 
-// Utility functions
-const handleApiError = (error: any) => {
-  console.error("Cart API Error:", error);
-
-  if (error.response?.status === 401) {
-    return "Authentication failed. Please sign in again.";
-  }
-
-  if (error.response?.status === 403) {
-    return "You do not have permission to perform this action.";
-  }
-
-  if (error.response?.data?.error) {
-    return error.response.data.error;
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "An unexpected error occurred";
-};
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+interface CartState {
+  items: CartItemWithProduct[];
+  isOpen: boolean;
+  loading: boolean;
+  error: string | null;
+  guestId: string | null;
+  userId: string | null;
+  subtotal: number;
+  itemCount: number;
+  isAuthenticated: boolean;
+}
 
 // Authentication token helper (only for merge operation)
 const getAuthToken = () => {
@@ -38,22 +30,14 @@ const getAuthToken = () => {
   return token ? `Bearer ${token}` : null;
 };
 
-// localStorage utilities
-// const GUEST_ID_KEY = "guest-cart-id";
-// const CART_DATA_KEY = "guest-cart-data";
-
-// const getGuestId = () => {
-//   if (typeof window === "undefined") return null;
-
-//   let guestId = localStorage.getItem(GUEST_ID_KEY);
-//   if (!guestId) {
-//     guestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-//     localStorage.setItem(GUEST_ID_KEY, guestId);
-//   }
-//   return guestId;
-// };
-
-const saveCartToStorage = (cartData: any) => {
+const saveCartToStorage = (cartData: {
+  items: CartItemWithProduct[];
+  subtotal: number;
+  itemCount: number;
+  timestamp?: number;
+  guestId?: string | null;
+  isAuthenticated?: boolean;
+}) => {
   if (typeof window === "undefined") return;
 
   try {
@@ -99,15 +83,6 @@ const loadCartFromStorage = () => {
   }
 };
 
-// const clearCartFromStorage = () => {
-//   if (typeof window === "undefined") return;
-//   localStorage.removeItem(STORAGE_KEYS.CART_DATA_KEY);
-// };
-
-// const clearGuestId = () => {
-//   if (typeof window === "undefined") return;
-//   localStorage.removeItem(GUEST_ID_KEY);
-// };
 
 const calculateTotals = (items: CartItemWithProduct[]) => {
   const subtotal = items.reduce((sum, item) => {
@@ -138,11 +113,6 @@ const calculateTotals = (items: CartItemWithProduct[]) => {
   return { subtotal, itemCount };
 };
 
-// Generate unique ID for cart items
-// const generateCartItemId = () => {
-//   return `cart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-// };
-
 // Fetch cart for a user
 export const fetchCart = createAsyncThunk(
   "cart/fetchCart",
@@ -151,7 +121,7 @@ export const fetchCart = createAsyncThunk(
       const response = await axios.get("/api/carts", {
         params: { userId, guestId }
       });
-      return response.data.data; // Extract data from API response structure
+      return response.data.data;
     } catch (error) {
       return rejectWithValue(
         error instanceof Error ? error.message : "Failed to fetch cart"
@@ -167,17 +137,17 @@ export const addItemToCart = createAsyncThunk(
       product,
       quantity = 1,
       selectedUnit,
-      userId, // This will be clerkId
+      userId, 
     }: {
       product: Product;
       quantity?: number;
       selectedUnit?: UnitPrice | null;
-      userId?: string | null; // This is actually clerkId
+      userId?: string | null; 
     },
     { getState, rejectWithValue }
   ) => {
     try {
-      const state = getState() as any;
+      const state = getState() as RootState;
       const currentGuestId = state.cart.guestId ||  StorageUtil.getGuestId();
 
       // Determine the price to use based on product structure
@@ -287,7 +257,7 @@ export const addItemToCart = createAsyncThunk(
         saveCartToStorage(updatedCart);
         return updatedCart;
       }
-    } catch (error: any) {
+    } catch (error: unknown) { 
       return rejectWithValue(
         handleApiError(error) || "Failed to add item to cart"
       );
@@ -300,7 +270,7 @@ export const updateCartQuantity = createAsyncThunk(
   'cart/updateQuantity',
   async ({ cartItemId, quantity }: { cartItemId: string; quantity: number }, { getState, rejectWithValue }) => {
     try {
-      const state = getState() as any;
+      const state = getState() as RootState;
       const { userId, guestId } = state.cart; // userId is actually clerkId in state
       
       try {
@@ -322,8 +292,9 @@ export const updateCartQuantity = createAsyncThunk(
           throw new Error(response.data.error || 'Update failed');
         }
         
-      } catch (apiError: any) {
-        console.log('API failed, updating quantity in localStorage cart:', apiError.message);
+      } catch (apiError: unknown) {
+        console.log('API failed, updating quantity in localStorage cart:', 
+          apiError instanceof Error ? apiError.message : 'Unknown error');
         
         // Fallback to localStorage update for guests only
         if (userId) {
@@ -355,10 +326,8 @@ export const updateCartQuantity = createAsyncThunk(
         throw new Error('Cart item not found in local storage');
       }
       
-    } catch (error: any) {
-      return rejectWithValue(
-        handleApiError(error) || 'Failed to update cart item'
-      );
+    } catch (error: unknown) { 
+      return rejectWithValue(handleApiError(error) || 'Failed to update cart item');
     }
   }
 );
@@ -368,7 +337,7 @@ export const removeCartItem = createAsyncThunk(
   "cart/removeItem",
   async (cartItemId: string, { getState, rejectWithValue }) => {
     try {
-      const state = getState() as any;
+      const state = getState() as RootState;
       const { userId, guestId } = state.cart; // userId is actually clerkId in state
       
       try {
@@ -412,7 +381,7 @@ export const removeCartItem = createAsyncThunk(
         saveCartToStorage(updatedCart);
         return updatedCart;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       return rejectWithValue(handleApiError(error) || "Failed to remove item");
     }
   }
@@ -423,7 +392,7 @@ export const reduceCartQuantity = createAsyncThunk(
   "cart/reduceQuantity",
   async (cartItemId: string, { getState, rejectWithValue }) => {
     try {
-      const state = getState() as any;
+      const state = getState() as RootState;
       const { userId, guestId } = state.cart; // userId is actually clerkId in state
       
       try {
@@ -480,7 +449,7 @@ export const reduceCartQuantity = createAsyncThunk(
 
         throw new Error("Cart item not found");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       return rejectWithValue(
         handleApiError(error) || "Failed to reduce quantity"
       );
@@ -543,7 +512,7 @@ export const clearEntireCart = createAsyncThunk(
           itemCount: 0,
         };
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       return rejectWithValue(handleApiError(error) || "Failed to clear cart");
     }
   }
@@ -552,7 +521,7 @@ export const clearEntireCart = createAsyncThunk(
 // Merge cart (ONLY this operation needs auth headers)
 export const mergeGuestCart = createAsyncThunk(
   "cart/mergeCart",
-  async ({ userId }: { userId: string }, { getState, rejectWithValue }) => {
+  async ({ userId }: { userId: string }, { rejectWithValue }) => {
     try {
       if (!userId) {
         throw new Error("User ID is required for cart merge")
@@ -610,26 +579,40 @@ export const mergeGuestCart = createAsyncThunk(
         success: true
       }
       
-    } catch (error: any) {
-      console.error("❌ Cart merge failed:", error)
+    } catch (error: unknown) {
+      console.error("❌ Cart merge failed:", error);
       
-      // Enhanced error handling
-      let errorMessage = "Failed to merge cart"
+      // Enhanced error handling with proper typing
+      let errorMessage = "Failed to merge cart";
       
-      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-        errorMessage = "Request timeout - please try again"
-      } else if (error.response?.status === 404) {
-        errorMessage = "Guest cart not found"
-      } else if (error.response?.status >= 500) {
-        errorMessage = "Server error - please try again"
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message
+      // Type guard for axios-like errors
+      const isAxiosError = (err: unknown): err is { 
+        code?: string;
+        message?: string;
+        response?: {
+          status?: number;
+          data?: { message?: string };
+        };
+      } => {
+        return typeof err === 'object' && err !== null;
+      };
+    
+      if (isAxiosError(error)) {
+        if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+          errorMessage = "Request timeout - please try again";
+        } else if (error.response?.status === 404) {
+          errorMessage = "Guest cart not found";
+        } else if (error.response?.status && error.response.status >= 500) {
+          errorMessage = "Server error - please try again";
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        }
       }
       
       // DON'T clear guest ID on failure so user can retry
-      console.log("🔒 Preserving guest ID for retry opportunity")
+      console.log("🔒 Preserving guest ID for retry opportunity");
       
-      return rejectWithValue(errorMessage)
+      return rejectWithValue(errorMessage);
     }
   }
 )
@@ -957,7 +940,7 @@ const cartSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(clearEntireCart.fulfilled, (state, action) => {
+      .addCase(clearEntireCart.fulfilled, (state) => {
         state.loading = false;
         state.items = [];
         state.subtotal = 0;
@@ -1018,23 +1001,23 @@ export const {
 } = cartSlice.actions;
 
 // Selectors
-export const selectCartItems = (state: any) => state.cart.items;
-export const selectCartLoading = (state: any) => state.cart.loading;
-export const selectCartError = (state: any) => state.cart.error;
-export const selectCartIsOpen = (state: any) => state.cart.isOpen;
-export const selectCartSubtotal = (state: any) => state.cart.subtotal;
-export const selectCartItemCount = (state: any) => state.cart.itemCount;
-export const selectGuestId = (state: any) => state.cart.guestId;
-export const selectUserId = (state: any) => state.cart.userId; // ADDED: New selector for userId
-export const selectIsAuthenticated = (state: any) => state.cart.isAuthenticated;
+export const selectCartItems = (state: RootState) => state.cart.items;
+export const selectCartLoading = (state: RootState) => state.cart.loading;
+export const selectCartError = (state: RootState) => state.cart.error;
+export const selectCartIsOpen = (state: RootState) => state.cart.isOpen;
+export const selectCartSubtotal = (state: RootState) => state.cart.subtotal;
+export const selectCartItemCount = (state: RootState) => state.cart.itemCount;
+export const selectGuestId = (state: RootState) => state.cart.guestId;
+export const selectUserId = (state: RootState) => state.cart.userId;
+export const selectIsAuthenticated = (state: RootState) => state.cart.isAuthenticated;
 
 // Computed selectors
-export const selectCartTotals = (state: any) => ({
+export const selectCartTotals = (state: RootState) => ({
   totalItems: state.cart.itemCount,
   totalPrice: state.cart.subtotal,
 });
 
-export const selectItemQuantity = (productId: string) => (state: any) => {
+export const selectItemQuantity = (productId: string) => (state: RootState) => {
   const item = state.cart.items.find(
     (item: CartItemWithProduct) =>
       item.productId === productId || item.product?.id === productId
@@ -1045,9 +1028,9 @@ export const selectItemQuantity = (productId: string) => (state: any) => {
 // ADDED: New selector for user identification
 export const selectUserIdentification = createSelector(
   [
-    (state: any) => state.cart.userId,
-    (state: any) => state.cart.guestId,
-    (state: any) => state.cart.isAuthenticated
+    (state: RootState) => state.cart.userId, 
+    (state: RootState) => state.cart.guestId, 
+    (state: RootState) => state.cart.isAuthenticated 
   ],
   (userId, guestId, isAuthenticated) => ({
     userId,

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import Container from "@/components/reuse/Container";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { CustomerReviews } from "@/components/reuse/CustomerReview";
 import { RelatedProducts } from "@/components/reuse/RelatedProduct";
 import ProductImageGallery from "@/components/reuse/ProductImageSlider";
-import { useDispatch, useSelector } from "react-redux";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 import { Product } from "@/types/products";
 
 const ProductDetailsPage: React.FC = () => {
@@ -19,17 +19,12 @@ const ProductDetailsPage: React.FC = () => {
   const [showNotFound, setShowNotFound] = useState(false);
 
   const { products, loading, error, actions } = useProducts();
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   const params = useParams();
   const slug = params?.slug
 
   // Get the current product from Redux state
-  const currentProduct = useSelector((state: any) => state.products.activeProduct);
-
-  // Helper function to find product by slug in the products array
-  const findProductBySlug = (slug: string) => {
-    return products.find((p: Product) => p.slug === slug);
-  };
+  const currentProduct = useAppSelector((state) => state.products.activeProduct);
 
   // Main effect to fetch product by slug
   useEffect(() => {
@@ -39,18 +34,18 @@ const ProductDetailsPage: React.FC = () => {
       setShowNotFound(false);
       
       // Dispatch the fetchProductBySlug thunk
-      dispatch(fetchProductBySlug(slug) as any)
+      dispatch(fetchProductBySlug(slug))
         .unwrap()
-        .then((fetchedProduct: any) => {
+        .then((fetchedProduct: Product) => {
           console.log('Product fetched successfully:', fetchedProduct);
           actions.setActiveProduct(fetchedProduct);
           setProductLoading(false);
         })
-        .catch((error: any) => {
+        .catch((error: unknown) => {
           console.error('Error fetching product:', error);
           setProductLoading(false);
-          // Try to find in existing products as fallback
-          const foundProduct = findProductBySlug(slug);
+          // Try to find in existing products as fallback - use products directly
+          const foundProduct = products.find((p: Product) => p.slug === slug);
           if (foundProduct) {
             actions.setActiveProduct(foundProduct);
           } else {
@@ -58,35 +53,34 @@ const ProductDetailsPage: React.FC = () => {
           }
         });
     }
-  }, [slug, dispatch, actions]);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, dispatch]); // Only depend on slug and dispatch - both are stable
 
-  // Fallback: If no current product but we have products in store, try to find it
-  useEffect(() => {
-    if (!currentProduct && products.length > 0 && slug && typeof slug === 'string') {
-      const foundProduct = findProductBySlug(slug);
-      if (foundProduct) {
-        actions.setActiveProduct(foundProduct);
-        setProductLoading(false);
-      } else if (!productLoading) {
-        setShowNotFound(true);
-      }
-    }
-  }, [currentProduct, products, slug, actions, productLoading]);
+  // Memoize actions to prevent unnecessary re-renders
+  const setActiveProduct = useCallback((product: Product | null) => {
+    actions.setActiveProduct(product);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actions.setActiveProduct]);
+
+  const fetchProducts = useCallback(() => {
+    actions.fetchProducts();
+   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actions.fetchProducts]);
 
   // Fetch all products if store is empty (fallback)
   useEffect(() => {
     if (products.length === 0 && !loading) {
-      actions.fetchProducts();
+      fetchProducts();
     }
-  }, [products.length, loading, actions]);
+  }, [products.length, loading, fetchProducts]);
 
   // Clean up active product when component unmounts or slug changes
   useEffect(() => {
     return () => {
       // Optional: Clear active product when leaving the page
-      // actions.setActiveProduct(null);
+      setActiveProduct(null);
     };
-  }, [slug]);
+  }, [slug, setActiveProduct]); // Now using memoized function
 
   // Use currentProduct as the main product variable
   const product = currentProduct;
@@ -118,7 +112,7 @@ const ProductDetailsPage: React.FC = () => {
           <Button
             onClick={() => {
               if (slug && typeof slug === 'string') {
-                dispatch(fetchProductBySlug(slug) as any);
+                dispatch(fetchProductBySlug(slug));
               }
             }}
             className="bg-orange-600 hover:bg-orange-700"
@@ -149,7 +143,7 @@ const ProductDetailsPage: React.FC = () => {
             >
               Go Back Home
             </Link>
-            <Button onClick={() => actions.fetchProducts()} variant="outline">
+            <Button onClick={fetchProducts} variant="outline">
               Refresh Products
             </Button>
           </div>
@@ -169,14 +163,6 @@ const ProductDetailsPage: React.FC = () => {
       </Container>
     );
   }
-
-  // Get category name safely
-  // const categoryName =
-  //   typeof product.categoryId === "object" && product.categoryId?.name
-  //     ? product.categoryId.name
-  //     : typeof product.categoryId === "string"
-  //     ? product.categoryId
-  //     : product.category?.name || "General";
 
   return (
     <>
@@ -235,14 +221,12 @@ const ProductDetailsPage: React.FC = () => {
             productId={product.id?.toString() || "product-123"}
             initialRating={product.averageRating}
             initialReviewCount={product.reviewCount || 0}
-            
           />
 
           {/* Related products - using API data */}
           <RelatedProducts
-            currentProductId={product.id}
-            currentProductCategory={product.categoryId}
-            products={products}
+            currentProductId={product.id?.toString() || ""}
+            currentProductCategory={product.categoryId ?? ""}
             maxProducts={5}
             title="You might also like"
             showViewAll={true}

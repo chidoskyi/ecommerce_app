@@ -1,7 +1,7 @@
 // app/api/categories/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/middleware';
+import { AuthenticatedRequest, requireAdminDynamic, RouteContext } from '@/lib/auth';
 import { slugify } from '@/lib/slugify';
 
 // GET single category by ID (public)
@@ -47,18 +47,16 @@ export async function GET(
 }
 
 // PUT update category by ID (admin only)
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    // Apply admin middleware
-    const adminCheck = await requireAdmin(request);
-    if (adminCheck instanceof NextResponse) {
-      return adminCheck;
-    }
-
-    const { id } = params;
+export const PUT = requireAdminDynamic(
+  async (
+    request: AuthenticatedRequest,
+    ctx: RouteContext
+  ) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const admin = request.user;
+      const params = await ctx.params; // Await the params promise first
+      const { id } = params; // Then destructure
     const body = await request.json();
     const { name, description, image, status } = body;
 
@@ -131,22 +129,20 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+})
 
 
 // DELETE category by ID (admin only)
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    // Apply admin middleware
-    const adminCheck = await requireAdmin(request);
-    if (adminCheck instanceof NextResponse) {
-      return adminCheck;
-    }
-
-    const { id } = params;
+export const DELETE = requireAdminDynamic(
+  async (
+    request: AuthenticatedRequest,
+    ctx: RouteContext
+  ) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const admin = request.user;
+      const params = await ctx.params; // Await the params promise first
+      const { id } = params; // Then destructure
 
     // Check if category exists
     const existingCategory = await prisma.category.findUnique({
@@ -194,4 +190,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+})

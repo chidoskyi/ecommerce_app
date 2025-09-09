@@ -1,3 +1,4 @@
+// app/store/store-provider.tsx
 'use client'
 
 import { useRef } from 'react'

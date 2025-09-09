@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Container from "../reuse/Container";
 import Link from "next/link";
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 import { CategoryStatus } from "@/types/categories";
 import {
@@ -14,6 +14,7 @@ import {
   selectCategoriesByStatus,
 } from "@/app/store/slices/categorySlice";
 import { Swiper, SwiperSlide } from "swiper/react";
+import { Swiper as SwiperType } from 'swiper/types';
 import { Navigation } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
@@ -32,7 +33,7 @@ export default function CategoriesSection() {
   );
 
   // Create refs for navigation buttons
-  const swiperRef = useRef<any>(null);
+  const swiperRef = useRef<SwiperType | null>(null);
 
   // Memoized retry handler
   useEffect(() => {

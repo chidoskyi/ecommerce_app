@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 import {
   fetchReviews,
   bulkUpdateReviews,
@@ -25,35 +25,39 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertTriangle,
+  Filter,
 } from "lucide-react";
 import { ReviewStatus } from "@/types/reviews";
 import ReviewsTable from "@/components/dashboard/reviews/ReviewTable";
 
 const AdminReviewsManagement = () => {
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
 
   // Redux state
-  const reviews = useSelector(selectReviews);
-  const loading = useSelector(selectReviewsLoading);
-  const error = useSelector(selectReviewsError);
-  const filters = useSelector(selectReviewsFilters);
-  const pagination = useSelector(selectReviewsPagination);
-  const statusCounts = useSelector(selectReviewsStatusCounts);
-  const selectedReviews = useSelector(selectSelectedReviews);
-  const selectedCount = useSelector(selectSelectedReviewsCount);
-  const isBulkOperationRunning = useSelector(selectIsBulkOperationRunning);
+  const reviews = useAppSelector(selectReviews);
+  const loading = useAppSelector(selectReviewsLoading);
+  const error = useAppSelector(selectReviewsError);
+  const filters = useAppSelector(selectReviewsFilters);
+  const pagination = useAppSelector(selectReviewsPagination);
+  const statusCounts = useAppSelector(selectReviewsStatusCounts);
+  const selectedReviews = useAppSelector(selectSelectedReviews);
+  const selectedCount = useAppSelector(selectSelectedReviewsCount);
+  const isBulkOperationRunning = useAppSelector(selectIsBulkOperationRunning);
 
   // Local state
   const [searchTerm, setSearchTerm] = useState("");
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Fetch reviews on component mount and filter changes
   useEffect(() => {
     dispatch(fetchReviews(filters));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch, filters.page, filters.status]);
 
   // Handlers
   const handleStatusFilter = (status: ReviewStatus | "all") => {
     dispatch(setFilters({ status, page: 1 }));
+    setShowMobileFilters(false); // Close mobile filters after selection
   };
 
   const handleSearch = () => {
@@ -102,37 +106,39 @@ const AdminReviewsManagement = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
             Review Management
           </h1>
-          <p className="text-gray-600">Manage and moderate customer reviews</p>
+          <p className="text-gray-600 text-sm sm:text-base">
+            Manage and moderate customer reviews
+          </p>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
           {Object.entries(statusCounts).map(([status, count]) => (
             <div
               key={status}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+              className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6"
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600 capitalize">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 capitalize">
                     {status.toLowerCase()} Reviews
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">{count}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900">{count}</p>
                 </div>
                 <div
-                  className={`p-3 rounded-lg ${getStatusBadgeColor(status)}`}
+                  className={`p-2 sm:p-3 rounded-lg ${getStatusBadgeColor(status)}`}
                 >
-                  {status === "APPROVED" && <Check className="w-6 h-6" />}
-                  {status === "REJECTED" && <X className="w-6 h-6" />}
+                  {status === "APPROVED" && <Check className="w-4 h-4 sm:w-6 sm:h-6" />}
+                  {status === "REJECTED" && <X className="w-4 h-4 sm:w-6 sm:h-6" />}
                   {status === "PENDING" && (
-                    <AlertTriangle className="w-6 h-6" />
+                    <AlertTriangle className="w-4 h-4 sm:w-6 sm:h-6" />
                   )}
                 </div>
               </div>
@@ -141,10 +147,28 @@ const AdminReviewsManagement = () => {
         </div>
 
         {/* Filters and Search */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-            {/* Status Filter Tabs */}
-            <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+          {/* Mobile Filter Toggle */}
+          <div className="flex items-center justify-between mb-4 lg:hidden">
+            <button
+              onClick={() => setShowMobileFilters(!showMobileFilters)}
+              className="flex items-center space-x-2 px-3 py-2 bg-gray-100 rounded-lg"
+            >
+              <Filter className="w-4 h-4" />
+              <span className="text-sm font-medium">
+                Filters
+                {filters.status !== "all" && (
+                  <span className="ml-2 text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">
+                    {filters.status}
+                  </span>
+                )}
+              </span>
+            </button>
+          </div>
+
+          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+            {/* Desktop Status Filter Tabs */}
+            <div className="hidden lg:flex space-x-1 bg-gray-100 rounded-lg p-1">
               {statuses.map((status) => (
                 <button
                   key={status}
@@ -167,9 +191,37 @@ const AdminReviewsManagement = () => {
               ))}
             </div>
 
+            {/* Mobile Status Filter Dropdown */}
+            {showMobileFilters && (
+              <div className="w-full lg:hidden">
+                <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 rounded-lg">
+                  {statuses.map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => handleStatusFilter(status)}
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        filters.status === status
+                          ? "bg-blue-600 text-white"
+                          : "bg-white text-gray-600 hover:text-gray-900 border border-gray-200"
+                      }`}
+                    >
+                      {status === "all"
+                        ? "All"
+                        : status.charAt(0) + status.slice(1).toLowerCase()}
+                      {statusCounts[status] && (
+                        <span className="ml-1 text-xs bg-opacity-20 bg-black px-1 py-0.5 rounded">
+                          {statusCounts[status]}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Search */}
-            <div className="flex items-center space-x-2">
-              <div className="relative">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2 w-full lg:w-auto">
+              <div className="relative flex-1 sm:flex-none">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input
                   type="text"
@@ -177,12 +229,12 @@ const AdminReviewsManagement = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full sm:w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 />
               </div>
               <button
                 onClick={handleSearch}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
               >
                 Search
               </button>
@@ -193,15 +245,15 @@ const AdminReviewsManagement = () => {
         {/* Bulk Actions */}
         {selectedCount > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-            <div className="flex items-center justify-between">
-              <span className="text-blue-800 font-medium">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-3 sm:space-y-0">
+              <span className="text-blue-800 font-medium text-sm sm:text-base">
                 {selectedCount} review(s) selected
               </span>
-              <div className="flex space-x-2">
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                 <button
                   onClick={() => handleBulkAction("approve")}
                   disabled={isBulkOperationRunning}
-                  className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm flex items-center space-x-1 cursor-pointer"
+                  className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-xs sm:text-sm flex items-center space-x-1 cursor-pointer flex-1 sm:flex-none justify-center"
                 >
                   <Check className="w-4 h-4" />
                   <span>Approve</span>
@@ -209,7 +261,7 @@ const AdminReviewsManagement = () => {
                 <button
                   onClick={() => handleBulkAction("reject")}
                   disabled={isBulkOperationRunning}
-                  className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm flex items-center space-x-1 cursor-pointer"
+                  className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-xs sm:text-sm flex items-center space-x-1 cursor-pointer flex-1 sm:flex-none justify-center"
                 >
                   <X className="w-4 h-4" />
                   <span>Reject</span>
@@ -217,14 +269,14 @@ const AdminReviewsManagement = () => {
                 <button
                   onClick={() => handleBulkAction("delete")}
                   disabled={isBulkOperationRunning}
-                  className="px-3 py-1 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 text-sm flex items-center space-x-1 cursor-pointer"
+                  className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 text-xs sm:text-sm flex items-center space-x-1 cursor-pointer flex-1 sm:flex-none justify-center"
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>Delete</span>
                 </button>
                 <button
                   onClick={() => dispatch(clearSelectedReviews())}
-                  className="px-3 py-1 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 text-sm cursor-pointer"
+                  className="px-3 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 text-xs sm:text-sm cursor-pointer flex-1 sm:flex-none justify-center flex items-center"
                 >
                   Clear
                 </button>
@@ -243,9 +295,10 @@ const AdminReviewsManagement = () => {
 
         {/* Pagination */}
         {reviews.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-4 mt-6">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-600">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-4 sm:px-6 py-4 mt-6">
+            {/* Mobile Pagination Info */}
+            <div className="flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0">
+              <div className="text-xs sm:text-sm text-gray-600 text-center sm:text-left">
                 Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
                 {Math.min(
                   pagination.page * pagination.limit,
@@ -254,16 +307,17 @@ const AdminReviewsManagement = () => {
                 of {pagination.totalCount} reviews
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1 sm:space-x-2">
                 <button
                   onClick={() => handlePageChange(pagination.page - 1)}
                   disabled={pagination.page <= 1}
                   className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <ChevronLeft className="w-5 h-5" />
+                  <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
 
-                <div className="flex items-center space-x-1">
+                {/* Desktop Pagination Numbers */}
+                <div className="hidden sm:flex items-center space-x-1">
                   {Array.from(
                     { length: Math.min(5, pagination.totalPages) },
                     (_, i) => {
@@ -295,12 +349,17 @@ const AdminReviewsManagement = () => {
                   )}
                 </div>
 
+                {/* Mobile Pagination - Simple Page Number */}
+                <div className="sm:hidden px-3 py-1 text-sm bg-gray-100 rounded-lg">
+                  {pagination.page} / {pagination.totalPages}
+                </div>
+
                 <button
                   onClick={() => handlePageChange(pagination.page + 1)}
                   disabled={pagination.page >= pagination.totalPages}
                   className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <ChevronRight className="w-5 h-5" />
+                  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
               </div>
             </div>

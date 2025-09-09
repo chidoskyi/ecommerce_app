@@ -114,7 +114,7 @@ export interface ProductFiltersProps {
   onFilterChange: (filters: Record<string, boolean>) => void;
   onClose?: () => void;
   showCloseButton?: boolean;
-  categoryId: string;
+  // categoryId: string;
   handleClearAllFilters?: () => void;
 }
 
@@ -123,6 +123,7 @@ export interface ProductFiltersMobileProps {
   onFilterChange: (filters: Record<string, boolean>) => void;
   isOpen: boolean;
   onClose: () => void;
+  handleClearAllFilters: () => void;
 }
 
 
@@ -144,7 +145,7 @@ export type Address = {
   city: string;
   country: string;
   zip: string;
-  phone: string | null;
+  phone?: string | null;
   isDefault: boolean;
   createdAt?: Date; // Made optional
   updatedAt?: Date; // Made optional
@@ -180,6 +181,7 @@ export type WishlistItem = {
   price: string;
   image?: string;
   category?: string;
+  product: Product;
 };
 
 // Account Component
@@ -273,5 +275,5 @@ export interface ContactFormData {
 export interface ApiResponse {
   success: boolean;
   message: string;
-  data?: any;
+  data?: unknown;
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CheckCircle, Download, Package, ArrowRight, Mail, Truck, Loader, AlertCircle, RefreshCw } from 'lucide-react';
 
@@ -36,7 +36,7 @@ interface VerificationResult {
   paymentMethod?: string;
 }
 
-export default function PaymentSuccess() {
+export default function PaymentFailed() {
   const [isVisible, setIsVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isVerifying, setIsVerifying] = useState(true);
@@ -46,27 +46,14 @@ export default function PaymentSuccess() {
   
   const searchParams = useSearchParams();
   const router = useRouter();
-  
-  // Get parameters from URL
-  const reference = searchParams.get('reference') || searchParams.get('trxref');
-  const paymentMethod = searchParams.get('method') || 'paystack'; // Default to paystack
-  const orderId = searchParams.get('orderId');
 
-  useEffect(() => {
-    // Trigger entrance animation
-    setIsVisible(true);
-    
-    // Verify payment when component mounts
-    if (reference) {
-      verifyPayment();
-    } else {
-      setError('No payment reference found');
-      setIsLoading(false);
-      setIsVerifying(false);
-    }
-  }, [reference, paymentMethod]);
+  // Get parameters from URL safely
+  const reference = searchParams?.get('reference') || searchParams?.get('trxref');
+  const paymentMethod = searchParams?.get('method') || 'paystack'; // Default to paystack
+  const orderId = searchParams?.get('orderId');
 
-  const verifyPayment = async () => {
+  // Wrap verifyPayment in useCallback to stabilize the function reference
+  const verifyPayment = useCallback(async () => {
     setIsVerifying(true);
     setIsLoading(true);
     setError(null);
@@ -127,7 +114,21 @@ export default function PaymentSuccess() {
       setIsVerifying(false);
       setIsLoading(false);
     }
-  };
+  }, [reference, paymentMethod, orderId]); // Include all dependencies used inside the function
+
+  useEffect(() => {
+    // Trigger entrance animation
+    setIsVisible(true);
+    
+    // Verify payment when component mounts
+    if (reference) {
+      verifyPayment();
+    } else {
+      setError('No payment reference found');
+      setIsLoading(false);
+      setIsVerifying(false);
+    }
+  }, [reference, verifyPayment]);
 
   const handleDownloadReceipt = async () => {
     if (!orderData?.orderNumber) return;
@@ -364,7 +365,7 @@ export default function PaymentSuccess() {
                 </div>
                 <div>
                   <div className="font-semibold text-gray-800 mb-1">Email Confirmation</div>
-                  <div className="text-gray-600 text-sm">You'll receive a confirmation email within 5 minutes</div>
+                  <div className="text-gray-600 text-sm">You&apos;ll receive a confirmation email within 5 minutes</div>
                 </div>
               </div>
               
@@ -384,7 +385,7 @@ export default function PaymentSuccess() {
                 </div>
                 <div>
                   <div className="font-semibold text-gray-800 mb-1">Shipping Notification</div>
-                  <div className="text-gray-600 text-sm">You'll get tracking info once your order ships</div>
+                  <div className="text-gray-600 text-sm">You&apos;ll get tracking info once your order ships</div>
                 </div>
               </div>
               

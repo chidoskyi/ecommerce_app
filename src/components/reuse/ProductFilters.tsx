@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, Filter } from "lucide-react";
+import { X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import Slider from "rc-slider";
@@ -93,6 +93,7 @@ export function ProductFilters({
   }, [products]);
 
   // Debounced price update
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedPriceUpdate = useCallback(
     debounce((range: number[]) => {
       const minPrice = range[0] > 0 ? range[0] : undefined;
@@ -319,9 +320,9 @@ export function ProductFilters({
                     {category.name}
                   </Label>
                 </div>
-                {category.productCount && (
+                {category.productsCount && (
                   <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                    {category.productCount}
+                    {category.productsCount}
                   </span>
                 )}
               </div>
@@ -362,7 +363,7 @@ export function ProductFilters({
                   min={0}
                   max={maxPrice}
                   value={priceRange}
-                  onChange={handlePriceChange}
+                  onChange={(value) => handlePriceChange(Array.isArray(value) ? value : [value, value])}
                   trackStyle={[{ backgroundColor: '#3B82F6' }]}
                   handleStyle={[
                     { borderColor: '#3B82F6', backgroundColor: '#3B82F6' },
@@ -474,7 +475,7 @@ export function ProductFiltersMobile({
               <ProductFilters
                 selectedFilters={selectedFilters}
                 onFilterChange={onFilterChange}
-                categoryId={categoryId}
+                // categoryId={categoryId}
                 onClose={onClose}
                 handleClearAllFilters={handleClearAllFilters}
                 showCloseButton={true}
