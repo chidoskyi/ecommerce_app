@@ -29,7 +29,7 @@ interface WrappedProductsResponse {
 }
 
 // Union type for possible response structures
-type ProductsApiResponse = ApiResponse<ProductsResponse> | DirectProductsResponse | WrappedProductsResponse;
+type ProductsApiResponse = ApiResponse<ProductsResponse | Category> | DirectProductsResponse | WrappedProductsResponse;
 
 
 
@@ -66,32 +66,10 @@ export const generateProductSku = createAsyncThunk<
             console.log('Fetching category:', categoryId);
             const categoryResponse = await api.get<Category>(`/api/admin/categories/${categoryId}`);
             
-            // Handle different possible response structures
-            let categoryData: Category | null = null;
-            
-            if (categoryResponse) {
-              // Check if it's an Axios response with .data property
-              if ('data' in categoryResponse && categoryResponse.data) {
-                categoryData = categoryResponse.data as Category;
-              }
-              // Check if the response itself is the category data
-              else if ('name' in categoryResponse && typeof categoryResponse.name === 'string') {
-                categoryData = categoryResponse as Category;
-              }
-              // Handle case where response is wrapped differently with proper typing
-              else if (typeof categoryResponse === 'object' && categoryResponse !== null) {
-                // Use type assertion instead of any
-                const responseObj = categoryResponse as { data?: unknown };
-                
-                // Check if it has a data property that looks like a Category
-                if (responseObj.data && typeof responseObj.data === 'object' && responseObj.data !== null && 'name' in responseObj.data) {
-                  categoryData = responseObj.data as Category;
-                } else {
-                  // If no valid data structure found, try to use the response as-is
-                  categoryData = categoryResponse as Category;
-                }
-              }
-            }
+            // Since api.get returns AxiosResponse<Category>, the data is in categoryResponse.data
+            const categoryData = categoryResponse.data;
+            categoryName = categoryData?.name || '';
+            console.log('Retrieved category name:', categoryName);
             
             categoryName = categoryData?.name || '';
             console.log('Retrieved category name:', categoryName);
@@ -220,26 +198,23 @@ export const fetchCategories = createAsyncThunk<
   async (_, { rejectWithValue }) => {
     try {
       console.log('[FETCH_CATEGORIES] Starting fetch...');
-      
-      const response = await api.get('/api/admin/categories');
+      const response = await api.get<Category[] | { categories: Category[] }>('/api/admin/categories');
       console.log('[FETCH_CATEGORIES] Raw API response:', response);
       
-      // Extract data from response - handle both axios wrapper and direct response
-      let responseData = response;
-      if (response && typeof response === 'object' && 'data' in response) {
-        responseData = response.data;
-      }
-      
+      // Extract data from axios response
+      const responseData = response.data;
       console.log('[FETCH_CATEGORIES] Response data:', responseData);
       
       // Extract the categories array from the response
-      let categories = [];
+      let categories: Category[] = [];
       
-      if (responseData && typeof responseData === 'object') {
-        if (Array.isArray(responseData.categories)) {
-          categories = responseData.categories;
-        } else if (Array.isArray(responseData)) {
+      if (responseData) {
+        if (Array.isArray(responseData)) {
+          // Direct array response
           categories = responseData;
+        } else if (typeof responseData === 'object' && 'categories' in responseData && Array.isArray(responseData.categories)) {
+          // Wrapped response with categories property
+          categories = responseData.categories;
         }
       }
       
@@ -251,13 +226,12 @@ export const fetchCategories = createAsyncThunk<
       }
       
       return categories;
+      
     } catch (error) {
       console.error('[FETCH_CATEGORIES] Error:', error);
-      
       if (error instanceof Error) {
         return rejectWithValue(error.message);
       }
-      
       return rejectWithValue('Failed to fetch categories');
     }
   }
@@ -285,31 +259,44 @@ export const fetchProducts = createAsyncThunk<
       });
 
       const url = `/api/admin/products?${queryParams.toString()}`;
-
       const response = await api.get<ProductsResponse>(url) as ProductsApiResponse;
-      
+
       // Type-safe response handling
       let data: ProductsResponse;
-      
+
       // Check if response has a nested data property (axios-style response)
       if ('data' in response && response.data && typeof response.data === 'object') {
         // Handle wrapped response structure
         const wrappedData = response.data as DirectProductsResponse;
         data = {
           products: wrappedData.products || [],
-          pagination: wrappedData.pagination,
-          total: wrappedData.total
+          pagination: wrappedData.pagination || {
+            count: wrappedData.products?.length || 0,
+            total: wrappedData.total || wrappedData.products?.length || 0,
+            page: parseInt(params.page?.toString() || '1'),
+            limit: parseInt(params.limit?.toString() || '10'),
+            pages: Math.ceil((wrappedData.total || wrappedData.products?.length || 0) / parseInt(params.limit?.toString() || '10')),
+          },
+          total: wrappedData.total,
+          success: true
         };
       } else {
         // Handle direct response structure
         const directData = response as DirectProductsResponse;
         data = {
           products: directData.products || [],
-          pagination: directData.pagination,
-          total: directData.total
+          pagination: directData.pagination || {
+            count: directData.products?.length || 0,
+            total: directData.total || directData.products?.length || 0,
+            page: parseInt(params.page?.toString() || '1'),
+            limit: parseInt(params.limit?.toString() || '10'),
+            pages: Math.ceil((directData.total || directData.products?.length || 0) / parseInt(params.limit?.toString() || '10')),
+          },
+          total: directData.total,
+          success: true
         };
       }
-      
+
       const result: ProductsResponse = {
         products: data.products || [],
         pagination: data.pagination || {
@@ -318,10 +305,12 @@ export const fetchProducts = createAsyncThunk<
           page: parseInt(params.page?.toString() || '1'),
           limit: parseInt(params.limit?.toString() || '10'),
           pages: Math.ceil((data.total || data.products?.length || 0) / parseInt(params.limit?.toString() || '10')),
-        }
+        },
+        success: true
       };
-      
+
       return result;
+
     } catch (error) {
       console.error('❌ [FETCH_PRODUCTS] Error stack:', error instanceof Error ? error.stack : 'No stack');
       return rejectWithValue(error instanceof Error ? error.message : 'Failed to fetch products');
@@ -345,18 +334,22 @@ export const createProduct = createAsyncThunk<
       console.log("📋 Frontend: Using JSON approach for product creation...");
       
       // Separate existing URLs from new files
-      const existingImageUrls = [];
-      const newFiles = [];
+      const existingImageUrls: string[] = []; // Add explicit type annotation
+      const newFiles: File[] = []; // Add explicit type annotation
       
       if (productData.images) {
         productData.images.forEach(image => {
           if (image instanceof File) {
+            // Direct File object
             newFiles.push(image);
-          } else if (typeof image === 'object' && image?.file instanceof File) {
+          } else if (typeof image === 'object' && image !== null && 'file' in image && image.file instanceof File) {
+            // ImageWithFile type
             newFiles.push(image.file);
-          } else if (typeof image === 'string' && image.startsWith('http')) {
+          } else if (typeof image === 'string') {
+            // Direct URL string
             existingImageUrls.push(image);
-          } else if (typeof image === 'object' && image?.url) {
+          } else if (typeof image === 'object' && image !== null && 'url' in image && typeof image.url === 'string') {
+            // CloudImage type
             existingImageUrls.push(image.url);
           }
         });
@@ -369,9 +362,6 @@ export const createProduct = createAsyncThunk<
         ...productData,
         images: existingImageUrls // Only include existing URLs
       };
-
-      // Remove file-related properties that shouldn't be sent to API
-      delete processedData.newImageFiles;
 
       console.log("💾 Creating product with processed data:", {
         ...processedData,
@@ -557,23 +547,26 @@ export const updateProduct = createAsyncThunk<
 
   // Delete a product
   export const deleteProduct = createAsyncThunk<
-    { id: string, productData: DeleteProductResponse },
-    string,
-    { rejectValue: string }
-  >(
-    'adminProducts/deleteProduct',
-    async (productId, { rejectWithValue }) => {
-      try {
-        await api.delete(`/api/admin/products/${productId}`);
-        
-        // Return only serializable data
-        return { id: productId };
-      } catch (error) {
-        console.error('Delete product error:', error);
-        return rejectWithValue(error instanceof Error ? error.message : 'Failed to delete product');
-      }
+  { id: string, productData: DeleteProductResponse },
+  string,
+  { rejectValue: string }
+>(
+  'adminProducts/deleteProduct',
+  async (productId, { rejectWithValue }) => {
+    try {
+      const response = await api.delete<DeleteProductResponse>(`/api/admin/products/${productId}`);
+      
+      // Return both ID and response data
+      return { 
+        id: productId, 
+        productData: response.data 
+      };
+    } catch (error) {
+      console.error('Delete product error:', error);
+      return rejectWithValue(error instanceof Error ? error.message : 'Failed to delete product');
     }
-  );
+  }
+);
 
 // Update product status
 export const updateProductStatus = createAsyncThunk<

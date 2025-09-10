@@ -4,12 +4,14 @@ import {
   CheckoutState,
   CreateCheckoutResponse,
   CreateCheckoutRequest,
+  DeliveryInfo,
 } from "@/types/checkout";
 import { Order } from "@/types/orders";
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import api from "@/lib/api";
 import { handleApiError } from "@/lib/error";
 import axios from "axios";
+import { Invoice } from "@/types/invoice";
 
 // Initial state
 const initialState: CheckoutState = {
@@ -33,7 +35,17 @@ const initialState: CheckoutState = {
 
 // Create checkout session
 export const createCheckout = createAsyncThunk<
-  CreateCheckoutResponse,
+  { // Return type - match what you're actually returning
+    checkout: CreateCheckoutResponse;
+    order: Order;
+    showInvoice: boolean;
+    success: boolean;
+    invoice?: Invoice;
+    paymentUrl?: string;
+    paymentReference?: string;
+    deliveryInfo?: DeliveryInfo;
+    message?: string;
+  },
   CreateCheckoutRequest,
   { rejectValue: string }
 >("checkout/createCheckout", async (checkoutData, { rejectWithValue }) => {

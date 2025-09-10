@@ -466,7 +466,11 @@ export const selectWishlistItemById =
 // Get products by category from wishlist
 export const selectWishlistItemsByCategory =
   (category: string) => (state: { wishlist: WishlistState }) =>
-    state.wishlist.items.filter((item) => item.product.category === category);
+    state.wishlist.items.filter((item) => 
+      item.product.category?.id === category || 
+      item.product.category?.name === category ||
+      item.product.category?.slug === category
+    );
 
 // Check if wishlist is empty
 export const selectIsWishlistEmpty = (state: { wishlist: WishlistState }) =>

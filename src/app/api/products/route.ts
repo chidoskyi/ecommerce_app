@@ -1,8 +1,10 @@
 // Enhanced helper functions with comprehensive logging
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Review } from "@/types/reviews";
-import { UnitPrice } from "@/types/unitPrices";
+// import { Review } from "@/types/reviews";
+import { UnitPrice } from "@/types/products";
+import { Prisma } from "@prisma/client";
+import { ProductWithSortPrice } from "../admin/products/route";
 
 // GET - Fetch products with pagination, filtering, and search
 export async function GET(request: NextRequest) {
@@ -68,27 +70,32 @@ export async function GET(request: NextRequest) {
     if (newArrival)
       whereConditions.push({ isNewArrival: newArrival === "true" });
 
-    // Price Filter (simplified and more reliable)
-    if (minPrice !== undefined || maxPrice !== undefined) {
-      const priceConditions: Record<string, string | number | boolean | object | undefined>[] = [];
+      // Price Filter (simplified and more reliable)
+      if (minPrice !== undefined || maxPrice !== undefined) {
+        const priceConditions: Prisma.ProductWhereInput[] = [];
 
       // Handle fixed price products
-      const fixedPriceCondition: Record<string, string | number | boolean | object | undefined> = { hasFixedPrice: true };
-      if (minPrice !== undefined)
+      const fixedPriceCondition: Prisma.ProductWhereInput = {
+        hasFixedPrice: true,
+      };
+      if (minPrice !== undefined) {
         fixedPriceCondition.fixedPrice = { gte: minPrice };
-      if (maxPrice !== undefined)
+      }
+      if (maxPrice !== undefined) {
         fixedPriceCondition.fixedPrice = { lte: maxPrice };
+      }
       priceConditions.push(fixedPriceCondition);
 
-      // Handle unit price products
-      const unitPriceCondition: Record<string, string | number | boolean | object | undefined> = {
+       // Handle unit price products
+       const unitPriceCondition: Prisma.ProductWhereInput = {
         hasFixedPrice: false,
-        unitPrices: { some: {} },
+        unitPrices: {
+          some: {
+            ...(minPrice !== undefined && { price: { gte: minPrice } }),
+            ...(maxPrice !== undefined && { price: { lte: maxPrice } }),
+          },
+        },
       };
-      if (minPrice !== undefined)
-        unitPriceCondition.unitPrices.some.price = { gte: minPrice };
-      if (maxPrice !== undefined)
-        unitPriceCondition.unitPrices.some.price = { lte: maxPrice };
       priceConditions.push(unitPriceCondition);
 
       whereConditions.push({ OR: priceConditions });
@@ -152,20 +159,24 @@ export async function GET(request: NextRequest) {
         include: {
           category: { select: { id: true, name: true } },
           reviews: { select: { rating: true } },
-          unitPrices: true,
+          // unitPrices: true,
         },
       }),
       prisma.product.count({ where }),
     ]);
 
     // Process products
-    const productsWithRatings = products.map((product) => {
-      const ratings = product.reviews.map((r: Review) => r.rating);
-      const averageRating = ratings.length
-        ? parseFloat(
-            (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(2)
-          )
-        : 0;
+    const productsWithRatings: ProductWithSortPrice[] = products.map(
+      (product) => {
+        const ratings: number[] = product.reviews.map((r) => r.rating);
+        const averageRating: number = ratings.length
+          ? parseFloat(
+              (
+                ratings.reduce((sum, rating) => sum + rating, 0) /
+                ratings.length
+              ).toFixed(2)
+            )
+          : 0;
 
       let priceInfo = {};
       let sortPrice = 0;

@@ -207,64 +207,64 @@ export const createProduct = createAsyncThunk(
   }
 );
 
-export const updateProduct = createAsyncThunk(
-  "products/updateProduct",
-  async (
-    {
-      id,
-      updates,
-    }: { id: string; updates: Partial<Product> & { removeImages?: string[] } },
-    { rejectWithValue }
-  ) => {
-    try {
-      const formData = new FormData();
+// export const updateProduct = createAsyncThunk(
+//   "products/updateProduct",
+//   async (
+//     {
+//       id,
+//       updates,
+//     }: { id: string; updates: Partial<Product> & { removeImages?: string[] } },
+//     { rejectWithValue }
+//   ) => {
+//     try {
+//       const formData = new FormData();
 
-      // Add ID to updates
-      formData.append("id", id);
+//       // Add ID to updates
+//       formData.append("id", id);
 
-      // Add all update fields to FormData
-      Object.keys(updates).forEach((key) => {
-        if (key === "images" && Array.isArray(updates[key])) {
-          // Separate Files from URLs properly
-          updates[key].forEach((item) => {
-            if (item instanceof File) {
-              // New uploaded files
-              formData.append("uploadedImages", item);
-            } else if (typeof item === "string") {
-              // Existing URLs
-              formData.append("images", item);
-            }
-          });
-        } else if (key === "removeImages" && Array.isArray(updates[key])) {
-          formData.append("removeImages", JSON.stringify(updates[key]));
-        } else if (key === "unitPrices" && Array.isArray(updates[key])) {
-          formData.append("unitPrices", JSON.stringify(updates[key]));
-        } else if (updates[key] !== null && updates[key] !== undefined) {
-          formData.append(key, updates[key].toString());
-        }
-      });
+//       // Add all update fields to FormData
+//       Object.keys(updates).forEach((key) => {
+//         if (key === "images" && Array.isArray(updates[key])) {
+//           // Separate Files from URLs properly
+//           updates[key].forEach((item) => {
+//             if (item instanceof File) {
+//               // New uploaded files
+//               formData.append("uploadedImages", item);
+//             } else if (typeof item === "string") {
+//               // Existing URLs
+//               formData.append("images", item);
+//             }
+//           });
+//         } else if (key === "removeImages" && Array.isArray(updates[key])) {
+//           formData.append("removeImages", JSON.stringify(updates[key]));
+//         } else if (key === "unitPrices" && Array.isArray(updates[key])) {
+//           formData.append("unitPrices", JSON.stringify(updates[key]));
+//         } else if (updates[key] !== null && updates[key] !== undefined) {
+//           formData.append(key, updates[key].toString());
+//         }
+//       });
 
-      const response = await axios.put("/api/products", formData);
+//       const response = await axios.put("/api/products", formData);
 
-      if (response.status !== 200) {
-        const errorData = response.data;
-        throw new Error(errorData.error || "Failed to update product");
-      }
+//       if (response.status !== 200) {
+//         const errorData = response.data;
+//         throw new Error(errorData.error || "Failed to update product");
+//       }
 
-      const result = response.data;
-      // Handle both response formats - direct product or {id, product}
-      if (result.id && result.product) {
-        return result;
-      } else {
-        return { id, product: result };
-      }
-    } catch (error) {
-      return rejectWithValue(
-        error instanceof Error ? error.message : "Failed to update product"
-      );
-    }
-  }
-);
+//       const result = response.data;
+//       // Handle both response formats - direct product or {id, product}
+//       if (result.id && result.product) {
+//         return result;
+//       } else {
+//         return { id, product: result };
+//       }
+//     } catch (error) {
+//       return rejectWithValue(
+//         error instanceof Error ? error.message : "Failed to update product"
+//       );
+//     }
+//   }
+// );
 
 export const deleteProduct = createAsyncThunk(
   "products/deleteProduct",
@@ -478,41 +478,41 @@ const productSlice = createSlice({
       })
 
       // Update product
-      .addCase(updateProduct.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(updateProduct.fulfilled, (state, action) => {
-        state.loading = false;
-        const index = state.products.findIndex(
-          (product) => product.id === action.payload.id
-        );
-        if (index !== -1) {
-          const updatedProduct = {
-            ...action.payload.product,
-            rating:
-              action.payload.product.rating ||
-              action.payload.product.averageRating ||
-              0,
-            unitPrices: action.payload.product.unitPrices || [],
-          };
-          state.products[index] = updatedProduct;
-        }
-        if (state.activeProduct?.id === action.payload.id) {
-          state.activeProduct = {
-            ...action.payload.product,
-            rating:
-              action.payload.product.rating ||
-              action.payload.product.averageRating ||
-              0,
-            unitPrices: action.payload.product.unitPrices || [],
-          };
-        }
-      })
-      .addCase(updateProduct.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
+      // .addCase(updateProduct.pending, (state) => {
+      //   state.loading = true;
+      //   state.error = null;
+      // })
+      // .addCase(updateProduct.fulfilled, (state, action) => {
+      //   state.loading = false;
+      //   const index = state.products.findIndex(
+      //     (product) => product.id === action.payload.id
+      //   );
+      //   if (index !== -1) {
+      //     const updatedProduct = {
+      //       ...action.payload.product,
+      //       rating:
+      //         action.payload.product.rating ||
+      //         action.payload.product.averageRating ||
+      //         0,
+      //       unitPrices: action.payload.product.unitPrices || [],
+      //     };
+      //     state.products[index] = updatedProduct;
+      //   }
+      //   if (state.activeProduct?.id === action.payload.id) {
+      //     state.activeProduct = {
+      //       ...action.payload.product,
+      //       rating:
+      //         action.payload.product.rating ||
+      //         action.payload.product.averageRating ||
+      //         0,
+      //       unitPrices: action.payload.product.unitPrices || [],
+      //     };
+      //   }
+      // })
+      // .addCase(updateProduct.rejected, (state, action) => {
+      //   state.loading = false;
+      //   state.error = action.payload as string;
+      // })
       // Delete product
       .addCase(deleteProduct.pending, (state) => {
         state.loading = true;
@@ -693,13 +693,13 @@ export const useProducts = () => {
   const actions = useMemo(
     () => ({
       fetchProducts: (filters?: Parameters<typeof fetchProducts>[0]) =>
-        dispatch(fetchProducts(filters)),
+        dispatch(fetchProducts(filters || {})), 
       createProduct: (productData: NewProduct) =>
         dispatch(createProduct(productData)),
-      updateProduct: (data: {
-        id: string;
-        updates: Partial<Product> & { removeImages?: string[] };
-      }) => dispatch(updateProduct(data)),
+      // updateProduct: (data: {
+      //   id: string;
+      //   updates: Partial<Product> & { removeImages?: string[] };
+      // }) => dispatch(updateProduct(data)),
       deleteProduct: (id: string) => dispatch(deleteProduct(id)),
       setActiveProduct: (product: Product | null) =>
         dispatch(setActiveProduct(product)),

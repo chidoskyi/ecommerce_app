@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { AuthenticatedRequest, requireAuth } from '@/lib/auth'
-import { validateAndCalculate } from '@/lib/bankPaymentHandlers'
-import { CheckoutItem } from '@/types/checkout'
-import { BillingAddress, ShippingAddress } from '@prisma/client'
+import { validateAndCalculate, ValidatedItem } from '@/lib/bankPaymentHandlers'
+import {  OrderStatus, PaymentStatus, ShippingAddress } from '@prisma/client'
 
 // GET - Retrieve user's orders
 export const GET = requireAuth(async (request: NextRequest) => {
@@ -106,22 +105,23 @@ export const POST = requireAuth(async (request: NextRequest) => {
       deliveryFee,
       finalSubtotal,
       shippingAddress,
-      billingAddress,
+      // billingAddress,
       discountAmount
     } = validatedData
 
     // Calculate final total including tax
-    const finalTotalPrice = finalSubtotal + parseFloat(totalTax) + deliveryFee - discountAmount
+    const finalTotalPrice = finalSubtotal + parseFloat(totalTax) + deliveryFee
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
 
     const order = await prisma.order.create({
       data: {
-        userId: user.clerkId,
+        userId: user.id,
+        clerkId: user.clerkId,
         orderNumber,
         email: userData.email,
         phone: phone || userData.phone || '',
-        status: 'PENDING',
-        paymentStatus: 'PENDING',
+        status: OrderStatus.PENDING,
+        paymentStatus: PaymentStatus.PENDING,
         subtotalPrice: finalSubtotal,
         totalTax: parseFloat(totalTax),
         totalShipping: deliveryFee, // Use calculated delivery fee
@@ -130,21 +130,20 @@ export const POST = requireAuth(async (request: NextRequest) => {
         totalWeight, // Store total weight
         paymentMethod: paymentMethod || null,
         shippingAddress: shippingAddress as ShippingAddress,
-        billingAddress: billingAddress as BillingAddress, // Include billing address
+        // billingAddress: billingAddress as BillingAddress, // Include billing address
         notes: notes || null,
         items: {
-          create: validatedItems.map((item: CheckoutItem) => ({
-            productId: item.productId,
-            title: item.title,
-            sku: item.sku || null, // You might want to get this from product
-            quantity: item.quantity,
-            price: item.price,
-            totalPrice: item.totalPrice,
-            // Include the pricing fields from cart
-            fixedPrice: item.fixedPrice,
-            unitPrice: item.unitPrice,
-            selectedUnit: item.selectedUnit
-          }))
+            create: validatedItems.map((item: ValidatedItem) => ({ // Use ValidatedItem instead of CheckoutItem
+              productId: item.productId,
+              title: item.title,
+              sku: item.sku || null,
+              quantity: item.quantity,
+              price: item.price,
+              totalPrice: item.totalPrice,
+              fixedPrice: item.fixedPrice,
+              unitPrice: item.unitPrice,
+              selectedUnit: item.selectedUnit
+            }))
         }
       },
       include: {

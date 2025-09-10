@@ -1,6 +1,6 @@
 // store/slices/categorySlice.ts
 import { createSlice, createAsyncThunk, PayloadAction, createSelector } from '@reduxjs/toolkit'
-import { Category, CategoryState, NewCategory, CategoryStatus } from '@/types/categories'
+import { Category, CategoryState, CategoryStatus } from '@/types/categories'
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks'
 import { useMemo, useCallback } from 'react'
 import axios from 'axios'
@@ -129,7 +129,7 @@ export const {
   setActiveCategory,
   setError,
   clearError,
-  addCategoryOptimistic,
+  // addCategoryOptimistic,
   updateCategoryOptimistic,
   removeCategoryOptimistic,
   clearStore
@@ -239,12 +239,13 @@ export const useCategories = () => {
 
   // Memoize the actions to prevent re-creation on every render
   const actions = useMemo(() => ({
-    fetchCategories: (params?: Parameters<typeof fetchCategories>[0]) => dispatch(fetchCategories(params)),
+    fetchCategories: (params?: Parameters<typeof fetchCategories>[0]) => 
+      dispatch(fetchCategories(params || {})), // Add fallback empty object
     setActiveCategory: (category: Category | null) => dispatch(setActiveCategory(category)),
     setError: (error: string | null) => dispatch(setError(error)),
     clearError: () => dispatch(clearError()),
-    addCategoryOptimistic: (category: NewCategory) => dispatch(addCategoryOptimistic(category)),
-    updateCategoryOptimistic: (data: { id: string; updates: Partial<Category> }) => dispatch(updateCategoryOptimistic(data)),
+    updateCategoryOptimistic: (data: { id: string; updates: Partial<Category> }) => 
+      dispatch(updateCategoryOptimistic(data)),
     removeCategoryOptimistic: (id: string) => dispatch(removeCategoryOptimistic(id)),
     clearStore: () => dispatch(clearStore())
   }), [dispatch])

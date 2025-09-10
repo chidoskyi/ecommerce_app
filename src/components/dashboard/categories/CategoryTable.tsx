@@ -174,6 +174,23 @@ export const CategoryTable: React.FC<CategoryTableProps> = ({
     return <EmptyState message="No categories found. Create your first category to get started." />;
   }
 
+  const getImageSource = (image: string | File | null | undefined): string => {
+    if (!image) {
+      return "/placeholder.png";
+    }
+    
+    if (typeof image === 'string') {
+      return image;
+    }
+    
+    if (image instanceof File) {
+      // Convert File to data URL for preview
+      return URL.createObjectURL(image);
+    }
+    
+    return "/placeholder.png";
+  };
+
   return (
     <>
       {/* Desktop Table */}
@@ -225,7 +242,7 @@ export const CategoryTable: React.FC<CategoryTableProps> = ({
                     <div className="flex items-center gap-3">
                       <div className="relative w-12 h-12 flex-shrink-0">
                         <Image 
-                          src={category.image ?? "/placeholder.png"} 
+                          src={getImageSource(category.image)}
                           alt={category.name} 
                           fill 
                           className="object-cover rounded-md border" 
@@ -307,7 +324,7 @@ export const CategoryTable: React.FC<CategoryTableProps> = ({
                 <div className="flex items-center space-x-3 flex-1 min-w-0">
                   <div className="relative w-12 h-12 flex-shrink-0">
                     <Image 
-                      src={category.image ?? "/placeholder.png"} 
+                      src={getImageSource(category.image)}
                       alt={category.name} 
                       fill 
                       className="object-cover rounded-md border" 

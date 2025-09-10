@@ -41,7 +41,8 @@ export const GET = requireAuthDynamic(
           include: {
             product: true
           }
-        }
+        },
+        checkout: true // Add this line to include the checkout relation
       }
     });
 
@@ -57,15 +58,18 @@ export const GET = requireAuthDynamic(
     // For Opay payments, verify with the provider
     if (order.paymentMethod === 'opay' && order.paymentStatus === 'PENDING') {
       try {
-        const verificationResult = await opayService.verifyPayment(params.reference);
+        const verificationResult = await opayService.verifyPayment({
+          reference: params.reference,
+          country: 'NG' // Or the appropriate country code for your implementation
+        });
         
-        if (verificationResult.data.status === 'SUCCESS') {
+        if (verificationResult.data?.status === 'SUCCESS') {
           // Update order payment status
           await prisma.order.update({
             where: { id: order.id },
             data: {
               paymentStatus: 'PAID',
-              status: OrderStatus.COMFIRMED
+              status: OrderStatus.CONFIRMED
             }
           });
 
@@ -101,10 +105,17 @@ export const GET = requireAuthDynamic(
     });
 
   } catch (error) {
-    console.error('Verify payment error:', error);
+    console.error('Payment verification error:', error)
+    
+    // Proper error handling for unknown error type
+    let errorMessage = 'Internal server error'
+    if (error instanceof Error) {
+      errorMessage = error.message
+    }
+    
     return NextResponse.json({ 
       error: 'Internal server error',
-      message: error.message 
-    }, { status: 500 });
+      message: errorMessage 
+    }, { status: 500 })
   }
 });

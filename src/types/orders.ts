@@ -39,7 +39,7 @@ export interface Order {
   updatedAt: Date;
   cancelledAt: Date | null;
   processedAt: Date | null;
-  items: CheckoutItem[];
+  items: OrderItem[] | CheckoutItem[];
   product: Product[]
   [key: string]: unknown;
 }
@@ -47,11 +47,14 @@ export interface Order {
 export interface OrderItem {
   id: string;
   orderId: string;
+  checkoutId: string;
   productId: string;
   title: string;
   image?: string;
   quantity: number;
   price: number;
+  fixedPrice: number;  
+  selectedUnit: string
   totalPrice: number;
   createdAt: Date;
   updatedAt: Date;
@@ -172,13 +175,13 @@ export interface OrderFilters {
   page: number;
   limit: number;
   searchQuery?: string;
-  statusFilter?: string;
+  statusFilter: OrderStatus | "all";
   dateRange?: { 
     from: string | null;
     to: string | null;
   };
-  status?: string;
-  paymentStatus?: PaymentStatus;
+  status?: OrderStatus | '';
+  paymentStatus?: PaymentStatus | ''; 
   startDate?: string; // ISO string
   endDate?: string; // ISO string
   search?: string;

@@ -49,6 +49,7 @@ export type OpayPaymentStatus = 'INITIAL' | 'PENDING' | 'SUCCESS' | 'FAIL' | 'CL
 export interface OpayVerifyResponse {
   code: string
   message: string
+  success: boolean
   data?: {
     reference: string
     orderNo: string

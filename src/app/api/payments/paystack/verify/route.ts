@@ -151,7 +151,7 @@ export const POST = requireAuth(async (request: NextRequest) => {
       items: order.items.map(item => ({
         title: item.title,
         quantity: item.quantity,
-        totalPrice: item.totalPrice || (item.price * item.quantity)
+        totalPrice: item.totalPrice 
       })),
       shippingAddress: order.shippingAddress
     };
@@ -174,10 +174,17 @@ export const POST = requireAuth(async (request: NextRequest) => {
 
   } catch (error) {
     console.error('Paystack verification error:', error);
+    
+    const errorMessage = 
+      error instanceof Error ? error.message :
+      typeof error === 'string' ? error :
+      error && typeof error === 'object' && 'message' in error ? String(error.message) :
+      'Unknown error';
+    
     return NextResponse.json({
       success: false,
       verified: false,
-      error: 'Payment verification failed: ' + (error.message || 'Unknown error')
+      error: 'Payment verification failed: ' + errorMessage
     }, { status: 500 });
   }
 });

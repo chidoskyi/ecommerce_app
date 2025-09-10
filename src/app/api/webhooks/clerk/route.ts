@@ -7,7 +7,10 @@ import { User } from "@prisma/client";
 import { createUser, updateUser, deleteUser, getUser } from "@/lib/users";
 
 // Add logging helper
-function log<T>(message: string, data?: string | number | boolean | object | T) {
+function log<T>(
+  message: string,
+  data?: string | number | boolean | object | T
+) {
   const timestamp = new Date().toISOString();
   console.log(
     `[WEBHOOK ${timestamp}] ${message}`,
@@ -162,8 +165,13 @@ export async function POST(req: Request) {
         // Ensure the user has a wallet (create if doesn't exist)
         try {
           log("💰 Getting or creating wallet for user:", updatedUser?.user?.id);
-          const wallet = await walletService.getOrCreateWallet(updatedUser?.user?.id, id); // Pass clerkId as second parameter
-          log("✅ Wallet ensured for user:", wallet);
+          // Only proceed if we have a valid user ID
+          const userId = updatedUser?.user?.id;
+          if (userId) {
+            const wallet = await walletService.getOrCreateWallet(userId, id);
+            log("✅ Wallet ensured for user:", wallet);
+          }
+          // log("✅ Wallet ensured for user:", wallet);
         } catch (walletError) {
           log("❌ Error getting/creating wallet:", walletError);
         }
@@ -188,7 +196,7 @@ export async function POST(req: Request) {
         log("🗑️ Deleting user:", existingUser);
         const deletedUser = await deleteUser(existingUser.id);
         log("✅ User deleted successfully:", deletedUser);
-        
+
         return new Response("User deleted successfully", { status: 200 });
       } else {
         log(`⚠️ Unhandled webhook event type: ${eventType}`);

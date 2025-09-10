@@ -39,9 +39,15 @@ export const GET = requireAuth( async ( request: AuthenticatedRequest ) => {
         }
       })
     } else {
+        // Check if invoiceNumber exists before using it
+  if (!orderNumber) {
+    return NextResponse.json({ 
+      error: 'Invoice number is required' 
+    }, { status: 400 });
+  }
       order = await prisma.order.findFirst({
         where: { 
-          orderNumber, 
+          orderNumber: orderNumber, 
           userId: user.id 
         },
         include: {
@@ -97,9 +103,9 @@ export const GET = requireAuth( async ( request: AuthenticatedRequest ) => {
       items: order.items.map(item => ({
         id: item.id,
         name: item.title,
-        sku: item.sku || '',
+        sku: item.product.sku || '',
         quantity: item.quantity,
-        unitPrice: item.price,
+        unitPrice: item.product.unitPrices[0]?.price,
         totalPrice: item.totalPrice
       })),
       

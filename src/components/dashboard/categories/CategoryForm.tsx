@@ -55,11 +55,17 @@ export const CategoryForm: React.FC<CategoryFormProps & { loading?: boolean }> =
     if (mode === "edit" && category) {
       setFormData({
         name: category.name,
-        image: category.image ?? "",
+        image: category.image ?? "", // This should be string | null based on your Category interface
         description: category.description || "",
         status: category.status || CategoryStatus.ACTIVE,
       });
-      setImagePreview(category.image);
+      
+      // Only set image preview if category.image is a string
+      if (typeof category.image === 'string') {
+        setImagePreview(category.image);
+      } else {
+        setImagePreview(null);
+      }
     } else {
       setFormData({
         name: "",
@@ -339,7 +345,7 @@ export const CategoryForm: React.FC<CategoryFormProps & { loading?: boolean }> =
             </Label>
             <Textarea
               id="description"
-              value={formData.description}
+              value={formData.description || ''} // Convert null/undefined to empty string
               onChange={handleDescriptionChange}
               placeholder="Enter category description..."
               className="min-h-[100px] sm:min-h-[120px] text-sm sm:text-base border-gray-300 focus:border-blue-500 resize-none"

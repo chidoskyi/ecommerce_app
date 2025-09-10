@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       // Verify the payment with Paystack
       const result = await walletService.verifyDeposit(paymentReference);
 
-      if (result.status === 'success') {
+      if (result.status === 'verified') {
         console.log('Payment verification successful:', result);
         
         // Redirect to success page with reference

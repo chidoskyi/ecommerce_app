@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
           console.log('Wallet service result:', walletResult);
           
           // Check if walletResult indicates success
-          if (walletResult && (walletResult.status === 'verified' || walletResult.status === 'success')) {
+          if (walletResult && (walletResult.status === 'verified')) {
             console.log('Wallet deposit processed successfully');
             return NextResponse.redirect(
               `${process.env.NEXT_PUBLIC_BASE_URL}/account/wallet?payment=success&reference=${paymentReference}`

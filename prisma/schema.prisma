@@ -24,6 +24,7 @@ enum UserStatus {
   ACTIVE
   INACTIVE
   SUSPENDED
+  
 }
 
 enum CategoryStatus {
@@ -147,6 +148,13 @@ type PaymentMetadata {
   paymentMethod       String?
   isRetry             Boolean?
   walletTransactionId String?
+}
+type InvoicePaymentMetadata {
+  opayData         String?
+  customerId          String?
+  source              String?
+  notes               String?
+  orderNumber         String?
 }
 
 // Embedded Types
@@ -1035,7 +1043,7 @@ model InvoicePayment {
 
   // Additional Information
   notes    String?
-  metadata Json? // Store additional payment data
+  metadata InvoicePaymentMetadata // Store additional payment data
 
   // Timestamps
   paidAt    DateTime?

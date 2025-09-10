@@ -161,7 +161,7 @@ export interface Checkout {
     error?: string
   }
 
-  export interface CreateCheckoutResponse {
+  export interface CreateCheckoutResponse extends Checkout{
     success: boolean
     checkout?: Checkout
     order?: Order

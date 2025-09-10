@@ -18,7 +18,7 @@ export interface MetricCardProps {
   link: string
   href: string
   change: string
-  icon?: string
+  icon?: React.ComponentType<{ className?: string }>
   isPositive: boolean
 }
 
@@ -38,6 +38,16 @@ export interface WishList {
   createdAt: Date;
   dateAdded?: Date;
 }
+
+export interface WishlistItem extends WishList {
+  id: string;
+  name: string;
+  price: string;
+  image?: string;
+  category?: string;
+  product: Product;
+}
+
 
 export interface WishlistState {
   items: WishList[];
@@ -175,14 +185,7 @@ export type PaymentMethod = {
   name: string;
 };
 
-export type WishlistItem = {
-  id: number;
-  name: string;
-  price: string;
-  image?: string;
-  category?: string;
-  product: Product;
-};
+
 
 // Account Component
 export type AccountProps = {

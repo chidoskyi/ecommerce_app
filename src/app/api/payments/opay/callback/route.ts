@@ -79,26 +79,26 @@ export async function POST(request: NextRequest) {
         })
 
         // Create invoice payment record
-        await prisma.invoicePayment.create({
-          data: {
-            invoiceId: order.Invoice.id,
-            amount: order.Invoice.totalAmount,
-            paymentMethod: 'opay',
-            paymentType: 'FULL',
-            status: 'PAID',
-            transactionId: paymentData.transactionId || reference,
-            reference: reference,
-            gateway: 'opay',
-            verifiedAt: new Date(),
-            paidAt: new Date(),
-            notes: 'Payment processed via Opay gateway',
-            metadata: {
-              opayData: paymentData,
-              verifiedAt: new Date().toISOString(),
-              automaticVerification: true
-            }
-          }
-        })
+        // await prisma.invoicePayment.create({
+        //   data: {
+        //     invoiceId: order.Invoice.id,
+        //     amount: order.Invoice.totalAmount,
+        //     paymentMethod: 'opay',
+        //     paymentType: 'FULL',
+        //     status: 'PAID',
+        //     transactionId: paymentData.transactionId || reference,
+        //     reference: reference,
+        //     gateway: 'opay',
+        //     verifiedAt: new Date(),
+        //     paidAt: new Date(),
+        //     notes: 'Payment processed via Opay gateway',
+        //     metadata: {
+        //       opayData: paymentData,
+        //       verifiedAt: new Date().toISOString(),
+        //       automaticVerification: true
+        //     }
+        //   }
+        // })
       }
 
       console.log(`Payment successful for order ${order.orderNumber}`)
@@ -162,9 +162,17 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Opay callback error:', error)
+    
+    if (error instanceof Error) {
+      return NextResponse.json({ 
+        error: 'Internal server error',
+        message: error.message 
+      }, { status: 500 })
+    }
+    
     return NextResponse.json({ 
       error: 'Internal server error',
-      message: error.message 
+      message: 'An unknown error occurred' 
     }, { status: 500 })
   }
 }
@@ -177,12 +185,15 @@ export async function GET(request: NextRequest) {
     const trxref = searchParams.get("trxref");
     const paymentReference = reference || trxref;
 
-    if (!reference) {
+    if (!paymentReference) {
       return NextResponse.json({ error: 'Payment reference is required' }, { status: 400 })
     }
 
-    // Verify payment with Opay
-    const paymentVerification = await opayService.verifyPayment(paymentReference)
+    // Verify payment with Opay - pass the required parameters object
+    const paymentVerification = await opayService.verifyPayment({
+      reference: paymentReference,
+      country: 'NG' // Replace with appropriate country code (EG, NG, etc.)
+    });
     
     if (!paymentVerification.success) {
       return NextResponse.json({ 
@@ -195,8 +206,8 @@ export async function GET(request: NextRequest) {
     const order = await prisma.order.findFirst({
       where: { 
         OR: [
-          { paymentId: reference },
-          { transactionId: reference }
+          { paymentId: paymentReference },
+          { transactionId: paymentReference }
         ]
       },
       include: {
@@ -225,8 +236,16 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Payment verification error:', error)
+    
+    // Proper error handling for unknown error type
+    let errorMessage = 'Internal server error'
+    if (error instanceof Error) {
+      errorMessage = error.message
+    }
+    
     return NextResponse.json({ 
-      error: 'Internal server error' 
+      error: 'Internal server error',
+      message: errorMessage 
     }, { status: 500 })
   }
 }

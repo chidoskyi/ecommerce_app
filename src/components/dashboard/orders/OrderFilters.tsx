@@ -69,7 +69,21 @@ export const OrderFilters: React.FC<OrderFiltersProps> = ({
   };
 
   const handleStatusFilterChange = (statusFilter: string) => {
-    const newFilters = { statusFilter, page: 1 };
+    // Validate that the statusFilter is a valid OrderStatus or "all"
+    const validStatuses: (OrderStatus | "all")[] = [
+      "PENDING", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED", "all"
+    ];
+  
+    if (!validStatuses.includes(statusFilter as OrderStatus | "all")) {
+      console.warn("Invalid status filter:", statusFilter);
+      return; // Don't dispatch invalid values
+    }
+  
+    const newFilters = { 
+      statusFilter: statusFilter as OrderStatus | "all", // Type assertion
+      page: 1 
+    };
+    
     dispatch(setFilters(newFilters));
     setShowMobileFilters(false); // Close mobile filters after selection
     

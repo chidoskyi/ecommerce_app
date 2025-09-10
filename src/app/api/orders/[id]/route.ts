@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { type AuthenticatedRequest, requireAdminDynamic, requireAuthDynamic } from "@/lib/auth";
+import { type AuthenticatedRequest, requireAdminDynamic, requireAuthDynamic, RouteContext } from "@/lib/auth";
 
 // =============================================================================
 // GET - Retrieve a specific order (Users can only see their own orders)
 // =============================================================================
 export const GET = requireAuthDynamic(async (
   request: AuthenticatedRequest,
-  context: Promise<{ params: { id: string } }>
+  ctx: RouteContext
 ) => {
   try {
     const user = request.user;
-    const { params } = await context;
-    const { id } = params;
+    const { id } = await ctx.params;
 
     // Fetch order with all required relations
     const order = await prisma.order.findFirst({
@@ -122,12 +121,11 @@ export const GET = requireAuthDynamic(async (
 // =============================================================================
 export const PUT = requireAdminDynamic(async (
   request: AuthenticatedRequest,
-  context: Promise<{ params: { id: string } }>
+  ctx: RouteContext
 ) => {
   try {
     const admin = request.user; // This is guaranteed to be ADMIN or MODERATOR
-    const { params } = await context;
-    const { id } = params;
+    const { id } = await ctx.params;
 
     const { status, paymentStatus, notes, trackingNumber, paymentProof } =
       await request.json();
@@ -237,12 +235,11 @@ export const PUT = requireAdminDynamic(async (
 // =============================================================================
 export const DELETE = requireAuthDynamic(async (
   request: AuthenticatedRequest,
-  context: Promise<{ params: { id: string } }>
+  ctx: RouteContext
 ) => {
   try {
     const user = request.user;
-    const { params } = await context;
-    const { id } = params;
+    const { id } = await ctx.params;
 
     // Find the order - user can only access their own orders
     const existingOrder = await prisma.order.findFirst({

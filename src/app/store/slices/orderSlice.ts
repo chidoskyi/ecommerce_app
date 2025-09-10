@@ -1,6 +1,6 @@
 // store/orderSlice.ts (Fixed Version)
 import api from '@/lib/api';
-import { FetchOrdersParams, OptimisticUpdateParams, Order, OrderFilters, OrderResponse, OrdersResponse, OrderState, Pagination, UpdateOrderParams } from '@/types/orders'
+import { FetchOrdersParams, OptimisticUpdateParams, Order, OrderFilters, OrderResponse, OrdersResponse, OrderState, OrderPagination, UpdateOrderParams } from '@/types/orders'
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
 import { handleApiError } from '@/lib/error'
 import { AddressType } from '@prisma/client';
@@ -21,14 +21,16 @@ const initialState: OrderState = {
     pages: 0
   },
   filters: {
-    status: '',
-    paymentStatus: ''
+    page: 1, // Add required page property
+    limit: 10, // Add required limit property
+    status: undefined,
+    paymentStatus: undefined
   }
 }
 
 // Fetch user's orders with pagination and filters
 export const fetchOrders = createAsyncThunk<
-  { orders: Order[]; pagination: Pagination },
+  { orders: Order[]; pagination: OrderPagination },
   FetchOrdersParams,
   { state: { order: OrderState }; rejectValue: string }
 >(
@@ -215,7 +217,7 @@ const orderSlice = createSlice({
     setError: (state, action: PayloadAction<string | null>) => {
       state.error = action.payload
     },
-    setPagination: (state, action: PayloadAction<Pagination>) => {
+    setPagination: (state, action: PayloadAction<OrderPagination>) => {
       state.pagination = action.payload
     },
     
@@ -225,7 +227,12 @@ const orderSlice = createSlice({
       state.pagination.page = 1 // Reset to page 1 when filters change
     },
     clearFilters: (state) => {
-      state.filters = { status: '', paymentStatus: '' }
+      state.filters = { 
+        page: 1,
+        limit: 10,
+        status: '',
+        paymentStatus: ''
+      }
       state.pagination.page = 1
     },
 

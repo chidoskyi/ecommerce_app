@@ -11,7 +11,7 @@ export interface User {
   phone: string | null;
   avatar: string | null;
   role: 'USER' | 'ADMIN' | 'MODERATOR';
-  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'BANNED';
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   emailVerified: boolean;
   lastLoginAt: Date | null;
   createdAt: Date;
@@ -41,7 +41,7 @@ export interface UserProfile {
   phone: string | null;
   avatar: string | null;
   role: 'USER' | 'ADMIN' | 'MODERATOR';
-  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'BANNED';
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   emailVerified: boolean;
   dateOfBirth: Date | null;
   lastLoginAt: Date | null;
@@ -139,7 +139,7 @@ export interface UsersResponse {
 }
 
 export type UserRole = 'USER' | 'ADMIN' | 'MODERATOR'
-export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'BANNED'
+export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
 
 export interface AdminUsersState {
   users: User[];

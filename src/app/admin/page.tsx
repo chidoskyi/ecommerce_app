@@ -213,7 +213,7 @@ export default function Dashboard() {
               link={metric.link || ""}
               href={metric.href || ""}
               isPositive={metric.isPositive || false}
-              icon={metric.icon ? metric.icon.name : undefined} // Adjust based on what MetricCard expects
+              icon={metric.icon}
             />
           </div>
         ))}

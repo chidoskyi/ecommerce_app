@@ -2,27 +2,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireAuth, AuthenticatedRequest } from '@/lib/auth'
+import { Prisma, ReviewStatus } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const productId = searchParams.get('productId')
-    const userId = searchParams.get('userId')
-    const status = searchParams.get('status') || 'APPROVED'
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
-    const skip = (page - 1) * limit
+    const { searchParams } = new URL(request.url);
+    const productId = searchParams.get('productId');
+    const userId = searchParams.get('userId');
+    const status = searchParams.get('status') || 'APPROVED';
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const skip = (page - 1) * limit;
 
-    // Build where clause
-    const where = {
-      status: status === 'all' ? undefined : status
+    // Build where clause with proper Prisma types
+    const where: Prisma.ReviewWhereInput = {};
+    
+    // Handle status filter with proper enum typing
+    if (status !== 'all') {
+      // Convert the string to the actual ReviewStatus enum value
+      where.status = status as ReviewStatus;
     }
     
-    if (productId) where.productId = productId
-    if (userId) where.userId = userId
-
-    // Remove undefined values
-    Object.keys(where).forEach(key => where[key] === undefined && delete where[key])
+    // Add optional filters
+    if (productId) where.productId = productId;
+    if (userId) where.userId = userId;
 
     const [reviews, totalCount] = await Promise.all([
       prisma.review.findMany({
@@ -51,7 +54,7 @@ export async function GET(request: NextRequest) {
         take: limit
       }),
       prisma.review.count({ where })
-    ])
+    ]);
 
     return NextResponse.json({
       reviews,
@@ -61,24 +64,20 @@ export async function GET(request: NextRequest) {
         totalCount,
         totalPages: Math.ceil(totalCount / limit)
       }
-    })
+    });
   } catch (error) {
-    console.error('Get reviews error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Get reviews error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    // Authentication check
-    const authResult = await requireAuth(request);
-    if (authResult instanceof NextResponse) {
-      return authResult;
-    }
 
-    const user = (request as AuthenticatedRequest).user
+
+export const POST = requireAuth(async (request: NextRequest) => {
+  try {
+    const user = (request as AuthenticatedRequest).user;
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const {
@@ -195,4 +194,4 @@ export async function POST(request: NextRequest) {
     console.error('Create review error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

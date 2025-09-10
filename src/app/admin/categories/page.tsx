@@ -16,7 +16,13 @@ import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "react-toastify";
 import { CategoryForm } from "@/components/dashboard/categories/CategoryForm";
 import { CategoryTable } from "@/components/dashboard/categories/CategoryTable";
-import { Category, CategoryStatus, CreateCategoryData, NewCategory, SortConfig } from "@/types/categories";
+import {
+  Category,
+  CategoryStatus,
+  CreateCategoryData,
+  NewCategory,
+  SortConfig,
+} from "@/types/categories";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch } from "@/app/store";
 import {
@@ -109,7 +115,7 @@ export default function CategoriesPage() {
         })
       );
     }
-     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortConfig.key, sortConfig.direction, dispatch]);
 
   // Handle search query changes with ref to avoid dependency issues
@@ -141,7 +147,7 @@ export default function CategoriesPage() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, dispatch]); // Only depend on searchQuery and dispatch
 
   // Handle errors
@@ -158,44 +164,46 @@ export default function CategoriesPage() {
   ): Promise<void> => {
     try {
       console.log("🚀 CategoriesPage: Adding category:", category);
-  
+
       // Helper function to prepare category data for creation (API format)
-      const prepareCategoryForCreate = (cat: Category | NewCategory): CreateCategoryData => ({
+      const prepareCategoryForCreate = (
+        cat: Category | NewCategory
+      ): CreateCategoryData => ({
         name: cat.name,
         // slug: cat.slug,
         description: cat.description ?? undefined,
         image: null, // Always null initially for API
         status: cat.status || CategoryStatus.ACTIVE,
       });
-  
+
       // Type-safe check for File objects
       const hasImageFile = category.image instanceof File;
-  
+
       if (hasImageFile) {
         // Create category without image first
         const categoryForCreate = prepareCategoryForCreate(category);
-  
+
         let createdCategory: Category | undefined;
         let uploadResult: { url: string; category: Category };
-  
+
         try {
           // Step 1: Create category without image
           createdCategory = await dispatch(
             createCategory(categoryForCreate)
           ).unwrap();
-  
+
           // Step 2: Upload image to the created category
           if (!createdCategory) {
             throw new Error("Failed to create category");
           }
-  
+
           uploadResult = await dispatch(
             uploadCategoryImages({
               categoryId: createdCategory.id.toString(),
               files: [category.image as File], // Now TypeScript knows this is a File
             })
           ).unwrap();
-  
+
           // Step 3: Update category with image URL
           await dispatch(
             updateCategory({
@@ -209,17 +217,19 @@ export default function CategoriesPage() {
               productsCount: createdCategory.productsCount,
             })
           ).unwrap();
-  
         } catch (uploadError) {
           // If image upload or update fails after category creation,
           // we could optionally clean up the created category
           console.error("Error during image upload process:", uploadError);
-          
+
           // Option 1: Leave category without image
           if (createdCategory) {
-            console.warn("Category created but image upload failed:", createdCategory.id);
+            console.warn(
+              "Category created but image upload failed:",
+              createdCategory.id
+            );
           }
-          
+
           // Option 2: Delete the created category (uncomment if needed)
           // if (createdCategory) {
           //   try {
@@ -229,7 +239,7 @@ export default function CategoriesPage() {
           //     console.error("Failed to cleanup category:", cleanupError);
           //   }
           // }
-          
+
           throw new Error("Failed to upload category image");
         }
       } else {
@@ -237,25 +247,26 @@ export default function CategoriesPage() {
         // Handle string URLs or null values
         const categoryForCreate: CreateCategoryData = {
           ...prepareCategoryForCreate(category),
-          image: typeof category.image === 'string' ? category.image : null,
+          image: typeof category.image === "string" ? category.image : null,
         };
         await dispatch(createCategory(categoryForCreate)).unwrap();
       }
-  
+
       // Success: Close modal and show success message
       setIsAddCategoryOpen(false);
       toast.success("Category added successfully");
-      
     } catch (error) {
       console.error("Error adding category:", error);
-      
+
       // More specific error messages based on error type
       if (error instanceof Error) {
-        toast.error(error.message || "Failed to add category. Please try again.");
+        toast.error(
+          error.message || "Failed to add category. Please try again."
+        );
       } else {
         toast.error("Failed to add category. Please try again.");
       }
-      
+
       // Don't close modal on error so user can retry
     }
   };
@@ -264,23 +275,52 @@ export default function CategoriesPage() {
   ): Promise<void> => {
     try {
       console.log("🚀 CategoriesPage: Updating category:", updatedCategory);
+
+      let imageUrl: string | undefined = undefined;
+
+      // Handle file upload if image is a File object
+      if (updatedCategory.image instanceof File) {
+        try {
+          console.log("📤 Uploading category image...");
+          const uploadResult = await dispatch(
+            uploadCategoryImages({
+              categoryId: updatedCategory.id.toString(),
+              files: [updatedCategory.image],
+            })
+          ).unwrap();
+
+          imageUrl = uploadResult.url;
+          console.log("✅ Image uploaded successfully:", imageUrl);
+        } catch (uploadError) {
+          console.error("❌ Failed to upload image:", uploadError);
+          toast.error("Failed to upload image");
+          return;
+        }
+      } else {
+        // If it's already a string, null, or undefined, convert null to undefined
+        imageUrl = updatedCategory.image ?? undefined;
+      }
+
+      console.log("🔄 Updating category with image:", imageUrl);
       await dispatch(
         updateCategory({
           id: updatedCategory.id.toString(),
           name: updatedCategory.name,
           description: updatedCategory.description ?? undefined,
-          image: updatedCategory.image ?? undefined,
+          image: imageUrl, // Use the processed image URL
           status: updatedCategory.status,
           createdAt: updatedCategory.createdAt,
           updatedAt: updatedCategory.updatedAt,
           productsCount: updatedCategory.productsCount,
         })
       ).unwrap();
+
       setIsEditCategoryOpen(false);
       dispatch(clearCurrentCategory());
       toast.success("Category updated successfully");
     } catch (error) {
       console.error("Error updating category:", error);
+      toast.error("Failed to update category");
     }
   };
 
@@ -392,7 +432,7 @@ export default function CategoriesPage() {
                     Organize your products with categories
                   </CardDescription>
                 </div>
-                
+
                 {/* Add Category Button - Full width on mobile */}
                 <Dialog
                   open={isAddCategoryOpen}
@@ -427,7 +467,7 @@ export default function CategoriesPage() {
               </div>
             </div>
           </CardHeader>
-          
+
           {/* Card Content - Responsive Padding */}
           <CardContent className="px-0 sm:px-6 pb-6">
             <div className="w-full overflow-hidden p-2 md:p-2">

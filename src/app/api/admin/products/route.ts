@@ -42,7 +42,7 @@ interface ProcessedProduct {
   reviewCount: number;
 }
 
-interface ProductWithSortPrice extends ProcessedProduct {
+export interface ProductWithSortPrice extends ProcessedProduct {
   sortPrice: number;
 }
 

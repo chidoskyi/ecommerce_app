@@ -1,12 +1,12 @@
 // store/slices/cartSlice.js
 import { Product, UnitPrice } from "@/types/products";
-import { CartItemWithProduct } from "@/types/carts";
+import { CartItem, CartItemWithProduct } from "@/types/carts";
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { toast } from "react-toastify";
 import axios from "axios";
 import api from "@/lib/api";
-import { createSelector } from '@reduxjs/toolkit';
-import { StorageUtil, STORAGE_KEYS } from '@/lib/storageKeys';
+import { createSelector } from "@reduxjs/toolkit";
+import { StorageUtil, STORAGE_KEYS } from "@/lib/storageKeys";
 import { RootState } from "..";
 import { handleApiError } from "@/lib/error";
 
@@ -53,7 +53,10 @@ const saveCartToStorage = (cartData: {
         typeof cartData.itemCount === "number" ? cartData.itemCount : 0,
       timestamp: Date.now(),
     };
-    localStorage.setItem(STORAGE_KEYS.CART_DATA_KEY, JSON.stringify(dataToSave));
+    localStorage.setItem(
+      STORAGE_KEYS.CART_DATA_KEY,
+      JSON.stringify(dataToSave)
+    );
   } catch (error) {
     console.error("Failed to save cart to localStorage:", error);
   }
@@ -83,7 +86,6 @@ const loadCartFromStorage = () => {
   }
 };
 
-
 const calculateTotals = (items: CartItemWithProduct[]) => {
   const subtotal = items.reduce((sum, item) => {
     let price: number;
@@ -91,8 +93,12 @@ const calculateTotals = (items: CartItemWithProduct[]) => {
     // Determine price based on product pricing structure
     if (item.product?.hasFixedPrice && item.fixedPrice !== undefined) {
       price = item.fixedPrice;
-    } else if (!item.product?.hasFixedPrice && item.unitPrice !== undefined) {
-      price = item.unitPrice;
+    } else if (
+      !item.product?.hasFixedPrice &&
+      item.unitPrice !== undefined &&
+      item.unitPrice !== null
+    ) {
+      price = item.unitPrice.price; // Access the price property of UnitPrice object
     } else if (!item.product?.hasFixedPrice && item.selectedUnit) {
       price = item.selectedUnit.price;
     } else if (item.product?.fixedPrice !== undefined) {
@@ -116,10 +122,13 @@ const calculateTotals = (items: CartItemWithProduct[]) => {
 // Fetch cart for a user
 export const fetchCart = createAsyncThunk(
   "cart/fetchCart",
-  async ({ userId, guestId }: { userId?: string | null; guestId?: string | null }, { rejectWithValue }) => {
+  async (
+    { userId, guestId }: { userId?: string | null; guestId?: string | null },
+    { rejectWithValue }
+  ) => {
     try {
       const response = await axios.get("/api/carts", {
-        params: { userId, guestId }
+        params: { userId, guestId },
       });
       return response.data.data;
     } catch (error) {
@@ -137,18 +146,18 @@ export const addItemToCart = createAsyncThunk(
       product,
       quantity = 1,
       selectedUnit,
-      userId, 
+      userId,
     }: {
       product: Product;
       quantity?: number;
       selectedUnit?: UnitPrice | null;
-      userId?: string | null; 
+      userId?: string | null;
     },
     { getState, rejectWithValue }
   ) => {
     try {
       const state = getState() as RootState;
-      const currentGuestId = state.cart.guestId ||  StorageUtil.getGuestId();
+      const currentGuestId = state.cart.guestId || StorageUtil.getGuestId();
 
       // Determine the price to use based on product structure
       let itemPrice: number;
@@ -230,15 +239,26 @@ export const addItemToCart = createAsyncThunk(
           currentCart.items[existingItemIndex].quantity += quantity;
         } else {
           // Add new item
+          // Add new item
           const newItem: CartItemWithProduct = {
             id: StorageUtil.generateCartItemId(),
             productId: product.id,
             quantity,
             product,
             fixedPrice: product.hasFixedPrice ? itemPrice : undefined,
-            unitPrice: !product.hasFixedPrice ? itemPrice : undefined,
+            unitPrice: !product.hasFixedPrice
+              ? {
+                  unit: priceUnit || product.unitPrices?.[0]?.unit || "",
+                  price: itemPrice,
+                }
+              : undefined,
             selectedUnit:
               !product.hasFixedPrice && selectedUnit ? selectedUnit : undefined,
+            userId: userId || "", // Provide empty string as fallback instead of null
+            unitPrices: { unit: priceUnit || "", price: itemPrice },
+            price: itemPrice,
+            createdAt: new Date(),
+            updatedAt: new Date(),
           };
           currentCart.items.push(newItem);
         }
@@ -257,7 +277,7 @@ export const addItemToCart = createAsyncThunk(
         saveCartToStorage(updatedCart);
         return updatedCart;
       }
-    } catch (error: unknown) { 
+    } catch (error: unknown) {
       return rejectWithValue(
         handleApiError(error) || "Failed to add item to cart"
       );
@@ -267,50 +287,60 @@ export const addItemToCart = createAsyncThunk(
 
 // Update quantity (no auth headers needed - uses userId/guestId params)
 export const updateCartQuantity = createAsyncThunk(
-  'cart/updateQuantity',
-  async ({ cartItemId, quantity }: { cartItemId: string; quantity: number }, { getState, rejectWithValue }) => {
+  "cart/updateQuantity",
+  async (
+    { cartItemId, quantity }: { cartItemId: string; quantity: number },
+    { getState, rejectWithValue }
+  ) => {
     try {
       const state = getState() as RootState;
       const { userId, guestId } = state.cart; // userId is actually clerkId in state
-      
+
       try {
         // Make API call without auth headers (uses userId/guestId params)
-        const response = await axios.put('/api/carts', {
+        const response = await axios.put("/api/carts", {
           cartItemId,
           quantity,
           userId, // API treats this as clerkId
-          guestId
+          guestId,
         });
 
         if (response.data.success) {
           const updatedCart = response.data.data;
-          
+
           // Save the authoritative cart state from API
           saveCartToStorage(updatedCart);
           return updatedCart;
         } else {
-          throw new Error(response.data.error || 'Update failed');
+          throw new Error(response.data.error || "Update failed");
         }
-        
       } catch (apiError: unknown) {
-        console.log('API failed, updating quantity in localStorage cart:', 
-          apiError instanceof Error ? apiError.message : 'Unknown error');
-        
+        console.log(
+          "API failed, updating quantity in localStorage cart:",
+          apiError instanceof Error ? apiError.message : "Unknown error"
+        );
+
         // Fallback to localStorage update for guests only
         if (userId) {
           throw apiError; // Don't fallback for authenticated users
         }
-        
-        const currentCart = loadCartFromStorage() || { items: [], subtotal: 0, itemCount: 0 };
-        const itemIndex = currentCart.items.findIndex((item: CartItemWithProduct) => item.id === cartItemId);
-        
+
+        const currentCart = loadCartFromStorage() || {
+          items: [],
+          subtotal: 0,
+          itemCount: 0,
+        };
+        const itemIndex = currentCart.items.findIndex(
+          (item: CartItemWithProduct) => item.id === cartItemId
+        );
+
         if (itemIndex >= 0) {
           if (quantity > 0) {
             currentCart.items[itemIndex].quantity = quantity;
           } else {
             currentCart.items.splice(itemIndex, 1);
           }
-          
+
           const { subtotal, itemCount } = calculateTotals(currentCart.items);
           const updatedCart = {
             ...currentCart,
@@ -318,16 +348,17 @@ export const updateCartQuantity = createAsyncThunk(
             subtotal,
             itemCount,
           };
-          
+
           saveCartToStorage(updatedCart);
           return updatedCart;
         }
-        
-        throw new Error('Cart item not found in local storage');
+
+        throw new Error("Cart item not found in local storage");
       }
-      
-    } catch (error: unknown) { 
-      return rejectWithValue(handleApiError(error) || 'Failed to update cart item');
+    } catch (error: unknown) {
+      return rejectWithValue(
+        handleApiError(error) || "Failed to update cart item"
+      );
     }
   }
 );
@@ -339,17 +370,17 @@ export const removeCartItem = createAsyncThunk(
     try {
       const state = getState() as RootState;
       const { userId, guestId } = state.cart; // userId is actually clerkId in state
-      
+
       try {
         // API treats userId as clerkId
         const queryParams = new URLSearchParams({
           cartItemId,
           ...(userId && { userId }), // API treats this as clerkId
-          ...(guestId && { guestId })
+          ...(guestId && { guestId }),
         });
-        
+
         const response = await axios.delete(`/api/carts?${queryParams}`);
-        
+
         const updatedCartSummary = response.data.data;
         saveCartToStorage(updatedCartSummary);
         return updatedCartSummary;
@@ -394,18 +425,18 @@ export const reduceCartQuantity = createAsyncThunk(
     try {
       const state = getState() as RootState;
       const { userId, guestId } = state.cart; // userId is actually clerkId in state
-      
+
       try {
         // API treats userId as clerkId
         const queryParams = new URLSearchParams({
           cartItemId,
-          reduceQuantity: 'true',
+          reduceQuantity: "true",
           ...(userId && { userId }), // API treats this as clerkId
-          ...(guestId && { guestId })
+          ...(guestId && { guestId }),
         });
-        
+
         const response = await axios.delete(`/api/carts?${queryParams}`);
-        
+
         const updatedCartSummary = response.data.data;
         saveCartToStorage(updatedCartSummary);
         return updatedCartSummary;
@@ -466,7 +497,7 @@ export const clearEntireCart = createAsyncThunk(
   ) => {
     try {
       console.log("🧪 clearEntireCart called with:", { userId, guestId });
-      
+
       // Check if we have the required parameters
       if (!userId && !guestId) {
         console.log("No userId or guestId, clearing local storage only");
@@ -477,25 +508,25 @@ export const clearEntireCart = createAsyncThunk(
           itemCount: 0,
         };
       }
-      
+
       try {
         const queryParams = new URLSearchParams();
-        queryParams.append('clearCart', 'true');
-        
+        queryParams.append("clearCart", "true");
+
         // Add the required parameters
         if (userId) {
-          queryParams.append('userId', userId);
+          queryParams.append("userId", userId);
         }
         if (guestId) {
-          queryParams.append('guestId', guestId);
+          queryParams.append("guestId", guestId);
         }
-        
+
         const url = `/api/carts?${queryParams.toString()}`;
         console.log("📡 Making API call to:", url);
-        
+
         const response = await axios.delete(url);
         console.log("✅ API response:", response.data);
-        
+
         StorageUtil.clearCartData();
         return {
           items: [],
@@ -524,69 +555,77 @@ export const mergeGuestCart = createAsyncThunk(
   async ({ userId }: { userId: string }, { rejectWithValue }) => {
     try {
       if (!userId) {
-        throw new Error("User ID is required for cart merge")
+        throw new Error("User ID is required for cart merge");
       }
 
       // FIXED: Use getGuestIdForMerge to get guest ID even when user is logged in
-      const currentGuestId = StorageUtil.getGuestIdForMerge()
-      
+      const currentGuestId = StorageUtil.getGuestIdForMerge();
+
       // Return success immediately if no guest cart exists
       if (!currentGuestId) {
-        console.log("ℹ️ No guest cart to merge - returning empty result")
-        return { 
-          items: [], 
+        console.log("ℹ️ No guest cart to merge - returning empty result");
+        return {
+          items: [],
           itemCount: 0,
           subtotal: 0,
           message: "No guest cart found",
-          success: true
-        }
+          success: true,
+        };
       }
 
-      console.log("🔄 Starting cart merge...", { userId, guestId: currentGuestId })
+      console.log("🔄 Starting cart merge...", {
+        userId,
+        guestId: currentGuestId,
+      });
 
       // Call the merge API endpoint
-      const response = await api.post("/api/carts/merge", {
-        guestId: currentGuestId
-      }, {
-        headers: {
-          Authorization: getAuthToken()
+      const response = await api.post(
+        "/api/carts/merge",
+        {
+          guestId: currentGuestId,
         },
-        timeout: 10000
-      })
+        {
+          headers: {
+            Authorization: getAuthToken(),
+          },
+          timeout: 10000,
+        }
+      );
 
-      const mergedCart = response.data.data
+      const mergedCart = response.data.data;
       console.log("✅ Received merged cart from API:", {
         itemCount: mergedCart?.items?.length || 0,
-        subtotal: mergedCart?.subtotal || 0
-      })
+        subtotal: mergedCart?.subtotal || 0,
+      });
 
       // ONLY clear guest ID after successful API response
-      StorageUtil.clearGuestId()
-      console.log("🧹 Cleared guest ID after successful merge")
-      
+      StorageUtil.clearGuestId();
+      console.log("🧹 Cleared guest ID after successful merge");
+
       // Ensure user ID is properly set
-      StorageUtil.setUserId(userId)
-      
+      StorageUtil.setUserId(userId);
+
       // Save the merged cart to localStorage
       if (mergedCart) {
-        saveCartToStorage(mergedCart)
-        console.log("💾 Saved merged cart to localStorage")
+        saveCartToStorage(mergedCart);
+        console.log("💾 Saved merged cart to localStorage");
       }
 
       return {
         ...mergedCart,
         message: "Cart merged successfully",
-        success: true
-      }
-      
+        success: true,
+      };
     } catch (error: unknown) {
       console.error("❌ Cart merge failed:", error);
-      
+
       // Enhanced error handling with proper typing
       let errorMessage = "Failed to merge cart";
-      
+
       // Type guard for axios-like errors
-      const isAxiosError = (err: unknown): err is { 
+      const isAxiosError = (
+        err: unknown
+      ): err is {
         code?: string;
         message?: string;
         response?: {
@@ -594,11 +633,14 @@ export const mergeGuestCart = createAsyncThunk(
           data?: { message?: string };
         };
       } => {
-        return typeof err === 'object' && err !== null;
+        return typeof err === "object" && err !== null;
       };
-    
+
       if (isAxiosError(error)) {
-        if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        if (
+          error.code === "ECONNABORTED" ||
+          error.message?.includes("timeout")
+        ) {
           errorMessage = "Request timeout - please try again";
         } else if (error.response?.status === 404) {
           errorMessage = "Guest cart not found";
@@ -608,14 +650,14 @@ export const mergeGuestCart = createAsyncThunk(
           errorMessage = error.response.data.message;
         }
       }
-      
+
       // DON'T clear guest ID on failure so user can retry
       console.log("🔒 Preserving guest ID for retry opportunity");
-      
+
       return rejectWithValue(errorMessage);
     }
   }
-)
+);
 
 // Initialize cart from localStorage
 const initializeFromStorage = () => {
@@ -807,9 +849,7 @@ const cartSlice = createSlice({
         // Ensure payload has the expected structure
         const payload = action.payload || {};
         const { cartItemId, quantity } = action.meta.arg;
-        const product = state.items.find(
-          (item) => item.id === cartItemId
-        );
+        const product = state.items.find((item: CartItem) => item.id === cartItemId);
 
         state.items = Array.isArray(payload.items)
           ? payload.items
@@ -854,7 +894,7 @@ const cartSlice = createSlice({
         // FIXED: Use payload directly, not payload.response
         const payload = action.payload || {};
         const cartItemId = action.meta.arg;
-        const product = state.items.find((item) => item.id === cartItemId);
+        const product = state.items.find((item: CartItem) => item.id === cartItemId);
 
         state.items = Array.isArray(payload.items)
           ? payload.items
@@ -901,7 +941,7 @@ const cartSlice = createSlice({
         // FIXED: Use payload directly, not payload.response
         const payload = action.payload || {};
         const cartItemId = action.meta.arg;
-        const product = state.items.find((item) => item.id === cartItemId);
+        const product = state.items.find((item: CartItem) => item.id === cartItemId);
 
         state.items = Array.isArray(payload.items)
           ? payload.items
@@ -1009,7 +1049,8 @@ export const selectCartSubtotal = (state: RootState) => state.cart.subtotal;
 export const selectCartItemCount = (state: RootState) => state.cart.itemCount;
 export const selectGuestId = (state: RootState) => state.cart.guestId;
 export const selectUserId = (state: RootState) => state.cart.userId;
-export const selectIsAuthenticated = (state: RootState) => state.cart.isAuthenticated;
+export const selectIsAuthenticated = (state: RootState) =>
+  state.cart.isAuthenticated;
 
 // Computed selectors
 export const selectCartTotals = (state: RootState) => ({
@@ -1028,15 +1069,15 @@ export const selectItemQuantity = (productId: string) => (state: RootState) => {
 // ADDED: New selector for user identification
 export const selectUserIdentification = createSelector(
   [
-    (state: RootState) => state.cart.userId, 
-    (state: RootState) => state.cart.guestId, 
-    (state: RootState) => state.cart.isAuthenticated 
+    (state: RootState) => state.cart.userId,
+    (state: RootState) => state.cart.guestId,
+    (state: RootState) => state.cart.isAuthenticated,
   ],
   (userId, guestId, isAuthenticated) => ({
     userId,
     guestId,
-    isAuthenticated
+    isAuthenticated,
   })
 );
 
-export default cartSlice.reducer
+export default cartSlice.reducer;

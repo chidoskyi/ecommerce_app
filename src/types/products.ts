@@ -249,8 +249,21 @@ export interface ProductsResponse {
   success: boolean;
   products: Product[];
   pagination: Pagination;
+  total?: number;
 }
 
+// Add this interface for cloud images
+export interface CloudImage {
+  url: string;
+  file?: File;
+}
+
+// Add this interface for images with file property
+export interface ImageWithFile {
+  file: File;
+}
+
+// Update your existing CreateProductData interface
 export interface CreateProductData {
   name: string;
   description: string;
@@ -262,7 +275,7 @@ export interface CreateProductData {
   unitPrices?: UnitPrice[];
   sku?: string;
   categoryId?: string;
-  images?: (File | string)[];
+  images?: (File | string | CloudImage | ImageWithFile)[]; // Updated type
   uploadedImages?: string[];
   slug?: string;
   isFeatured?: boolean;

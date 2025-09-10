@@ -2,9 +2,19 @@
 "use client";
 
 import React, { useEffect, useCallback, useMemo } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { toast } from "react-toastify";
-import { Order, OrderStatus, OrderFilters as OrderFiltersType } from "@/types/orders";
+import {
+  Order,
+  OrderStatus,
+  OrderFilters as OrderFiltersType,
+} from "@/types/orders";
 import { OrderDetailsDialog } from "@/components/dashboard/orders/OrderDetailsDialog";
 import { OrderTable } from "@/components/dashboard/orders/OrderTable";
 import { OrderFilters } from "@/components/dashboard/orders/OrderFilters";
@@ -24,13 +34,13 @@ import {
   setFilters,
   updateOrderStatus,
   bulkUpdateOrderStatus,
-} from '@/app/store/slices/adminOrderSlice';
+} from "@/app/store/slices/adminOrderSlice";
 import { PriceFormatter } from "@/components/reuse/FormatCurrency";
 import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 
 export const OrdersList: React.FC = () => {
   const dispatch = useAppDispatch();
-  
+
   // Redux selectors
   const orders = useAppSelector(selectOrders);
   const currentOrder = useAppSelector(selectCurrentOrder);
@@ -42,38 +52,36 @@ export const OrdersList: React.FC = () => {
 
   // Local state for UI interactions
   const [selectedOrders, setSelectedOrders] = React.useState<string[]>([]);
-  const [isOrderDetailsOpen, setIsOrderDetailsOpen] = React.useState<boolean>(false);
-  const [sortConfig, setSortConfig] = React.useState<{ key: string; direction: 'asc' | 'desc' }>({ 
-    key: "date", 
-    direction: "desc" 
+  const [isOrderDetailsOpen, setIsOrderDetailsOpen] =
+    React.useState<boolean>(false);
+  const [sortConfig, setSortConfig] = React.useState<{
+    key: string;
+    direction: "asc" | "desc";
+  }>({
+    key: "date",
+    direction: "desc",
   });
 
   // Memoize the filters conversion to prevent unnecessary re-renders
   const apiFilters = useMemo(() => {
     return {
       ...filters,
-      // Handle date conversion safely - check if it's already a string or if it's a Date object
-      startDate: filters.dateRange?.from 
-        ? (typeof filters.dateRange.from === 'string' 
-           ? filters.dateRange.from 
-           : filters.dateRange.from.toISOString())
-        : undefined,
-      endDate: filters.dateRange?.to 
-        ? (typeof filters.dateRange.to === 'string' 
-           ? filters.dateRange.to 
-           : filters.dateRange.to.toISOString())
-        : undefined,
+      startDate: filters.dateRange?.from ?? undefined,
+      endDate: filters.dateRange?.to ?? undefined,
       search: filters.searchQuery,
-      status: filters.statusFilter !== "all" ? filters.statusFilter : undefined,
+      status:
+        filters.statusFilter !== "all"
+          ? (filters.statusFilter as OrderStatus | "") // Cast to the correct type
+          : undefined,
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     filters.page,
     filters.limit,
     filters.searchQuery,
     filters.statusFilter,
     filters.dateRange?.from,
-    filters.dateRange?.to
+    filters.dateRange?.to,
   ]);
 
   // Fetch orders on component mount and when filters change
@@ -93,67 +101,83 @@ export const OrdersList: React.FC = () => {
   const filteredOrders = orders;
 
   // Handle status change for individual order
-  const handleStatusChange = useCallback(async (orderId: string, newStatus: OrderStatus): Promise<void> => {
-    try {
-      await dispatch(updateOrderStatus(orderId, newStatus)).unwrap();
-      toast.success(`Order status updated to ${newStatus}`);
-    } catch (error) {
-      console.error("Error updating order status:", error);
-      toast.error("Failed to update order status");
-    }
-  }, [dispatch]);
+  const handleStatusChange = useCallback(
+    async (orderId: string, newStatus: OrderStatus): Promise<void> => {
+      try {
+        await dispatch(updateOrderStatus(orderId, newStatus)).unwrap();
+        toast.success(`Order status updated to ${newStatus}`);
+      } catch (error) {
+        console.error("Error updating order status:", error);
+        toast.error("Failed to update order status");
+      }
+    },
+    [dispatch]
+  );
 
   // Handle bulk status change
-  const handleBulkStatusChange = useCallback(async (newStatus: OrderStatus): Promise<void> => {
-    if (selectedOrders.length === 0) {
-      toast.warning("No orders selected");
-      return;
-    }
+  const handleBulkStatusChange = useCallback(
+    async (newStatus: OrderStatus): Promise<void> => {
+      if (selectedOrders.length === 0) {
+        toast.warning("No orders selected");
+        return;
+      }
 
-    try {
-      await dispatch(bulkUpdateOrderStatus({ 
-        orderIds: selectedOrders, 
-        status: newStatus 
-      })).unwrap();
-      
-      toast.success(`${selectedOrders.length} orders updated to ${newStatus}`);
-      setSelectedOrders([]);
-    } catch (error) {
-      console.error("Error updating order status:", error);
-      toast.error("Failed to update order status");
-    }
-  }, [dispatch, selectedOrders]);
+      try {
+        await dispatch(
+          bulkUpdateOrderStatus({
+            orderIds: selectedOrders,
+            status: newStatus,
+          })
+        ).unwrap();
+
+        toast.success(
+          `${selectedOrders.length} orders updated to ${newStatus}`
+        );
+        setSelectedOrders([]);
+      } catch (error) {
+        console.error("Error updating order status:", error);
+        toast.error("Failed to update order status");
+      }
+    },
+    [dispatch, selectedOrders]
+  );
 
   // Handle sorting - memoize to prevent unnecessary re-renders
   const handleSort = useCallback((key: string): void => {
-    setSortConfig(prev => ({
+    setSortConfig((prev) => ({
       key,
-      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc"
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
     }));
   }, []);
 
   // Handle order selection - memoize callbacks
-  const handleSelectAllOrders = useCallback((checked: boolean): void => {
-    if (checked) {
-      setSelectedOrders(orders.map((order) => order.id));
-    } else {
-      setSelectedOrders([]);
-    }
-  }, [orders]);
+  const handleSelectAllOrders = useCallback(
+    (checked: boolean): void => {
+      if (checked) {
+        setSelectedOrders(orders.map((order) => order.id));
+      } else {
+        setSelectedOrders([]);
+      }
+    },
+    [orders]
+  );
 
   const handleSelectOrder = useCallback((orderId: string): void => {
-    setSelectedOrders(prev => 
-      prev.includes(orderId) 
+    setSelectedOrders((prev) =>
+      prev.includes(orderId)
         ? prev.filter((id) => id !== orderId)
         : [...prev, orderId]
     );
   }, []);
 
   // Handle view details
-  const handleViewDetails = useCallback((order: Order): void => {
-    dispatch(setCurrentOrder(order));
-    setIsOrderDetailsOpen(true);
-  }, [dispatch]);
+  const handleViewDetails = useCallback(
+    (order: Order): void => {
+      dispatch(setCurrentOrder(order));
+      setIsOrderDetailsOpen(true);
+    },
+    [dispatch]
+  );
 
   const handleCloseDetails = useCallback((): void => {
     setIsOrderDetailsOpen(false);
@@ -163,61 +187,70 @@ export const OrdersList: React.FC = () => {
   }, [dispatch]);
 
   // Handle pagination
-  const handlePageChange = useCallback((page: number): void => {
-    dispatch(setFilters({ page }));
-  }, [dispatch]);
+  const handlePageChange = useCallback(
+    (page: number): void => {
+      dispatch(setFilters({ page }));
+    },
+    [dispatch]
+  );
 
   // Handle filters change
-  const handleFiltersChange = useCallback((newFilters: Partial<OrderFiltersType>): void => {
-    // Convert UI filters to the format expected by Redux
-    const serializedFilters: Partial<OrderFiltersType> = {
-      // Map searchQuery to search
-      search: newFilters.searchQuery,
-      
-      // Map statusFilter to status (convert "all" to undefined)
-      status: newFilters.statusFilter === 'all' ? undefined : newFilters.statusFilter,
-      
-      // Map dateRange to startDate/endDate (convert Date objects to ISO strings)
-      startDate: newFilters.dateRange?.from 
-        ? (newFilters.dateRange.from instanceof Date 
-           ? newFilters.dateRange.from.toISOString() 
-           : typeof newFilters.dateRange.from === 'string'
-           ? newFilters.dateRange.from
-           : undefined)
-        : undefined,
-      
-      endDate: newFilters.dateRange?.to 
-        ? (newFilters.dateRange.to instanceof Date 
-           ? newFilters.dateRange.to.toISOString() 
-           : typeof newFilters.dateRange.to === 'string'
-           ? newFilters.dateRange.to
-           : undefined)
-        : undefined,
-      
-      // Preserve existing pagination if needed, or reset to page 1
-      page: 1, // Typically you want to reset to page 1 when filters change
-    };
-    
-    // Remove undefined values to avoid overwriting existing filters
-    const cleanedFilters = Object.fromEntries(
-      Object.entries(serializedFilters).filter(([value]) => value !== undefined)
-    ) as Partial<OrderFiltersType>;
-    
-    dispatch(setFilters(cleanedFilters));
-  }, [dispatch]);
+  const handleFiltersChange = useCallback(
+    (newFilters: Partial<OrderFiltersType>): void => {
+      // Convert UI filters to the format expected by Redux
+      const serializedFilters: Partial<OrderFiltersType> = {
+        // Map searchQuery to search
+        search: newFilters.searchQuery,
+  
+        // Map statusFilter to status (convert "all" to undefined)
+        status:
+          newFilters.statusFilter === "all"
+            ? undefined
+            : (newFilters.statusFilter as OrderStatus | ''),
+  
+        // Map dateRange to startDate/endDate - they're already strings
+        startDate: newFilters.dateRange?.from || undefined,
+        endDate: newFilters.dateRange?.to || undefined,
+  
+        // Preserve existing pagination if needed, or reset to page 1
+        page: 1, // Typically you want to reset to page 1 when filters change
+      };
+  
+      // Remove undefined values to avoid overwriting existing filters
+      const cleanedFilters = Object.fromEntries(
+        Object.entries(serializedFilters).filter(
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          ([_, value]) => value !== undefined
+        )
+      ) as Partial<OrderFiltersType>;
+  
+      dispatch(setFilters(cleanedFilters));
+    },
+    [dispatch]
+  );
 
   // Memoize props to prevent unnecessary re-renders
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const memoizedSortConfig = useMemo(() => sortConfig, [sortConfig.key, sortConfig.direction]);
-  const memoizedSelectedOrders = useMemo(() => selectedOrders, [selectedOrders]);
+  const memoizedSortConfig = useMemo(
+    () => sortConfig,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sortConfig.key, sortConfig.direction]
+  );
+  const memoizedSelectedOrders = useMemo(
+    () => selectedOrders,
+    [selectedOrders]
+  );
 
   return (
     <div className="p-3 sm:p-6">
       <div className="flex flex-col space-y-4 sm:space-y-6">
         {/* Header */}
         <div className="flex flex-col space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Order Management</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">View and manage customer orders</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+            Order Management
+          </h1>
+          <p className="text-muted-foreground text-sm sm:text-base">
+            View and manage customer orders
+          </p>
         </div>
 
         {/* Stats Cards */}
@@ -232,7 +265,7 @@ export const OrdersList: React.FC = () => {
               <div className="text-xl sm:text-2xl font-bold">{stats.total}</div>
             </CardContent>
           </Card>
-          
+
           <Card className="shadow-sm">
             <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
               <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
@@ -240,10 +273,12 @@ export const OrdersList: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-              <div className="text-xl sm:text-2xl font-bold text-yellow-600">{stats.pending}</div>
+              <div className="text-xl sm:text-2xl font-bold text-yellow-600">
+                {stats.pending}
+              </div>
             </CardContent>
           </Card>
-          
+
           <Card className="shadow-sm">
             <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
               <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
@@ -251,10 +286,12 @@ export const OrdersList: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-              <div className="text-xl sm:text-2xl font-bold text-blue-600">{stats.confirmed}</div>
+              <div className="text-xl sm:text-2xl font-bold text-blue-600">
+                {stats.confirmed}
+              </div>
             </CardContent>
           </Card>
-          
+
           <Card className="shadow-sm col-span-2 lg:col-span-1">
             <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
               <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
@@ -279,7 +316,7 @@ export const OrdersList: React.FC = () => {
               <CardDescription className="text-sm">
                 View and manage all customer orders
               </CardDescription>
-              
+
               {/* Filters Section - Mobile Optimized */}
               <div className="pt-4">
                 <OrderFilters
@@ -290,7 +327,7 @@ export const OrdersList: React.FC = () => {
                 />
               </div>
             </CardHeader>
-            
+
             <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
               {/* Orders Table */}
               <div className="overflow-hidden">
@@ -306,7 +343,7 @@ export const OrdersList: React.FC = () => {
                   onViewDetails={handleViewDetails}
                 />
               </div>
-              
+
               {/* Pagination */}
               {pagination && pagination.pages > 1 && (
                 <div className="mt-4 sm:mt-6 flex justify-center">

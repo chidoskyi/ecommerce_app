@@ -3,10 +3,10 @@ import { Product, UnitPrice } from "./products";
 export interface CartItem {
   id: string;
   guestId?: string | null;
-  userId: string | null;
+  userId?: string | null;
   product: Product;
   fixedPrice?: number;
-  selectedUnit?: string;
+  selectedUnit?: UnitPrice;
   unitPrice?: UnitPrice | null;
   productId: string;
   quantity: number;
@@ -18,7 +18,7 @@ export interface CartItemWithProduct extends CartItem {
   product: Product;
   userId: string; 
   unitPrices: UnitPrice;
-  selectedUnit: string;
+  selectedUnit?: UnitPrice;
   price: number
   createdAt: Date;
   updatedAt: Date;

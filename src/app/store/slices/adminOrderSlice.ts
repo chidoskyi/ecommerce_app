@@ -1,8 +1,9 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import api from '@/lib/api';
-import { AdminOrderState, initialState, Order, OrderFilters, OrdersResponse, SingleOrderResponse, UpdateOrderPayload } from '@/types/orders';
+import { AdminOrderState, initialState, Order, OrderFilters, OrdersResponse, OrderStatus, SingleOrderResponse, UpdateOrderPayload } from '@/types/orders';
 import { ApiError } from 'next/dist/server/api-utils';
 import { AppDispatch, RootState } from '..';
+import { PaymentStatus } from '@prisma/client';
 
 // Async Thunks
 export const fetchOrders = createAsyncThunk<OrdersResponse, Partial<OrderFilters>>(
@@ -203,16 +204,8 @@ const adminOrderSlice = createSlice({
       
       if (newFilters.dateRange) {
         newFilters.dateRange = {
-          from: newFilters.dateRange.from 
-            ? (typeof newFilters.dateRange.from === 'string' 
-               ? newFilters.dateRange.from 
-               : newFilters.dateRange.from.toISOString())
-            : null,
-          to: newFilters.dateRange.to 
-            ? (typeof newFilters.dateRange.to === 'string' 
-               ? newFilters.dateRange.to 
-               : newFilters.dateRange.to.toISOString())
-            : null,
+          from: newFilters.dateRange.from || null,
+          to: newFilters.dateRange.to || null,
         };
       }
       
@@ -550,7 +543,7 @@ export const searchOrders =
   }));
 };
 
-export const filterOrdersByStatus = (status?: string, paymentStatus?: string) => (dispatch: AppDispatch, getState: () => RootState) => {
+export const filterOrdersByStatus = (status?: OrderStatus, paymentStatus?: PaymentStatus) => (dispatch: AppDispatch, getState: () => RootState) => {
   const currentFilters = getState().adminOrders.filters;
   dispatch(setFilters({ status, paymentStatus, page: 1 }));
   dispatch(fetchOrders({ ...currentFilters, status, paymentStatus, page: 1 }));

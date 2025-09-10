@@ -5,16 +5,11 @@ import { requireAuth, AuthenticatedRequest } from '@/lib/auth'
 
 
 // app/api/reviews/helpful/route.js - For marking reviews as helpful
-export async function POST(request: NextRequest) {
+export const GET = requireAuth(async (request: NextRequest) => {
   try {
-    // Check if user is authenticated - properly handle the response
-    const authResult = await requireAuth(request);
-    if (authResult instanceof NextResponse) {
-      return authResult; // Return the authentication error response directly
-    }
-    const user = (request as AuthenticatedRequest).user
+    const user = (request as AuthenticatedRequest).user;
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { reviewId, helpful } = await request.json()
@@ -56,4 +51,4 @@ export async function POST(request: NextRequest) {
     console.error('Update helpful count error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

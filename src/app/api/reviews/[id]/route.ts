@@ -2,7 +2,14 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { AuthenticatedRequest, requireAuthDynamic, RouteContext } from "@/lib/auth";
+import { ReviewStatus } from "@prisma/client";
 
+interface ReviewUpdateData {
+  rating?: number;
+  title?: string | null;
+  content?: string | null;
+  status?: ReviewStatus;
+}
 
 export const GET = requireAuthDynamic(
   async (
@@ -92,7 +99,8 @@ export const PUT = requireAuthDynamic(
     }
 
     // Prepare update data
-    const updateData = {};
+    const updateData: ReviewUpdateData = {};
+
     if (rating) updateData.rating = parseInt(rating);
     if (title !== undefined) updateData.title = title || null;
     if (content !== undefined) updateData.content = content || null;

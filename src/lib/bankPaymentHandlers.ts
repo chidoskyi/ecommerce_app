@@ -1,7 +1,7 @@
 // /api/checkout/route.ts (with internal handlers)
 import prisma from "@/lib/prisma";
 import { v4 as uuidv4 } from "uuid";
-import { CheckoutStatus, PaymentStatus, OrderStatus, User, Address, CartItem } from "@prisma/client";
+import { CheckoutStatus, PaymentStatus, OrderStatus, User, Address, CartItem, Product } from "@prisma/client";
 import EmailService from "@/lib/emailService";
 import { AuthenticatedUser } from "./auth";
 
@@ -27,8 +27,9 @@ interface PricingInfo {
 }
 
 // Validated item interface
-interface ValidatedItem {
+export interface ValidatedItem {
   productId: string;
+  sku: string;
   title: string;
   quantity: number;
   fixedPrice: number | null;
@@ -36,6 +37,7 @@ interface ValidatedItem {
   selectedUnit: string | null;
   totalPrice: number;
   weight: number;
+  product: Product;
   totalWeight: number;
   price: number;
 }
@@ -112,7 +114,7 @@ export async function validateAndCalculate(
       throw new Error(`Product data missing for item ${item.id}`);
     }
 
-    if (!item.product.weight || item.product.weight <= 0) {
+    if (!item.productId.weight || item.product.weight <= 0) {
       throw new Error(`Product ${item.product.name} must have a valid weight`);
     }
 
