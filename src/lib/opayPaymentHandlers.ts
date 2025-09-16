@@ -1,45 +1,19 @@
-// /api/checkout/route.ts (with internal handlers)
+// /api/checkout/route.ts (with internal handlers) - FIXED VERSION
 import prisma from "@/lib/prisma";
 import { opayService } from "@/lib/opay";
 import { v7 as uuidv4 } from "uuid";
 // import { User, Address } from "@prisma/client";
 import { AuthenticatedUser } from "./auth";
 import { CalculationResult } from "./bankPaymentHandlers";
-import EmailService from '@/lib/emailService';
+import EmailService from "@/lib/emailService";
 
 const emailService = new EmailService();
 
-
-// Validated item interface
-// interface ValidatedItem {
-//   productId: string;
-//   title: string;
-//   quantity: number;
-//   fixedPrice: number | null;
-//   unitPrice: number | null;
-//   selectedUnit: string | null;
-//   totalPrice: number;
-//   weight: number;
-//   totalWeight: number;
-//   price: number;
-// }
-
-// interface CalculationResult {
-//   userData: User;
-//   validatedItems: ValidatedItem[];
-//   totalWeight: number;
-//   deliveryFee: number;
-//   finalSubtotal: number;
-//   totalAmount: number;
-//   shippingAddress: Address;
-//   billingAddress: Address;
-//   couponId?: string;
-//   discountAmount: number;
-//   currency: string;
-// }
-
 // Opay payment handler with transaction management
-export async function handleOpayPayment(user: AuthenticatedUser, calculatedData: CalculationResult) {
+export async function handleOpayPayment(
+  user: AuthenticatedUser,
+  calculatedData: CalculationResult
+) {
   const {
     userData,
     validatedItems,
@@ -49,7 +23,6 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
     totalAmount,
     shippingAddress,
     billingAddress,
-    // shippingMethod,
     couponId,
     discountAmount,
     currency,
@@ -124,26 +97,6 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
       user.clerkId
     );
 
-    // Check for existing checkout
-    const existingCheckout = await prisma.checkout.findFirst({
-      where: {
-        clerkId: user.clerkId,
-        status: {
-          in: ["PENDING", "FAILED"],
-        },
-        paymentStatus: {
-          in: ["PENDING", "FAILED", "UNPAID"],
-        },
-      },
-      include: {
-        items: {
-          include: {
-            product: true,
-          },
-        },
-      },
-    });
-
     // Check for existing pending/failed orders
     const existingOrder = await prisma.order.findFirst({
       where: {
@@ -163,6 +116,29 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
         },
       },
       orderBy: { createdAt: "desc" }, // Get the most recent one
+    });
+
+    // Check for existing checkout
+    const existingCheckout = await prisma.checkout.findFirst({
+      where: {
+        OR: [
+          { clerkId: user.clerkId },
+          { orderId: existingOrder?.id } // Also check by orderId
+        ],
+        status: {
+          in: ["PENDING", "FAILED", "PROCESSING"],
+        },
+        paymentStatus: {
+          in: ["PENDING", "FAILED", "UNPAID"],
+        },
+      },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
     });
 
     // Check for existing invoice linked to the order
@@ -252,8 +228,8 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
             userPhone: userData.phone || "",
             userEmail: userData.email,
             userName: `${userData.firstName} ${userData.lastName}`,
-            callbackUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/api/payments/opay/callback`,
-            returnUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/orders/${existingOrder.id}`,
+            callbackUrl: `${process.env.NEXT_PUBLIC_OPAY_API_URL}/api/payments/opay/callback`,
+            returnUrl: `${process.env.NEXT_PUBLIC_OPAY_API_URL}/orders/${existingOrder.id}`,
           });
 
           console.log("Payment retry response:", paymentResponse);
@@ -279,12 +255,11 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
                 status: "PENDING",
                 description: `Opay payment retry for order ${existingOrder.orderNumber}`,
                 metadata: {
-                 orderId: existingOrder.id,
+                  orderId: existingOrder.id,
                   orderNumber: existingOrder.orderNumber,
                   customerEmail: userData.email,
                   paymentMethod: "opay",
                   isRetry: true,
-                  
                 },
                 providerData: JSON.stringify({
                   cashierUrl: paymentResponse.data.cashierUrl,
@@ -304,60 +279,56 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
               },
             });
 
-            // Update or create checkout
-            let checkoutForRetry;
-            if (existingCheckout) {
-              checkoutForRetry = await prisma.checkout.update({
-                where: { id: existingCheckout.id },
-                data: {
-                  status: "PROCESSING",
-                  sessionId: paymentResponse.data.reference,
-                  expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            // FIXED: Use upsert to handle checkout creation/update properly
+            const checkoutForRetry = await prisma.checkout.upsert({
+              where: { 
+                orderId: existingOrder.id 
+              },
+              update: {
+                status: "PROCESSING",
+                sessionId: paymentResponse.data.reference,
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                paymentStatus: "PENDING",
+                paymentMethod: "opay",
+              },
+              create: {
+                userId: user.id,
+                clerkId: user.clerkId,
+                orderId: existingOrder.id,
+                sessionId: paymentResponse.data.reference,
+                status: "PROCESSING",
+                totalAmount: existingOrder.totalPrice,
+                subtotal: existingOrder.subtotalPrice,
+                taxAmount: existingOrder.totalTax,
+                shippingAmount: existingOrder.totalShipping,
+                discountAmount: existingOrder.totalDiscount,
+                currency,
+                shippingAddress: cleanShippingAddress,
+                billingAddress: cleanBillingAddress,
+                paymentMethod: "opay",
+                paymentStatus: "PENDING",
+                couponId,
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                items: {
+                  create: existingOrder.items.map((item) => ({
+                    productId: item.productId,
+                    title: item.title,
+                    quantity: item.quantity,
+                    fixedPrice: item.fixedPrice || null,
+                    unitPrice: item.unitPrice || null,
+                    selectedUnit: item.selectedUnit || null,
+                    totalPrice: item.totalPrice,
+                  })),
                 },
-              });
-            } else {
-              // Create new checkout for existing order
-              checkoutForRetry = await prisma.checkout.create({
-                data: {
-                  userId: user.id,
-                  clerkId: user.clerkId,
-                  orderId: existingOrder.id,
-                  sessionId: paymentResponse.data.reference,
-                  status: "PROCESSING",
-                  totalAmount: existingOrder.totalPrice,
-                  subtotal: existingOrder.subtotalPrice,
-                  taxAmount: existingOrder.totalTax,
-                  shippingAmount: existingOrder.totalShipping,
-                  discountAmount: existingOrder.totalDiscount,
-                  currency,
-                  shippingAddress: cleanShippingAddress,
-                  billingAddress: cleanBillingAddress,
-                  // shippingMethod,
-                  paymentMethod: "opay",
-                  paymentStatus: "PENDING",
-                  couponId,
-                  expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-                  items: {
-                    create: existingOrder.items.map((item) => ({
-                      productId: item.productId,
-                      title: item.title,
-                      quantity: item.quantity,
-                      fixedPrice: item.fixedPrice || null,
-                      unitPrice: item.unitPrice || null,
-                      selectedUnit: item.selectedUnit || null,
-                      totalPrice: item.totalPrice,
-                    })),
+              },
+              include: {
+                items: {
+                  include: {
+                    product: true,
                   },
                 },
-                include: {
-                  items: {
-                    include: {
-                      product: true,
-                    },
-                  },
-                },
-              });
-            }
+              },
+            });
 
             // Update existing invoice or create new one
             let invoiceForRetry;
@@ -532,7 +503,6 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
         currency,
         shippingAddress: cleanShippingAddress,
         billingAddress: cleanBillingAddress,
-        // shippingMethod,
         paymentMethod: "opay",
         paymentStatus: "UNPAID",
         couponId,
@@ -599,23 +569,26 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
             product: true,
           },
         },
-        user: true
+        user: true,
       },
     });
 
-          // Send confirmation email after successful transaction
-          try {
-            if (order.user && order.user.email) {
-              console.log("📧 Sending order confirmation email to:", order.user.email);
-              await emailService.sendOrderConfirmation(order.user, order);
-              console.log("✅ Order confirmation email sent successfully");
-            } else {
-              console.warn("⚠️ No user email found for order:", order.id);
-            }
-          } catch (emailError) {
-            console.error("❌ Failed to send order confirmation email:", emailError);
-            // Don't throw error here - payment was successful, email failure shouldn't break the flow
-          }
+    // Send confirmation email after successful transaction
+    try {
+      if (order.user && order.user.email) {
+        console.log(
+          "📧 Sending order confirmation email to:",
+          order.user.email
+        );
+        await emailService.sendOrderConfirmation(order.user, order);
+        console.log("✅ Order confirmation email sent successfully");
+      } else {
+        console.warn("⚠️ No user email found for order:", order.id);
+      }
+    } catch (emailError) {
+      console.error("❌ Failed to send order confirmation email:", emailError);
+      // Don't throw error here - payment was successful, email failure shouldn't break the flow
+    }
 
     // Link checkout to order
     await prisma.checkout.update({
@@ -667,7 +640,7 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
           status: "PENDING",
           description: `Opay payment for order ${orderNumber}`,
           metadata: {
-              orderId: order.id,
+            orderId: order.id,
             orderNumber: orderNumber,
             customerEmail: userData.email,
             paymentMethod: "opay",
@@ -797,27 +770,26 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
       throw new Error("Payment initialization failed");
     }
   } catch (error) {
-    console.error("Error in handlePaystackPayment:", error);
-  
+    console.error("Error in handleOpayPayment:", error);
+
     // Check if it's an error with a code property
-    if (typeof error === 'object' && error !== null && 'code' in error) {
+    if (typeof error === "object" && error !== null && "code" in error) {
       const err = error as { code?: string; message?: string };
-      
+
       if (err.code === "P2002") {
-        console.error("Unique constraint violation still occurred after cleanup");
+        console.error(
+          "Unique constraint violation still occurred after cleanup"
+        );
         throw new Error(
           "Checkout conflict detected. Please refresh the page and try again."
         );
       }
-  
+
       throw new Error(
         "Payment initialization failed: " + (err.message || "Unknown error")
       );
     }
-  
-    throw new Error(
-      "Payment initialization failed: Unknown error"
-    );
+
+    throw new Error("Payment initialization failed: Unknown error");
   }
 }
-

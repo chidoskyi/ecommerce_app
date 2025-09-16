@@ -1,4 +1,4 @@
-// Add this to your /api/checkout/route.ts file
+// Add this to your /api/checkout/route.ts file - FIXED VERSION
 import prisma from "@/lib/prisma";
 import { walletService } from "@/lib/wallet";
 import { v7 as uuidv4 } from "uuid";
@@ -8,7 +8,6 @@ import { AuthenticatedUser } from "./auth";
 import { CalculationResult } from "./bankPaymentHandlers";
 
 const emailService = new EmailService();
-
 
 // Wallet payment handler with transaction management
 export async function handleWalletPayment(user: AuthenticatedUser, calculatedData: CalculationResult) {
@@ -113,27 +112,7 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
       user.clerkId
     );
 
-    // Check for existing checkout
-    const existingCheckout = await prisma.checkout.findFirst({
-      where: {
-        clerkId: user.clerkId,
-        status: {
-          in: ["PENDING", "FAILED"],
-        },
-        paymentStatus: {
-          in: ["PENDING", "FAILED", "UNPAID"],
-        },
-      },
-      include: {
-        items: {
-          include: {
-            product: true,
-          },
-        },
-      },
-    });
-
-    // Check for existing pending/failed orders
+    // Check for existing pending/failed orders FIRST
     const existingOrder = await prisma.order.findFirst({
       where: {
         clerkId: user.clerkId,
@@ -152,6 +131,29 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
         },
       },
       orderBy: { createdAt: "desc" },
+    });
+
+    // Check for existing checkout (including order relationship)
+    const existingCheckout = await prisma.checkout.findFirst({
+      where: {
+        OR: [
+          { clerkId: user.clerkId },
+          { orderId: existingOrder?.id } // Also check by orderId
+        ],
+        status: {
+          in: ["PENDING", "FAILED"],
+        },
+        paymentStatus: {
+          in: ["PENDING", "FAILED", "UNPAID"],
+        },
+      },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
     });
 
     // Check for existing invoice linked to the order
@@ -252,8 +254,7 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
           });
 
           // Generate new payment reference for the wallet transaction
-          const walletPaymentReference =
-            walletPayment.paymentTransaction.reference;
+          const walletPaymentReference = walletPayment.paymentTransaction.reference;
 
           // Create transaction record for wallet payment
           const walletTransaction = await prisma.transaction.create({
@@ -271,14 +272,12 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
               reconciled: true,
               reconciledAt: new Date(),
               metadata: {
-                set: { // Use 'set' as shown in the error message
-                  orderId: existingOrder.id,
-                  orderNumber: existingOrder.orderNumber,
-                  customerEmail: userData.email,
-                  paymentMethod: "wallet",
-                  isRetry: true,
-                  walletTransactionId: walletPayment.paymentTransaction.id,
-                }
+                orderId: existingOrder.id,
+                orderNumber: existingOrder.orderNumber,
+                customerEmail: userData.email,
+                paymentMethod: "wallet",
+                isRetry: true,
+                walletTransactionId: walletPayment.paymentTransaction.id,
               },
               providerData: JSON.stringify({
                 walletPayment: walletPayment.paymentTransaction,
@@ -300,63 +299,56 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
             },
           });
 
-
-
-          // Update or create checkout
-          let checkoutForRetry;
-          if (existingCheckout) {
-            checkoutForRetry = await prisma.checkout.update({
-              where: { id: existingCheckout.id },
-              data: {
-                status: "COMPLETED",
-                paymentStatus: "PAID",
-                isActive: true,
-                sessionId: walletPaymentReference,
+          // FIXED: Use upsert to handle checkout creation/update properly
+          const checkoutForRetry = await prisma.checkout.upsert({
+            where: { 
+              orderId: existingOrder.id 
+            },
+            update: {
+              status: "COMPLETED",
+              paymentStatus: "PAID",
+              isActive: false,
+              sessionId: walletPaymentReference,
+            },
+            create: {
+              userId: user.id,
+              clerkId: user.clerkId,
+              orderId: existingOrder.id,
+              sessionId: walletPaymentReference,
+              status: "COMPLETED",
+              totalAmount: existingOrder.totalPrice,
+              subtotal: existingOrder.subtotalPrice,
+              taxAmount: existingOrder.totalTax,
+              shippingAmount: existingOrder.totalShipping,
+              discountAmount: existingOrder.totalDiscount,
+              currency,
+              isActive: false,
+              shippingAddress: cleanShippingAddress,
+              billingAddress: cleanBillingAddress,
+              paymentMethod: "wallet",
+              paymentStatus: "PAID",
+              couponId,
+              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+              items: {
+                create: existingOrder.items.map((item) => ({
+                  productId: item.productId,
+                  title: item.title,
+                  quantity: item.quantity,
+                  fixedPrice: item.fixedPrice || null,
+                  unitPrice: item.unitPrice || null,
+                  selectedUnit: item.selectedUnit || null,
+                  totalPrice: item.totalPrice,
+                })),
               },
-            });
-          } else {
-            // Create checkout for existing order
-            checkoutForRetry = await prisma.checkout.create({
-              data: {
-                userId: user.id,
-                clerkId: user.clerkId,
-                orderId: existingOrder.id,
-                sessionId: walletPaymentReference,
-                status: "COMPLETED",
-                totalAmount: existingOrder.totalPrice,
-                subtotal: existingOrder.subtotalPrice,
-                taxAmount: existingOrder.totalTax,
-                shippingAmount: existingOrder.totalShipping,
-                discountAmount: existingOrder.totalDiscount,
-                currency,
-                isActive: true,
-                shippingAddress: cleanShippingAddress,
-                billingAddress: cleanBillingAddress,
-                paymentMethod: "wallet",
-                paymentStatus: "PAID",
-                couponId,
-                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-                items: {
-                  create: existingOrder.items.map((item) => ({
-                    productId: item.productId,
-                    title: item.title,
-                    quantity: item.quantity,
-                    fixedPrice: item.fixedPrice || null,
-                    unitPrice: item.unitPrice || null,
-                    selectedUnit: item.selectedUnit || null,
-                    totalPrice: item.totalPrice ,
-                  })),
+            },
+            include: {
+              items: {
+                include: {
+                  product: true,
                 },
               },
-              include: {
-                items: {
-                  include: {
-                    product: true,
-                  },
-                },
-              },
-            });
-          }
+            },
+          });
 
           // Update existing invoice or create new one
           let invoiceForRetry;
@@ -486,7 +478,6 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
           throw new Error(`Wallet payment failed: ${message}`);
         }
       }
-      
     }
 
     // Clean up any orphaned checkout without valid order
@@ -594,7 +585,6 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
         user: true
       },
     });
-
 
     if (!order.user) {
       throw new Error("Order created without user association");
