@@ -55,6 +55,7 @@ export interface UpdateUserData {
 export interface UserProfile {
   id: string;
   email: string;
+  clerkId?: string;
   firstName: string | null;
   lastName: string | null;
   phone: string | null;

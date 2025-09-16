@@ -1,6 +1,6 @@
 // src/app/api/sync-users/route.ts
-import { auth } from "@clerk/nextjs/server";
-import { updateUser, getUser } from "@/lib/users";
+import { auth, clerkClient } from "@clerk/nextjs/server";
+import { updateUser, getUser, createUser } from "@/lib/users";
 import { NextRequest, NextResponse } from "next/server";
 import { UserProfile } from "@/types/users";
 
@@ -222,18 +222,67 @@ export async function GET() {
     log("✅ Authenticated user:", { userId });
 
     log("🔍 Fetching user from database...");
-    const { user } = await getUser("", userId);
+    let { user } = await getUser("", userId);
 
     if (!user) {
-      log("❌ User not found in database:", userId);
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      log("⚠️ User not found in DB during GET, creating from Clerk data...");
+      
+      try {
+        // Fetch user details from Clerk API
+        log("🔄 Fetching user details from Clerk...");
+        const clerk = await clerkClient();
+        const clerkUser = await clerk.users.getUser(userId);
+        
+        // Prepare user data for creation
+        const newUserData: Partial<UserProfile> = {
+          clerkId: userId,
+          email: clerkUser.emailAddresses[0]?.emailAddress || undefined,
+          firstName: clerkUser.firstName || undefined,
+          lastName: clerkUser.lastName || undefined,
+          phone: clerkUser.phoneNumbers[0]?.phoneNumber || undefined,
+          avatar: clerkUser.imageUrl || undefined,
+          role: "USER",
+          status: "ACTIVE",
+          emailVerified: clerkUser.emailAddresses[0]?.verification?.status === "verified",
+          dateOfBirth: undefined,
+          lastLoginAt: new Date(),
+        };
+    
+        // Create user in database
+        log("🆕 Creating new user in database during GET...");
+        const createResult = await createUser(newUserData);
+        
+        // FIX: createResult is the user object itself, not { user, error }
+        if (!createResult) {
+          log("❌ Failed to create user in database during GET");
+          return NextResponse.json(
+            { error: "Failed to create user account" },
+            { status: 500 }
+          );
+        }
+    
+        // FIX: createResult is the user object
+        user = createResult;
+        log("✅ User created successfully during GET:", {
+          id: user.id,
+          clerkId: user.clerkId,
+          email: user.email,
+        });
+    
+      } catch (clerkError) {
+        log("❌ Error creating user during GET:", clerkError);
+        return NextResponse.json(
+          { error: "Failed to sync user account" },
+          { status: 500 }
+        );
+      }
+    } else {
+      log("✅ User fetched successfully:", {
+        id: user.id,
+        clerkId: user.clerkId,
+        email: user.email,
+      });
     }
-
-    log("✅ User fetched successfully:", {
-      id: user.id,
-      clerkId: user.clerkId,
-      email: user.email,
-    });
 
     // Return user data (the getUser function returns all fields)
     return NextResponse.json(
