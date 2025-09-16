@@ -623,7 +623,8 @@ export const useProductUtilities = () => {
   );
 
   const getProductPrice = useCallback((product: Product) => {
-    if (product.hasFixedPrice && product.fixedPrice > 0) {
+    // Fix: Check for both hasFixedPrice and that fixedPrice is defined and > 0
+    if (product.hasFixedPrice && product.fixedPrice !== undefined && product.fixedPrice > 0) {
       return {
         price: product.fixedPrice,
         type: "fixed",
@@ -634,9 +635,7 @@ export const useProductUtilities = () => {
         price: product.displayPrice,
         type: "unit",
         display: product.priceRange
-          ? `$${product.priceRange.min.toFixed(
-              2
-            )} - $${product.priceRange.max.toFixed(2)}`
+          ? `$${product.priceRange.min.toFixed(2)} - $${product.priceRange.max.toFixed(2)}`
           : `From $${product.displayPrice.toFixed(2)}`,
       };
     } else if (product.unitPrices && product.unitPrices.length > 0) {

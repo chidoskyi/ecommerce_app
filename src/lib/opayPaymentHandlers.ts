@@ -2,37 +2,41 @@
 import prisma from "@/lib/prisma";
 import { opayService } from "@/lib/opay";
 import { v4 as uuidv4 } from "uuid";
-import { User, Address } from "@prisma/client";
+// import { User, Address } from "@prisma/client";
 import { AuthenticatedUser } from "./auth";
+import { CalculationResult } from "./bankPaymentHandlers";
+import EmailService from '@/lib/emailService';
+
+const emailService = new EmailService();
 
 
 // Validated item interface
-interface ValidatedItem {
-  productId: string;
-  title: string;
-  quantity: number;
-  fixedPrice: number | null;
-  unitPrice: number | null;
-  selectedUnit: string | null;
-  totalPrice: number;
-  weight: number;
-  totalWeight: number;
-  price: number;
-}
+// interface ValidatedItem {
+//   productId: string;
+//   title: string;
+//   quantity: number;
+//   fixedPrice: number | null;
+//   unitPrice: number | null;
+//   selectedUnit: string | null;
+//   totalPrice: number;
+//   weight: number;
+//   totalWeight: number;
+//   price: number;
+// }
 
-interface CalculationResult {
-  userData: User;
-  validatedItems: ValidatedItem[];
-  totalWeight: number;
-  deliveryFee: number;
-  finalSubtotal: number;
-  totalAmount: number;
-  shippingAddress: Address;
-  billingAddress: Address;
-  couponId?: string;
-  discountAmount: number;
-  currency: string;
-}
+// interface CalculationResult {
+//   userData: User;
+//   validatedItems: ValidatedItem[];
+//   totalWeight: number;
+//   deliveryFee: number;
+//   finalSubtotal: number;
+//   totalAmount: number;
+//   shippingAddress: Address;
+//   billingAddress: Address;
+//   couponId?: string;
+//   discountAmount: number;
+//   currency: string;
+// }
 
 // Opay payment handler with transaction management
 export async function handleOpayPayment(user: AuthenticatedUser, calculatedData: CalculationResult) {
@@ -341,7 +345,7 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
                       fixedPrice: item.fixedPrice || null,
                       unitPrice: item.unitPrice || null,
                       selectedUnit: item.selectedUnit || null,
-                      totalPrice: item.totalPrice || item.price * item.quantity,
+                      totalPrice: item.totalPrice,
                     })),
                   },
                 },
@@ -411,7 +415,7 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
                       fixedPrice: item.fixedPrice || null,
                       unitPrice: item.unitPrice || null,
                       selectedUnit: item.selectedUnit || null,
-                      totalPrice: item.totalPrice || item.price * item.quantity,
+                      totalPrice: item.totalPrice,
                       taxRate: 0,
                       taxAmount: 0,
                     })),
@@ -555,6 +559,10 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
       },
     });
 
+    if (!cleanShippingAddress) {
+      throw new Error("Shipping address is required to create an order");
+    }
+
     // Create new order
     const order = await prisma.order.create({
       data: {
@@ -591,8 +599,23 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
             product: true,
           },
         },
+        user: true
       },
     });
+
+          // Send confirmation email after successful transaction
+          try {
+            if (order.user && order.user.email) {
+              console.log("📧 Sending order confirmation email to:", order.user.email);
+              await emailService.sendOrderConfirmation(order.user, order);
+              console.log("✅ Order confirmation email sent successfully");
+            } else {
+              console.warn("⚠️ No user email found for order:", order.id);
+            }
+          } catch (emailError) {
+            console.error("❌ Failed to send order confirmation email:", emailError);
+            // Don't throw error here - payment was successful, email failure shouldn't break the flow
+          }
 
     // Link checkout to order
     await prisma.checkout.update({
@@ -774,18 +797,27 @@ export async function handleOpayPayment(user: AuthenticatedUser, calculatedData:
       throw new Error("Payment initialization failed");
     }
   } catch (error) {
-    console.error("Error in handleOpayPayment:", error);
-
-    // Enhanced error handling
-    if (error.code === "P2002") {
-      console.error("Unique constraint violation still occurred after cleanup");
+    console.error("Error in handlePaystackPayment:", error);
+  
+    // Check if it's an error with a code property
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+      const err = error as { code?: string; message?: string };
+      
+      if (err.code === "P2002") {
+        console.error("Unique constraint violation still occurred after cleanup");
+        throw new Error(
+          "Checkout conflict detected. Please refresh the page and try again."
+        );
+      }
+  
       throw new Error(
-        "Checkout conflict detected. Please refresh the page and try again."
+        "Payment initialization failed: " + (err.message || "Unknown error")
       );
     }
-
+  
     throw new Error(
-      "Payment initialization failed: " + (error.message || "Unknown error")
+      "Payment initialization failed: Unknown error"
     );
   }
 }
+

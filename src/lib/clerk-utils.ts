@@ -15,7 +15,7 @@ interface AuthResult {
  */
 export async function getAuth(): Promise<AuthResult> {
   try {
-    const { userId, getToken } = auth();
+    const { userId, getToken } = await auth();
     if (!userId) return { user: null, userId: null, token: null };
 
     const [user, token] = await Promise.all([
@@ -67,7 +67,7 @@ export async function getCurrentUserId(): Promise<string | null> {
  */
 export async function getAuthToken(): Promise<string | null> {
   try {
-    const { getToken } = auth();
+    const { getToken } = await auth();
     return await getToken({ template: '_apptoken' });
   } catch (error) {
     console.error('Error generating auth token:', error);
@@ -153,6 +153,15 @@ export function withAuth(handler: (req: Request) => Promise<NextResponse>) {
  * @param roles - Array of allowed roles
  * @returns NextResponse
  */
+interface UserWithRoles extends User {
+  publicMetadata: {
+    roles?: string[];
+    // Add other metadata properties you might use
+    [key: string]: unknown;
+  };
+}
+
+// Then use type assertion in your function
 export function withRoles(roles: string[]) {
   return (handler: (req: Request) => Promise<NextResponse>) => {
     return async (req: Request) => {
@@ -165,9 +174,12 @@ export function withRoles(roles: string[]) {
         );
       }
 
+      // Type assertion to tell TypeScript about the roles structure
+      const userWithRoles = user as UserWithRoles;
+      
       // Check if user has any of the required roles
       const hasRole = roles.some(role => 
-        user.publicMetadata.roles?.includes(role)
+        userWithRoles.publicMetadata.roles?.includes(role)
       );
 
       if (!hasRole) {
@@ -180,7 +192,7 @@ export function withRoles(roles: string[]) {
       // Add user info to request headers
       const headers = new Headers(req.headers);
       headers.set('x-user-id', user.id);
-      headers.set('x-user-roles', JSON.stringify(user.publicMetadata.roles));
+      headers.set('x-user-roles', JSON.stringify(userWithRoles.publicMetadata.roles));
       headers.set('authorization', `Bearer ${token}`);
 
       return handler(new Request(req, { headers }));

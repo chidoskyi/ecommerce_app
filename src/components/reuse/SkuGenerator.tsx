@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, Edit3, Check, Wand2, AlertTriangle } from 'lucide-react';
-import { useSelector, useDispatch } from 'react-redux';
 import { 
   generateProductSku, 
   clearGeneratedSku,
   selectSkuGenerating,
   selectGeneratedSku 
 } from '@/app/store/slices/adminProductsSlice';
+import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 
 export interface HybridSkuInputProps {
   value: string;
@@ -66,9 +66,9 @@ export const HybridSkuInput: React.FC<HybridSkuInputProps> = ({
   existingSkus = [],
   className = "" 
 }) => {
-  const dispatch = useDispatch();
-  const skuGenerating = useSelector(selectSkuGenerating);
-  const generatedSku = useSelector(selectGeneratedSku);
+  const dispatch = useAppDispatch();
+  const skuGenerating = useAppSelector(selectSkuGenerating);
+  const generatedSku = useAppSelector(selectGeneratedSku);
   
   const [inputMode, setInputMode] = useState('hybrid');
   // const [isEditing, setIsEditing] = useState(false);

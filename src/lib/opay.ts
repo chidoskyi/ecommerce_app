@@ -1,6 +1,6 @@
 // src/lib/opay.ts
 import axios, { AxiosError } from 'axios'
-import sha512 from 'js-sha512'
+import { sha512 } from 'js-sha512'
 
 export interface OpayPaymentRequest {
   reference: string

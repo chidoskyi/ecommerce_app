@@ -13,7 +13,7 @@ interface AddressSelectionModalProps {
   onSelectAddress: (address: Address) => void;
   onAddNewAddress: () => void;
   onEditAddress?: (address: Address) => void;
-  onDeleteAddress?: (addressId: number) => void;
+  onDeleteAddress?: (addressId: string) => void;
 }
 
 const AddressSelectionModal: React.FC<AddressSelectionModalProps> = ({

@@ -18,40 +18,41 @@ export default function FreshFruitsSection() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  // Fetch fresh fruits
-  useEffect(() => {
-    const fetchFreshFruits = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const params = new URLSearchParams({
-          fruit: 'true',
-          status: 'ACTIVE',
-          limit: '20'
-        });
-        
-        const response = await axios.get(`/api/products?${params.toString()}`);
-        if (response.data.success) {
-          setFreshFruits(response.data.products);
-          console.log('Fresh fruits fetched:', response.data.products.length);
-        } else {
-          throw new Error(response.data.message || 'Failed to fetch fresh fruits');
-        }
-      } catch (err) {
-        console.error('Error fetching fresh fruits:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch fresh fruits');
-      } finally {
-        setLoading(false);
+  // Move fetchFreshFruits outside of useEffect
+  const fetchFreshFruits = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params = new URLSearchParams({
+        fruit: 'true',
+        status: 'ACTIVE',
+        limit: '20'
+      });
+      
+      const response = await axios.get(`/api/products?${params.toString()}`);
+      if (response.data.success) {
+        setFreshFruits(response.data.products);
+        console.log('Fresh fruits fetched:', response.data.products.length);
+      } else {
+        throw new Error(response.data.message || 'Failed to fetch fresh fruits');
       }
-    };
+    } catch (err) {
+      console.error('Error fetching fresh fruits:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch fresh fruits');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Use effect now calls the external function
+  useEffect(() => {
     fetchFreshFruits();
   }, []);
 
   const handleRetry = () => {
     setError(null);
     setLoading(true);
-    fetchFreshFruits();
+    fetchFreshFruits(); // Now this will work
   };
 
   const handleSeeMore = () => {
@@ -147,7 +148,7 @@ export default function FreshFruitsSection() {
               description={product.description || "No description available."}
               unit={product.unitPrices?.[0]?.unit || "Per Item"}
               category={product.category?.name || "Fruits"}
-              rating={product.rating}
+              rating={product.reviews?.[0].rating}
             />
           </SwiperSlide>
         ))}

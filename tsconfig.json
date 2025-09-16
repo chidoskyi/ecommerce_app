@@ -46,7 +46,7 @@
     ,
     "src/app/api/orders",
     "src/app/api/categories"
-, "src/app/(public)/account/payment-method/page.tsx.ignore", "src/app/(public)/account/referral/page.tsx.ignore", "src/app/api/invoice/payment/route.ts", "src/components/dashboard/invoices/InvoiceAction.tsxs"  ],
+, "src/app/(public)/account/payment-method/page.tsx.ignore", "src/app/(public)/account/referral/page.tsx.ignore", "src/app/api/invoice/payment/route.ts", "src/components/dashboard/invoices/InvoiceAction.tsxs", "later use/navigation/UserNav.dtsx"  ],
   "exclude": [
     "node_modules"
   ]

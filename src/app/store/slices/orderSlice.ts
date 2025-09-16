@@ -24,6 +24,7 @@ const initialState: OrderState = {
     page: 1, // Add required page property
     limit: 10, // Add required limit property
     status: undefined,
+    statusFilter: 'all',
     paymentStatus: undefined
   }
 }
@@ -231,6 +232,7 @@ const orderSlice = createSlice({
         page: 1,
         limit: 10,
         status: '',
+        statusFilter: 'all',
         paymentStatus: ''
       }
       state.pagination.page = 1

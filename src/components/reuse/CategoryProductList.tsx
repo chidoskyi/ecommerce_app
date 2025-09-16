@@ -100,13 +100,15 @@ function CategoryProductList({
   filteredProducts = [...filteredProducts].sort((a, b) => {
     switch (sortBy) {
       case "price-low": {
-        const aPrice = a.hasFixedPrice ? a.fixedPrice : a.displayPrice || 0;
-        const bPrice = b.hasFixedPrice ? b.fixedPrice : b.displayPrice || 0;
+        // Fix: Add proper fallbacks for undefined values
+        const aPrice = a.hasFixedPrice ? (a.fixedPrice || 0) : (a.displayPrice || 0);
+        const bPrice = b.hasFixedPrice ? (b.fixedPrice || 0) : (b.displayPrice || 0);
         return aPrice - bPrice;
       }
       case "price-high": {
-        const aPrice = a.hasFixedPrice ? a.fixedPrice : a.displayPrice || 0;
-        const bPrice = b.hasFixedPrice ? b.fixedPrice : b.displayPrice || 0;
+        // Fix: Add proper fallbacks for undefined values
+        const aPrice = a.hasFixedPrice ? (a.fixedPrice || 0) : (a.displayPrice || 0);
+        const bPrice = b.hasFixedPrice ? (b.fixedPrice || 0) : (b.displayPrice || 0);
         return bPrice - aPrice;
       }
       case "alphabetically":

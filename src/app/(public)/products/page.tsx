@@ -204,15 +204,19 @@ export default function ProductsPage() {
   // Handle filter change
   const handleFilterChange = (newFilters: Record<string, boolean>) => {
     setSelectedFilters(newFilters);
-
-    // Convert UI filters to URL parameters
-
+  
+    // Validate and ensure sortOrder is either "asc" or "desc"
+    const validSortOrder = 
+      currentSortOrder === "asc" || currentSortOrder === "desc" 
+        ? currentSortOrder 
+        : "asc";
+  
     const filterParams: FilterParams = {
       search: currentSearch,
       category: currentCategory,
       sortBy: currentSortBy,
-      sortOrder: currentSortOrder,
-      page: 1, // Reset to page 1
+      sortOrder: validSortOrder,
+      page: 1,
     };
 
     // Map filter checkboxes to URL parameters

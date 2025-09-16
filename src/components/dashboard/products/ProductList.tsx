@@ -17,9 +17,11 @@ import { toast } from "react-toastify";
 import { ProductViewDialog } from "@/components/dashboard/products/ProductViewDialog";
 import {
   formStateToApiData,
+  PriceType,
   Product,
   // ProductFilters as ProductFiltersType,
   ProductFormState,
+  UpdateProductData,
 } from "@/types/products";
 
 import {
@@ -50,6 +52,7 @@ import {
   addProductOptimistic,
 } from "@/app/store/slices/adminProductsSlice";
 import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
+import { ProductStatus } from "@prisma/client";
 
 export function ProductList() {
   const dispatch = useAppDispatch();
@@ -81,7 +84,7 @@ export function ProductList() {
   useEffect(() => {
     dispatch(fetchProducts(filters));
     dispatch(fetchCategories());
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch]);
 
   // Refetch products when filters change (debounced)
@@ -90,7 +93,7 @@ export function ProductList() {
       dispatch(fetchProducts(filters));
     }, 500);
     return () => clearTimeout(timeoutId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dispatch,
     filters.search,
@@ -103,7 +106,7 @@ export function ProductList() {
   // Immediate refetch for pagination and sorting
   useEffect(() => {
     dispatch(fetchProducts(filters));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dispatch,
     filters.page,
@@ -133,17 +136,50 @@ export function ProductList() {
         newImageFiles: `${
           apiData.newImageFiles?.length || 0
         } new files to upload`,
+        imagesToDelete: `${
+          apiData.imagesToDelete?.length || 0
+        } images to delete`,
       });
 
-      // First update the product with existing image URLs
+      // First, handle image deletions if there are any images to delete
+      if (apiData.imagesToDelete && apiData.imagesToDelete.length > 0) {
+        console.log(`🗑️ Deleting ${apiData.imagesToDelete.length} images`);
+
+        const imageDeletionPromises = apiData.imagesToDelete.map(
+          (imageUrl: string) =>
+            dispatch(
+              deleteProductImage({
+                productId: selectedProduct.id!,
+                imageUrl, // This expects imageUrl, which is correct
+              })
+            ).unwrap()
+        );
+
+        // Wait for all images to be deleted
+        await Promise.allSettled(imageDeletionPromises);
+        console.log("✅ Images deleted successfully");
+      }
+
+      // Prepare product data without files for update
       const productDataWithoutFiles = { ...apiData };
       delete productDataWithoutFiles.newImageFiles;
+      delete productDataWithoutFiles.imagesToDelete;
 
+      // Convert null values to undefined for UpdateProductData
+      const updateData: UpdateProductData = {
+        ...productDataWithoutFiles,
+        description: productDataWithoutFiles.description ?? undefined,
+        weight: productDataWithoutFiles.weight ?? undefined,
+        unitPrices: productDataWithoutFiles.unitPrices ?? undefined,
+        categoryId: productDataWithoutFiles.categoryId ?? undefined,
+      };
+
+      // Update the product data
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const result = await dispatch(
         updateProduct({
-          id: selectedProduct.id,
-          productData: productDataWithoutFiles,
+          id: selectedProduct.id!,
+          productData: updateData,
         })
       ).unwrap();
 
@@ -156,7 +192,7 @@ export function ProductList() {
         );
         await dispatch(
           uploadProductImages({
-            productId: selectedProduct.id,
+            productId: selectedProduct.id!,
             files: apiData.newImageFiles,
           })
         ).unwrap();
@@ -179,8 +215,10 @@ export function ProductList() {
   };
 
   const handleDeleteProduct = async (productId: string) => {
+    let productToDelete; // Declare variable outside try block
+
     try {
-      const productToDelete = products.find((p) => p.id === productId);
+      productToDelete = products.find((p) => p.id === productId);
 
       // First, delete all images using the separate endpoint
       if (productToDelete?.images && productToDelete.images.length > 0) {
@@ -252,40 +290,54 @@ export function ProductList() {
 
     try {
       if (action === "delete") {
+        // Get the actual product objects for deletion
+        const productsToDelete = products.filter((p) =>
+          selectedProducts.includes(p.id!)
+        );
+
+        // First, delete all images for all selected products
+        const allImagesToDelete = productsToDelete.flatMap(
+          (product) => product.images || []
+        );
+
+        if (allImagesToDelete.length > 0) {
+          console.log(
+            `🗑️ Deleting ${allImagesToDelete.length} images before product deletion`
+          );
+
+          // Create promises for all image deletions across all products
+          const imageDeletionPromises = allImagesToDelete.map((imageUrl) => {
+            // Find which product this image belongs to
+            const product = productsToDelete.find((p) =>
+              p.images?.includes(imageUrl)
+            );
+            return dispatch(
+              deleteProductImage({
+                productId: product?.id || "", // Use the product ID
+                imageUrl,
+              })
+            ).unwrap();
+          });
+
+          // Wait for all images to be deleted
+          await Promise.allSettled(imageDeletionPromises);
+        }
+
+        // Optimistic update for all products
         selectedProducts.forEach((id) => {
           dispatch(removeProductOptimistic(id));
         });
 
-        // First, delete all images using the separate endpoint
-        if (selectedProducts?.images && selectedProducts.images.length > 0) {
-          console.log(
-            `🗑️ Deleting ${selectedProducts.images.length} images before product deletion`
-          );
-
-          // Delete each image using the separate endpoint
-          const imageDeletionPromises = selectedProducts.images.map(
-            (imageUrl) =>
-              dispatch(
-                deleteProductImage({
-                  productId,
-                  imageUrl,
-                })
-              ).unwrap()
-          );
-
-          // Wait for all images to be deleted (or at least attempted)
-          await Promise.allSettled(imageDeletionPromises);
-        }
-
+        // Delete all products
         await Promise.all(
           selectedProducts.map((id) => dispatch(deleteProduct(id)).unwrap())
         );
-        // Refresh products list
-        await dispatch(fetchProducts({})).unwrap();
+
         toast.success(`${selectedProducts.length} products deleted`);
       } else {
         const validStatus = action.toUpperCase() as "ACTIVE" | "INACTIVE";
 
+        // Optimistic update for status changes
         selectedProducts.forEach((id) => {
           const product = products.find((p) => p.id === id);
           if (product) {
@@ -303,6 +355,7 @@ export function ProductList() {
           `${selectedProducts.length} products updated to ${validStatus}`
         );
       }
+
       // Refresh products list
       await dispatch(fetchProducts({})).unwrap();
       setSelectedProducts([]);
@@ -314,7 +367,7 @@ export function ProductList() {
   };
 
   const handleSort = (key: string) => {
-    let direction = "asc";
+    let direction: "asc" | "desc" = "asc";
     if (sortConfig.key === key && sortConfig.direction === "asc") {
       direction = "desc";
     }
@@ -322,8 +375,8 @@ export function ProductList() {
 
     dispatch(
       updateFilters({
-        sortBy: key as string,
-        sortOrder: direction as "asc" | "desc",
+        sortBy: key,
+        sortOrder: direction,
       })
     );
   };
@@ -333,7 +386,7 @@ export function ProductList() {
     currentProducts: Product[]
   ) => {
     if (checked) {
-      setSelectedProducts(currentProducts.map((product) => product.id));
+      setSelectedProducts(currentProducts.map((product) => product.id!));
     } else {
       setSelectedProducts([]);
     }
@@ -393,26 +446,26 @@ export function ProductList() {
     setActiveTab(tab);
     setSelectedProducts([]);
 
-    const statusMap: Record<string, string> = {
-      all: "",
+    const statusMap: Record<string, ProductStatus | undefined> = {
+      all: undefined,
       active: "ACTIVE",
       inactive: "INACTIVE",
-      featured: "",
+      featured: undefined,
     };
 
     if (tab === "featured") {
       dispatch(
         updateFilters({
           featured: "true",
-          status: "",
+          status: undefined, // Use undefined instead of ""
           page: 1,
         })
       );
     } else {
       dispatch(
         updateFilters({
-          status: statusMap[tab] || "",
-          featured: "",
+          status: statusMap[tab], // This will be undefined for 'all' and 'featured'
+          featured: undefined, // Use undefined instead of ""
           page: 1,
         })
       );
@@ -442,7 +495,9 @@ export function ProductList() {
     <div className="space-y-4 md:space-y-6 p-4 md:p-0">
       {/* Header Section - Mobile Optimized */}
       <div className="flex flex-col space-y-2">
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Products</h1>
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+          Products
+        </h1>
         <p className="text-sm md:text-base text-muted-foreground">
           <span className="block sm:inline">
             Manage your product inventory ({productStats.total} total,{" "}
@@ -460,12 +515,14 @@ export function ProductList() {
             {/* Header with Actions - Mobile Stack */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
               <div className="space-y-1">
-                <CardTitle className="text-lg md:text-xl">Product Inventory</CardTitle>
+                <CardTitle className="text-lg md:text-xl">
+                  Product Inventory
+                </CardTitle>
                 <CardDescription className="text-sm">
                   View and manage your product inventory
                 </CardDescription>
               </div>
-              
+
               {/* Product Actions - Mobile Optimized */}
               <div className="flex-shrink-0">
                 <ProductActions
@@ -482,13 +539,20 @@ export function ProductList() {
                 searchQuery={filters.search || ""}
                 setSearchQuery={handleSearchChange}
                 filters={{
-                  status: filters.status?.toLowerCase() || "all",
+                  status:
+                    (filters.status?.toUpperCase() as ProductStatus) ||
+                    undefined,
                   category: filters.category || "all",
-                  price: {
-                    min: filters.minPrice || "",
-                    max: filters.maxPrice || "",
-                  },
-                  priceType: filters.priceType?.toLowerCase() || "all",
+                  price:
+                    filters.minPrice && filters.maxPrice
+                      ? `${filters.minPrice}-${filters.maxPrice}`
+                      : filters.minPrice
+                      ? `${filters.minPrice}+`
+                      : filters.maxPrice
+                      ? `-${filters.maxPrice}`
+                      : "",
+                  priceType:
+                    (filters.priceType?.toLowerCase() as PriceType) || "all",
                 }}
                 categories={categories}
                 products={products}
@@ -548,17 +612,21 @@ export function ProductList() {
         <DialogContent className="w-[95vw] max-w-3xl h-[95vh] md:max-h-[90vh] overflow-y-auto mx-2 md:mx-auto">
           <ProductForm
             mode="edit"
-            product={selectedProduct}
+            product={selectedProduct || undefined}
+            loading={loading} // Add the required loading prop
             onSuccess={handleFormSuccess}
             onError={handleFormError}
             onCancel={() => {
               setIsEditProductOpen(false);
               dispatch(clearSelectedProduct());
-              setProductFormState(null); // Reset form state on cancel
+              setProductFormState(null);
             }}
             onProductChange={(formState) => {
               // Store the form state for submission
               setProductFormState(formState);
+
+              // Only proceed if selectedProduct exists
+              if (!selectedProduct) return;
 
               // Convert form state back to product for live updates (display only)
               const imageUrls = formState.images
@@ -573,9 +641,9 @@ export function ProductList() {
               const priceType = formState.hasFixedPrice ? "FIXED" : "VARIABLE";
 
               const updatedProduct: Product = {
-                ...selectedProduct!,
+                ...selectedProduct,
                 name: formState.name,
-                description: formState.description,
+                description: formState.description ?? null, // Convert undefined to null
                 hasFixedPrice: formState.hasFixedPrice,
                 priceType: priceType,
                 fixedPrice: Number(formState.fixedPrice),
@@ -599,7 +667,7 @@ export function ProductList() {
               };
               dispatch(setSelectedProduct(updatedProduct));
             }}
-            onEditProduct={handleEditProduct} // Pass the edit handler
+            onEditProduct={handleEditProduct}
           />
         </DialogContent>
       </Dialog>
@@ -617,10 +685,10 @@ export function ProductList() {
               }}
               onDelete={() => {
                 setIsViewProductOpen(false);
-                handleDeleteProduct(selectedProduct.id);
+                handleDeleteProduct(selectedProduct.id!);
               }}
               onStatusChange={(newStatus) =>
-                handleStatusChange(selectedProduct.id, newStatus)
+                handleStatusChange(selectedProduct.id!, newStatus)
               }
             />
           )}

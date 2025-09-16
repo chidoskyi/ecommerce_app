@@ -10,7 +10,6 @@ import { toast } from 'react-toastify';
 import { StorageUtil } from '@/lib/storageKeys';
 import { useUser } from '@clerk/nextjs';
 import { ensureUserIdentification } from '@/utils/userIdentification';
-// import { toast } from 'react-hot-toast';
 
 export interface OrderData {
   orderNumber: string;
@@ -58,7 +57,6 @@ export default function PaymentSuccess() {
     isLoading: authLoading, 
     userId, 
     token,
-    // err 
   } = useAuth();
   const { user: clerkUser, isSignedIn } = useUser();
   const dispatch = useAppDispatch();
@@ -76,30 +74,29 @@ export default function PaymentSuccess() {
     setIsVisible(true);
   }, []);
 
-  // useEffect(() => {
-  //   // Wait for auth to complete before verifying payment
-  //   if (!authLoading) {
-  //     if (!isAuthenticated) {
-  //       // Redirect to login if not authenticated
-  //       setError('Please log in to view your order');
-  //       setIsLoading(false);
-  //       setIsVerifying(false);
-  //       // Optionally redirect to login page
-  //       // router.push('/login');
-  //       return;
-  //     }
+  // FIX: Uncomment and enable the payment verification useEffect
+  useEffect(() => {
+    // Wait for auth to complete before verifying payment
+    if (!authLoading) {
+      if (!isAuthenticated) {
+        // Redirect to login if not authenticated
+        setError('Please log in to view your order');
+        setIsLoading(false);
+        setIsVerifying(false);
+        return;
+      }
 
-  //     // Verify payment once authenticated
-  //     if (reference && token) {
-  //       verifyPayment();
-  //     } else if (!reference) {
-  //       setError('No payment reference found');
-  //       setIsLoading(false);
-  //       setIsVerifying(false);
-  //     }
-  //   }
-  // }, [authLoading, isAuthenticated, reference, token]);
-
+      // Verify payment once authenticated
+      if (reference && token) {
+        verifyPayment();
+      } else if (!reference) {
+        setError('No payment reference found');
+        setIsLoading(false);
+        setIsVerifying(false);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, isAuthenticated, reference, token]);
 
   const clearCartAfterPayment = async () => {
     if (cartCleared) return;

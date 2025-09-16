@@ -511,7 +511,13 @@ export default function Wishlist() {
                     unitPrices={item.product.unitPrices || []}
                     images={item.product.images}
                     viewMode={viewMode}
-                    onRemove={() => handleRemoveItem(item.product.id)}
+                    onRemove={() => {
+                      if (item.product.id) {
+                        handleRemoveItem(item.product.id);
+                      } else {
+                        console.error('Cannot remove item: product ID is undefined');
+                      }
+                    }}
                     isRemoving={loading}
                     category={item.product.category?.name || ''} // Extract the name from the category object
                     description={item.product.description || ""} // Add this

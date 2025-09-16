@@ -3,38 +3,12 @@ import prisma from "@/lib/prisma";
 import { walletService } from "@/lib/wallet";
 import { v4 as uuidv4 } from "uuid";
 import EmailService from "@/lib/emailService";
-import { Address, User } from "@prisma/client";
+
 import { AuthenticatedUser } from "./auth";
+import { CalculationResult } from "./bankPaymentHandlers";
 
 const emailService = new EmailService();
 
-// Validated item interface
-interface ValidatedItem {
-  productId: string;
-  title: string;
-  quantity: number;
-  fixedPrice: number | null;
-  unitPrice: number | null;
-  selectedUnit: string | null;
-  totalPrice: number;
-  weight: number;
-  totalWeight: number;
-  price: number;
-}
-
-interface CalculationResult {
-  userData: User;
-  validatedItems: ValidatedItem[];
-  totalWeight: number;
-  deliveryFee: number;
-  finalSubtotal: number;
-  totalAmount: number;
-  shippingAddress: Address;
-  billingAddress: Address;
-  couponId?: string;
-  discountAmount: number;
-  currency: string;
-}
 
 // Wallet payment handler with transaction management
 export async function handleWalletPayment(user: AuthenticatedUser, calculatedData: CalculationResult) {
@@ -303,7 +277,7 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
                   customerEmail: userData.email,
                   paymentMethod: "wallet",
                   isRetry: true,
-                  walletTransactionId: walletPayment.paymentTransaction.transactionId,
+                  walletTransactionId: walletPayment.paymentTransaction.id,
                 }
               },
               providerData: JSON.stringify({
@@ -326,28 +300,7 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
             },
           });
 
-          // Send confirmation email to customer
-          try {
-            if (updatedOrder.user && updatedOrder.user.email) {
-              console.log(
-                "Sending order confirmation email to:",
-                updatedOrder.user.email
-              );
-              await emailService.sendOrderConfirmation(
-                updatedOrder.user,
-                updatedOrder
-              );
-              console.log("Order confirmation email sent successfully");
-            } else {
-              console.warn("No user email found for order:", updatedOrder.id);
-            }
-          } catch (emailError) {
-            console.error(
-              "Failed to send order confirmation email:",
-              emailError
-            );
-            // Don't throw error here - payment was successful, email failure shouldn't break the flow
-          }
+
 
           // Update or create checkout
           let checkoutForRetry;
@@ -391,7 +344,7 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
                     fixedPrice: item.fixedPrice || null,
                     unitPrice: item.unitPrice || null,
                     selectedUnit: item.selectedUnit || null,
-                    totalPrice: item.totalPrice || item.price * item.quantity,
+                    totalPrice: item.totalPrice ,
                   })),
                 },
               },
@@ -460,7 +413,7 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
                     fixedPrice: item.fixedPrice || null,
                     unitPrice: item.unitPrice || null,
                     selectedUnit: item.selectedUnit || null,
-                    totalPrice: item.totalPrice || item.price * item.quantity,
+                    totalPrice: item.totalPrice,
                     taxRate: 0,
                     taxAmount: 0,
                   })),
@@ -495,12 +448,12 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
               deliveryFee,
             },
           };
-        } catch (walletError) {
+        } catch (walletError: unknown) {
           console.error(
             "Error during wallet payment for existing order:",
             walletError
           );
-
+          
           // Mark order as failed
           await prisma.order.update({
             where: { id: existingOrder.id },
@@ -509,7 +462,7 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
               paymentStatus: "FAILED",
             },
           });
-
+      
           // Mark invoice as failed if exists
           if (existingInvoice) {
             await prisma.invoice.update({
@@ -520,10 +473,20 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
               },
             });
           }
-
-          throw new Error(`Wallet payment failed: ${walletError.message}`);
+      
+          // Extract a message safely from walletError
+          let message: string;
+          if (walletError instanceof Error) {
+            message = walletError.message;
+          } else {
+            // Could be anything: string, number, object, null, etc.
+            message = String(walletError);
+          }
+      
+          throw new Error(`Wallet payment failed: ${message}`);
         }
       }
+      
     }
 
     // Clean up any orphaned checkout without valid order
@@ -588,6 +551,10 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
       },
     });
 
+    if (!cleanShippingAddress) {
+      throw new Error("Shipping address is required to create an order");
+    }
+
     // Create new order
     const order = await prisma.order.create({
       data: {
@@ -624,8 +591,27 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
             product: true,
           },
         },
+        user: true
       },
     });
+
+
+    if (!order.user) {
+      throw new Error("Order created without user association");
+    }
+
+    // Send confirmation email to customer
+    try {
+      if (order.user.email) {
+        console.log("Sending order confirmation email to:", order.user.email);
+        await emailService.sendOrderConfirmation(order.user, order);
+        console.log("Order confirmation email sent successfully");
+      } else {
+        console.warn("No email found for order:", order.id);
+      }
+    } catch (emailError) {
+      console.error("Failed to send order confirmation email:", emailError);
+    }
 
     // Link checkout to order
     await prisma.checkout.update({
@@ -663,7 +649,7 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
             customerEmail: userData.email,
             paymentMethod: "wallet",
             isRetry: false,
-            walletTransactionId: walletPayment.paymentTransaction.transactionId,
+            walletTransactionId: walletPayment.paymentTransaction.id,
           },
           providerData: JSON.stringify({
             walletPayment: walletPayment.paymentTransaction,
@@ -778,10 +764,9 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
           deliveryFee,
         },
       };
-    } catch (walletError) {
+    } catch (walletError: unknown) {
       console.error("Wallet payment error:", walletError);
-
-      // Mark checkout as failed
+  
       await prisma.checkout.update({
         where: { id: checkout.id },
         data: {
@@ -790,8 +775,7 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
           isActive: false,
         },
       });
-
-      // Mark order as failed
+  
       await prisma.order.update({
         where: { id: order.id },
         data: {
@@ -799,22 +783,39 @@ export async function handleWalletPayment(user: AuthenticatedUser, calculatedDat
           paymentStatus: "FAILED",
         },
       });
-
-      throw new Error(`Wallet payment failed: ${walletError.message}`);
+  
+      // Inline type narrowing
+      if (walletError instanceof Error) {
+        throw new Error(`Wallet payment failed: ${walletError.message}`);
+      } else {
+        // fallback if not an Error instance
+        const message = typeof walletError === "string"
+          ? walletError
+          : JSON.stringify(walletError);
+        throw new Error(`Wallet payment failed: ${message}`);
+      }
     }
   } catch (error) {
     console.error("Error in handleWalletPayment:", error);
-
-    // Enhanced error handling
-    if (error.code === "P2002") {
-      console.error("Unique constraint violation still occurred after cleanup");
+  
+    // Enhanced error handling with proper type checking
+    if (error instanceof Error) {
+      // Check if it's a Prisma error with code property
+      if ('code' in error && error.code === "P2002") {
+        console.error("Unique constraint violation still occurred after cleanup");
+        throw new Error(
+          "Checkout conflict detected. Please refresh the page and try again."
+        );
+      }
+      
       throw new Error(
-        "Checkout conflict detected. Please refresh the page and try again."
+        "Wallet payment failed: " + error.message
       );
     }
-
+  
+    // Handle non-Error objects
     throw new Error(
-      "Wallet payment failed: " + (error.message || "Unknown error")
+      "Wallet payment failed: Unknown error occurred"
     );
   }
 }

@@ -14,9 +14,7 @@ import {
   Product,
   TransactionStatus
 } from '@prisma/client';
-import EmailService from '@/lib/emailService';
 
-const emailService = new EmailService();
 
 interface WebhookData {
   [key: string]: unknown;
@@ -180,19 +178,7 @@ export async function handleSuccessfulPayment(
         status: createdPayment.status
       });
 
-      // Send confirmation email after successful transaction
-      try {
-        if (updatedOrder.user && updatedOrder.user.email) {
-          console.log("📧 Sending order confirmation email to:", updatedOrder.user.email);
-          await emailService.sendOrderConfirmation(updatedOrder.user, updatedOrder);
-          console.log("✅ Order confirmation email sent successfully");
-        } else {
-          console.warn("⚠️ No user email found for order:", order.id);
-        }
-      } catch (emailError) {
-        console.error("❌ Failed to send order confirmation email:", emailError);
-        // Don't throw error here - payment was successful, email failure shouldn't break the flow
-      }
+
     });
 
     console.log('🎉 Transaction completed successfully');

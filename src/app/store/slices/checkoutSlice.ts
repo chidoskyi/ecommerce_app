@@ -17,6 +17,7 @@ import { Invoice } from "@/types/invoice";
 const initialState: CheckoutState = {
   currentCheckout: null,
   checkouts: [],
+  isLoading: false,
   currentOrder: null,
   orders: [],
   currentInvoice: null,
@@ -224,7 +225,7 @@ const checkoutSlice = createSlice({
     // Set payment method
     setPaymentMethod: (
       state,
-      action: PayloadAction<"opay" | "bank_transfer">
+      action: PayloadAction<"opay" | "bank_transfer" | "paystack" | "wallet">
     ) => {
       state.paymentMethod = action.payload;
     },
@@ -431,6 +432,9 @@ export const selectShowInvoice = (state: { checkout: CheckoutState }) =>
   state.checkout.showInvoice;
 export const selectPaymentMethod = (state: { checkout: CheckoutState }) =>
   state.checkout.paymentMethod;
+
+export const selectIsLoading = (state: { checkout: CheckoutState }) =>
+  state.checkout.isLoading;
 
 // Export reducer
 export default checkoutSlice.reducer;

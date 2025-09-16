@@ -87,7 +87,7 @@ export function ProductTable({
   };
 
   // Mobile format date (shorter)
-  const formatDateMobile = (dateString: string | Date) => {
+  const formatDateMobile = (dateString: string | Date | undefined | null) => {
     if (!dateString) return "-";
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return "-";
@@ -251,7 +251,7 @@ export function ProductTable({
 
   // Mobile Product Card Component
   const MobileProductCard = ({ product }: { product: Product }) => {
-    const isSelected = selectedProducts.includes(product.id);
+    const isSelected = selectedProducts.includes(product.id!);
 
     return (
       <div
@@ -264,7 +264,7 @@ export function ProductTable({
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <Checkbox
               checked={isSelected}
-              onCheckedChange={() => onSelectProduct(product.id)}
+              onCheckedChange={() => onSelectProduct(product.id!)}
               disabled={loading || bulkActionLoading}
               className="flex-shrink-0"
             />
@@ -324,7 +324,7 @@ export function ProductTable({
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Change Status</DropdownMenuLabel>
               <DropdownMenuItem
-                onClick={() => onStatusChange(product.id, "ACTIVE")}
+                onClick={() => onStatusChange(product.id!, "ACTIVE")}
                 disabled={product.status === "ACTIVE"}
                 className="cursor-pointer"
               >
@@ -332,7 +332,7 @@ export function ProductTable({
                 Mark as Active
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => onStatusChange(product.id, "INACTIVE")}
+                onClick={() => onStatusChange(product.id!, "INACTIVE")}
                 disabled={product.status === "INACTIVE"}
                 className="cursor-pointer"
               >
@@ -342,7 +342,7 @@ export function ProductTable({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-red-600 cursor-pointer"
-                onClick={() => onDelete(product.id)}
+                onClick={() => onDelete(product.id!)}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete
@@ -556,7 +556,7 @@ export function ProductTable({
               </TableRow>
             ) : (
               products.map((product) => {
-                const isSelected = selectedProducts.includes(product.id);
+                const isSelected = selectedProducts.includes(product.id!);
 
                 return (
                   <TableRow
@@ -570,7 +570,7 @@ export function ProductTable({
                     <TableCell>
                       <Checkbox
                         checked={isSelected}
-                        onCheckedChange={() => onSelectProduct(product.id)}
+                        onCheckedChange={() => onSelectProduct(product.id!)}
                         disabled={loading || bulkActionLoading}
                       />
                     </TableCell>
@@ -643,19 +643,17 @@ export function ProductTable({
                       ) : product.unitPrices &&
                         product.unitPrices.length > 0 ? (
                         <div className="space-y-1">
-                          {product.unitPrices
-                            .slice(0, 2)
-                            .map((unitPrice) => (
-                              <div key={unitPrice.unit} className="text-sm">
-                                <span className="font-medium">
-                                  {unitPrice.unit}:
-                                </span>{" "}
-                                <PriceFormatter
-                                  amount={unitPrice.price}
-                                  showDecimals={true}
-                                />
-                              </div>
-                            ))}
+                          {product.unitPrices.slice(0, 2).map((unitPrice) => (
+                            <div key={unitPrice.unit} className="text-sm">
+                              <span className="font-medium">
+                                {unitPrice.unit}:
+                              </span>{" "}
+                              <PriceFormatter
+                                amount={unitPrice.price}
+                                showDecimals={true}
+                              />
+                            </div>
+                          ))}
                           {product.unitPrices.length > 2 && (
                             <div className="text-xs text-gray-500">
                               +{product.unitPrices.length - 2} more
@@ -687,7 +685,9 @@ export function ProductTable({
                     </TableCell>
                     <TableCell>
                       <span className="text-sm text-gray-600">
-                        {formatDate(product.updatedAt)}
+                        {product.updatedAt
+                          ? formatDate(product.updatedAt)
+                          : "N/A"}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
@@ -725,7 +725,7 @@ export function ProductTable({
                           <DropdownMenuSeparator />
                           <DropdownMenuLabel>Change Status</DropdownMenuLabel>
                           <DropdownMenuItem
-                            onClick={() => onStatusChange(product.id, "ACTIVE")}
+                            onClick={() => onStatusChange(product.id!, "ACTIVE")}
                             disabled={product.status === "ACTIVE"}
                             className="cursor-pointer"
                           >
@@ -734,7 +734,7 @@ export function ProductTable({
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() =>
-                              onStatusChange(product.id, "INACTIVE")
+                              onStatusChange(product.id!, "INACTIVE")
                             }
                             disabled={product.status === "INACTIVE"}
                             className="cursor-pointer"
@@ -745,7 +745,7 @@ export function ProductTable({
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-red-600 cursor-pointer"
-                            onClick={() => onDelete(product.id)}
+                            onClick={() => onDelete(product.id!)}
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
                             Delete

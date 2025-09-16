@@ -283,11 +283,11 @@ class WalletService {
           }
         }
       });
-
+  
       if (!walletTransaction) {
         throw new Error('Transaction not found');
       }
-
+  
       // Handle different status cases
       switch (walletTransaction.status) {
         case 'SUCCESS':
@@ -304,13 +304,13 @@ class WalletService {
             message: 'Deposit previously failed verification'
           };
       }
-
+  
       // Verify with Paystack
       const verifyResponse = await paystackService.verifyPayment(reference);
       const paymentStatus = paystackService.getPaymentStatus(verifyResponse);
-
+  
       console.log('Paystack Verification Response:', verifyResponse);
-
+  
       if (paymentStatus === 'success') {
         // Successful verification - update records in transaction
         const result = await prisma.$transaction(async (tx) => {
@@ -322,11 +322,11 @@ class WalletService {
               metadata: {
                 ...(walletTransaction.metadata as Record<string, unknown> || {}),
                 verifiedAt: new Date().toISOString(),
-                paystackResponse: verifyResponse.data
+                paystackResponse: JSON.parse(JSON.stringify(verifyResponse.data)) // Serialize to ensure JSON compatibility
               }
             }
           });
-
+  
           const updatedWallet = await tx.userWallet.update({
             where: { id: walletTransaction.walletId },
             data: {
@@ -334,13 +334,13 @@ class WalletService {
               lastActivity: new Date()
             }
           });
-
+  
           return { 
             transaction: updatedWalletTransaction, 
             wallet: updatedWallet 
           };
         });
-
+  
         return { 
           status: 'verified', 
           ...result,
@@ -351,7 +351,7 @@ class WalletService {
         const failureReason = verifyResponse.data?.gateway_response || 
                             verifyResponse.message || 
                             'Payment verification failed';
-
+  
         await prisma.walletTransaction.update({
           where: { id: walletTransaction.id },
           data: { 
@@ -359,11 +359,11 @@ class WalletService {
             metadata: {
               ...(walletTransaction.metadata as Record<string, unknown> || {}),
               failureReason,
-              paystackResponse: verifyResponse.data
+              paystackResponse: JSON.parse(JSON.stringify(verifyResponse.data)) // Serialize to ensure JSON compatibility
             }
           }
         });
-
+  
         return { 
           status: 'failed',
           message: failureReason,
@@ -395,7 +395,7 @@ class WalletService {
       } catch (updateError) {
         console.error('Failed to update transaction status:', updateError);
       }
-
+  
       throw new Error(`Failed to verify deposit: ${errorMessage}`);
     }
   }

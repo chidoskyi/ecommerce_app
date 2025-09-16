@@ -1,19 +1,26 @@
-import React from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { Search } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User, UserRole, UserStatus } from '@/types/users';
-import { UserActions } from '@/components/dashboard/users/UserActions';
+import React from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { User, UserRole, UserStatus } from "@/types/users";
+import { UserActions } from "@/components/dashboard/users/UserActions";
 import {
   selectUsers,
   selectLoading,
   selectSearchTerm,
   setSearchTerm,
-} from '@/app/store/slices/adminUsersSlice';
-import { AppDispatch } from '@/app/store';
+} from "@/app/store/slices/adminUsersSlice";
+import { AppDispatch } from "@/app/store";
 
 interface UserTableProps {
   onEdit?: () => void;
@@ -30,61 +37,61 @@ export const UserTable: React.FC<UserTableProps> = ({ onEdit }) => {
   };
 
   // Filter users based on search term
-  const filteredUsers = users.filter(
-    (user) => {
-      const searchLower = searchTerm.toLowerCase();
-      const fullName = `${user.firstName || ''} ${user.lastName || ''}`.toLowerCase();
-      return (
-        fullName.includes(searchLower) ||
-        user.email.toLowerCase().includes(searchLower) ||
-        user.role.toLowerCase().includes(searchLower)
-      );
-    }
-  );
+  const filteredUsers = users.filter((user) => {
+    const searchLower = searchTerm.toLowerCase();
+    const fullName = `${user.firstName || ""} ${
+      user.lastName || ""
+    }`.toLowerCase();
+    return (
+      fullName.includes(searchLower) ||
+      user.email.toLowerCase().includes(searchLower) ||
+      user.role.toLowerCase().includes(searchLower)
+    );
+  });
 
   const getRoleBadgeColor = (role: UserRole): string => {
     switch (role) {
-      case 'ADMIN':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-      case 'USER':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-      case 'MODERATOR':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+      case "ADMIN":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
+      case "USER":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
+      case "MODERATOR":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
       default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
     }
   };
 
   const getStatusBadgeColor = (status: UserStatus): string => {
     switch (status) {
-      case 'ACTIVE':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-      case 'INACTIVE':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-      case 'SUSPENDED':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+      case "ACTIVE":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
+      case "INACTIVE":
+        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
+      case "SUSPENDED":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
       default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
     }
   };
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     }).format(date);
   };
 
   const formatDateMobile = (dateString: string): string => {
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: '2-digit',
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "2-digit",
     }).format(date);
   };
 
@@ -101,9 +108,9 @@ export const UserTable: React.FC<UserTableProps> = ({ onEdit }) => {
     }
     if (user.fullName) {
       return user.fullName
-        .split(' ')
+        .split(" ")
         .map((n: string) => n[0])
-        .join('')
+        .join("")
         .toUpperCase();
     }
     return user.email[0].toUpperCase();
@@ -124,7 +131,7 @@ export const UserTable: React.FC<UserTableProps> = ({ onEdit }) => {
           />
         </div>
       </div>
-      
+
       {/* Desktop Table */}
       <div className="hidden md:block rounded-md border border-gray-200 bg-white shadow-sm">
         <Table>
@@ -149,7 +156,9 @@ export const UserTable: React.FC<UserTableProps> = ({ onEdit }) => {
             ) : filteredUsers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-10">
-                  {searchTerm ? `No users found matching "${searchTerm}"` : 'No users found'}
+                  {searchTerm
+                    ? `No users found matching "${searchTerm}"`
+                    : "No users found"}
                 </TableCell>
               </TableRow>
             ) : (
@@ -159,30 +168,44 @@ export const UserTable: React.FC<UserTableProps> = ({ onEdit }) => {
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8">
                         <AvatarImage
-                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(getDisplayName(user))}&background=random`}
+                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
+                            getDisplayName(user)
+                          )}&background=random`}
                         />
                         <AvatarFallback className="text-xs">
                           {getInitials(user)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <div className="font-medium text-sm">{getDisplayName(user)}</div>
-                        <div className="text-xs text-muted-foreground">{user.email}</div>
+                        <div className="font-medium text-sm">
+                          {getDisplayName(user)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {user.email}
+                        </div>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge className={`${getRoleBadgeColor(user.role)} text-xs`} variant="outline">
+                    <Badge
+                      className={`${getRoleBadgeColor(user.role)} text-xs`}
+                      variant="outline"
+                    >
                       {user.role}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge className={`${getStatusBadgeColor(user.status)} text-xs`} variant="outline">
+                    <Badge
+                      className={`${getStatusBadgeColor(user.status)} text-xs`}
+                      variant="outline"
+                    >
                       {user.status}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm">
-                    {user.createdAt ? formatDate(user.createdAt) : 'Never'}
+                    {user.createdAt
+                      ? formatDate(user.createdAt.toString())
+                      : "Never"}
                   </TableCell>
                   <TableCell className="text-right">
                     <UserActions user={user} onEdit={onEdit} />
@@ -203,25 +226,36 @@ export const UserTable: React.FC<UserTableProps> = ({ onEdit }) => {
         ) : filteredUsers.length === 0 ? (
           <div className="text-center py-10 bg-white rounded-lg border border-gray-200 mx-2">
             <p className="text-muted-foreground">
-              {searchTerm ? `No users found matching "${searchTerm}"` : 'No users found'}
+              {searchTerm
+                ? `No users found matching "${searchTerm}"`
+                : "No users found"}
             </p>
           </div>
         ) : (
           filteredUsers.map((user) => (
-            <div key={user.id} className="bg-white rounded-lg border border-gray-200 p-4 mx-2 shadow-sm">
+            <div
+              key={user.id}
+              className="bg-white rounded-lg border border-gray-200 p-4 mx-2 shadow-sm"
+            >
               {/* User Info */}
               <div className="flex items-center gap-3 mb-3">
                 <Avatar className="h-10 w-10">
                   <AvatarImage
-                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(getDisplayName(user))}&background=random`}
+                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
+                      getDisplayName(user)
+                    )}&background=random`}
                   />
                   <AvatarFallback className="text-sm">
                     {getInitials(user)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate">{getDisplayName(user)}</div>
-                  <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                  <div className="font-medium text-sm truncate">
+                    {getDisplayName(user)}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {user.email}
+                  </div>
                 </div>
                 <div className="flex-shrink-0">
                   <UserActions user={user} onEdit={onEdit} />
@@ -230,17 +264,24 @@ export const UserTable: React.FC<UserTableProps> = ({ onEdit }) => {
 
               {/* Badges and Date */}
               <div className="flex flex-wrap items-center gap-2 mb-2">
-                <Badge className={`${getRoleBadgeColor(user.role)} text-xs`} variant="outline">
+                <Badge
+                  className={`${getRoleBadgeColor(user.role)} text-xs`}
+                  variant="outline"
+                >
                   {user.role}
                 </Badge>
-                <Badge className={`${getStatusBadgeColor(user.status)} text-xs`} variant="outline">
+                <Badge
+                  className={`${getStatusBadgeColor(user.status)} text-xs`}
+                  variant="outline"
+                >
                   {user.status}
                 </Badge>
               </div>
 
               {/* Created Date */}
               <div className="text-xs text-muted-foreground">
-                Created: {user.createdAt ? formatDateMobile(user.createdAt) : 'Never'}
+                Created:{" "}
+                {user.createdAt ? formatDateMobile(user.createdAt.toString()) : 'Never'}
               </div>
             </div>
           ))

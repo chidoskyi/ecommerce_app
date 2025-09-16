@@ -18,40 +18,41 @@ export default function FreshVegetablesSection() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  // Fetch fresh vegetables
-  useEffect(() => {
-    const fetchFreshVegetables = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const params = new URLSearchParams({
-          vegetable: 'true',
-          status: 'ACTIVE',
-          limit: '20'
-        });
-        
-        const response = await axios.get(`/api/products?${params.toString()}`);
-        if (response.data.success) {
-          setFreshVegetables(response.data.products);
-          console.log('Fresh fruits fetched:', response.data.products.length);
-        } else {
-          throw new Error(response.data.message || 'Failed to fetch fresh vegetables');
-        }
-      } catch (err) {
-        console.error('Error fetching fresh vegetables:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch fresh vegetables');
-      } finally {
-        setLoading(false);
+  // Move fetchFreshVegetables outside of useEffect
+  const fetchFreshVegetables = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params = new URLSearchParams({
+        vegetable: 'true',
+        status: 'ACTIVE',
+        limit: '20'
+      });
+      
+      const response = await axios.get(`/api/products?${params.toString()}`);
+      if (response.data.success) {
+        setFreshVegetables(response.data.products);
+        console.log('Fresh vegetables fetched:', response.data.products.length);
+      } else {
+        throw new Error(response.data.message || 'Failed to fetch fresh vegetables');
       }
-    };
+    } catch (err) {
+      console.error('Error fetching fresh vegetables:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch fresh vegetables');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Use effect now calls the external function
+  useEffect(() => {
     fetchFreshVegetables();
   }, []);
 
   const handleRetry = () => {
     setError(null);
     setLoading(true);
-    fetchFreshVegetables();
+    fetchFreshVegetables(); // Now this will work
   };
 
   const handleSeeMore = () => {
@@ -144,9 +145,10 @@ export default function FreshVegetablesSection() {
               name={product.name}
               price={product.hasFixedPrice ? product.fixedPrice : product.displayPrice}
               images={product.images || ["/placeholder.svg?height=200&width=200"]}
+              description={product.description || "No description available."}
               unit={product.unitPrices?.[0]?.unit || "Per Item"}
-              category={product.category?.name || "Vegetables"}
-              rating={product.rating}
+              category={product.category?.name || "Fruits"}
+              rating={product.reviews?.[0].rating}
             />
           </SwiperSlide>
         ))}

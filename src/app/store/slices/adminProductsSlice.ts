@@ -618,7 +618,7 @@ export const initialState: AdminProductsState = {
     sortBy: 'createdAt',
     sortOrder: 'desc',
     status: 'ACTIVE',
-    priceType: 'ALL',
+    priceType: 'all',
     featured: '',
     fruit: '',
     vegetable: '',

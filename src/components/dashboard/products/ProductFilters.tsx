@@ -35,6 +35,12 @@ export interface ProductFiltersProps {
   onFilterChange: (key: string, value: string) => void;
   onPriceFilterChange: (key: string, value: string) => void;
   onResetFilters: () => void;
+  productStats?: {
+    total: number;
+    active: number;
+    inactive: number;
+    featured: number;
+  };
 }
 
 export function ProductFilters({

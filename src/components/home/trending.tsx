@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { Navigation } from 'swiper/modules';
-import 'swiper/css';
-import 'swiper/css/navigation';
+import { Swiper, SwiperSlide } from "swiper/react";
+import { Navigation } from "swiper/modules";
+import "swiper/css";
+import "swiper/css/navigation";
 import Container from "../reuse/Container";
 import ProductCard from "../reuse/ProductCard";
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import axios from 'axios';
-import { Product } from '@/types/products';
-import { useRouter } from 'next/navigation';
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import axios from "axios";
+import { Product } from "@/types/products";
+import { useRouter } from "next/navigation";
 
 export default function TrendingSection() {
   const [trendingProducts, setTrendingProducts] = useState<Product[]>([]);
@@ -19,32 +19,40 @@ export default function TrendingSection() {
   const router = useRouter();
 
   // Fetch trending products
-  useEffect(() => {
-    const fetchTrending = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const params = new URLSearchParams({
-          isTrending: 'true',
-          status: 'ACTIVE',
-          limit: '20'
-        });
-        
-        const response = await axios.get(`/api/products?${params.toString()}`);
-        if (response.data.success) {
-          setTrendingProducts(response.data.products);
-          console.log('Trending products fetched:', response.data.products.length);
-        } else {
-          throw new Error(response.data.message || 'Failed to fetch trending products');
-        }
-      } catch (err) {
-        console.error('Error fetching trending products:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch trending products');
-      } finally {
-        setLoading(false);
-      }
-    };
 
+  const fetchTrending = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params = new URLSearchParams({
+        isTrending: "true",
+        status: "ACTIVE",
+        limit: "20",
+      });
+
+      const response = await axios.get(`/api/products?${params.toString()}`);
+      if (response.data.success) {
+        setTrendingProducts(response.data.products);
+        console.log(
+          "Trending products fetched:",
+          response.data.products.length
+        );
+      } else {
+        throw new Error(
+          response.data.message || "Failed to fetch trending products"
+        );
+      }
+    } catch (err) {
+      console.error("Error fetching trending products:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch trending products"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchTrending();
   }, []);
 
@@ -55,14 +63,16 @@ export default function TrendingSection() {
   };
 
   const handleSeeMore = () => {
-    router.push('/trending?isTrending=true');
+    router.push("/trending?isTrending=true");
   };
 
   if (loading && trendingProducts.length === 0) {
     return (
       <Container className="mx-auto px-4 py-8 shadow-md rounded-[8px] relative mb-12">
         <div className="flex items-center justify-between mb-8 border-b border-gray-300 pb-5">
-          <h2 className="md:text-3xl text-xl font-bold text-gray-700">Trending For You</h2>
+          <h2 className="md:text-3xl text-xl font-bold text-gray-700">
+            Trending For You
+          </h2>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {[...Array(6)].map((_, i) => (
@@ -81,11 +91,15 @@ export default function TrendingSection() {
     return (
       <Container className="mx-auto px-4 py-8 shadow-md rounded-[8px] relative mb-12">
         <div className="flex items-center justify-between mb-8 border-b border-gray-300 pb-5">
-          <h2 className="md:text-3xl text-xl font-bold text-gray-700">Trending For You</h2>
+          <h2 className="md:text-3xl text-xl font-bold text-gray-700">
+            Trending For You
+          </h2>
         </div>
         <div className="text-center py-8">
-          <p className="text-red-500">Error loading trending products: {error}</p>
-          <button 
+          <p className="text-red-500">
+            Error loading trending products: {error}
+          </p>
+          <button
             onClick={handleRetry}
             className="mt-4 px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
           >
@@ -100,10 +114,14 @@ export default function TrendingSection() {
     return (
       <Container className="mx-auto px-4 py-8 shadow-md rounded-[8px] relative mb-12">
         <div className="flex items-center justify-between mb-8 border-b border-gray-300 pb-5">
-          <h2 className="md:text-3xl text-xl font-bold text-gray-700">Trending For You</h2>
+          <h2 className="md:text-3xl text-xl font-bold text-gray-700">
+            Trending For You
+          </h2>
         </div>
         <div className="text-center py-8">
-          <p className="text-gray-500">No trending products available at the moment.</p>
+          <p className="text-gray-500">
+            No trending products available at the moment.
+          </p>
         </div>
       </Container>
     );
@@ -112,8 +130,10 @@ export default function TrendingSection() {
   return (
     <Container className="mx-auto px-4 py-8 shadow-md rounded-[8px] relative mb-12">
       <div className="flex items-center justify-between mb-8 border-b border-gray-300 pb-5">
-        <h2 className="md:text-3xl text-xl font-bold text-gray-700">Trending For You</h2>
-        <button 
+        <h2 className="md:text-3xl text-xl font-bold text-gray-700">
+          Trending For You
+        </h2>
+        <button
           onClick={handleSeeMore}
           className="text-orange-500 hover:text-orange-600 font-medium cursor-pointer"
         >
@@ -126,15 +146,15 @@ export default function TrendingSection() {
         spaceBetween={16}
         slidesPerView={2}
         navigation={{
-          nextEl: '.trending-next',
-          prevEl: '.trending-prev',
+          nextEl: ".trending-next",
+          prevEl: ".trending-prev",
         }}
         breakpoints={{
           640: { slidesPerView: 3 },
           768: { slidesPerView: 4 },
-          1024: { slidesPerView: 5 }
+          1024: { slidesPerView: 5 },
         }}
-        className='flex gap-4 cursor-pointer relative'
+        className="flex gap-4 cursor-pointer relative"
       >
         {trendingProducts.map((product) => (
           <SwiperSlide key={product.id}>
@@ -146,7 +166,8 @@ export default function TrendingSection() {
               images={product.images || ["/placeholder.svg?height=200&width=200"]}
               description={product.description || "No description available."}
               unit={product.unitPrices?.[0]?.unit || "Per Item"}
-              rating={product.rating}
+              category={product.category?.name || "Fruits"}
+              rating={product.reviews?.[0].rating}
             />
           </SwiperSlide>
         ))}
@@ -156,7 +177,7 @@ export default function TrendingSection() {
           <ChevronLeft />
         </button>
         <button className="trending-next absolute cursor-pointer right-2 top-1/2 z-10 -translate-y-1/2 bg-white md:p-2 p-1 md:py-4 py-2 rounded-[8px] shadow-md hover:bg-gray-100">
-          <ChevronRight/>
+          <ChevronRight />
         </button>
       </Swiper>
     </Container>

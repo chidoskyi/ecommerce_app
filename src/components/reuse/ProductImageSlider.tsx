@@ -34,13 +34,14 @@ import {
 import { StorageUtil } from "@/lib/storageKeys";
 import ShareButton from "./ShareButon";
 import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
+import { AddToCartProduct } from "@/types/carts";
 // import { Review } from "@/types/reviews";
 
 const ProductImageGallery = ({ product }: ProductImageGalleryProps) => {
   const dispatch = useAppDispatch();
   const [activeImage, setActiveImage] = useState(0);
   const [isWishlistUpdating, setIsWishlistUpdating] = useState(false);
-  const isInWishlist = useAppSelector(selectIsInWishlist(product.id));
+  const isInWishlist = useAppSelector(selectIsInWishlist(product.id!));
   const [quantity, setQuantity] = useState(1);
   const [showQuantity, setShowQuantity] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -57,14 +58,24 @@ const ProductImageGallery = ({ product }: ProductImageGalleryProps) => {
 
   // Get product images - prefer API data over hardcoded
   const getProductImages = (): string[] => {
-    if (Array.isArray(product.images) && product.images.length > 0) {
+    // Only handle arrays as per your Product interface
+    if (product.images && product.images.length > 0) {
       return product.images;
     }
-    if (typeof product.images === "string" && product.images.length > 0) {
-      return [product.images];
-    }
+    
     return ["/placeholder.svg"];
   };
+// const getProductImages = (): string[] => {
+//   // Check if images exists and is an array
+//   if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+//     return product.images;
+//   }
+//   // Check if images is a string
+//   if (typeof product.images === "string" && product.images.length > 0) {
+//     return [product.images];
+//   }
+//   return ["/placeholder.svg"];
+// };
 
   const productImages = getProductImages();
 
@@ -80,7 +91,7 @@ const ProductImageGallery = ({ product }: ProductImageGalleryProps) => {
           image: product.images?.[0] || "/placeholder.svg",
           unitPrice: {
             unit: product.weight || "Standard",
-            price: product.fixedPrice,
+            price: product.fixedPrice ?? 0, // Provide fallback for UnitPrice.price
           },
           fixedPrice: product.fixedPrice,
         },
@@ -152,7 +163,7 @@ const ProductImageGallery = ({ product }: ProductImageGalleryProps) => {
     return product.displayPrice || 0;
   };
 
-  const currentPrice = getCurrentPrice();
+  const currentPrice = getCurrentPrice() ?? 0; // Fallback to 0 if undefined
 
   // Get selected option details
   const selectedOptionData = productOptions.find(
@@ -255,16 +266,16 @@ const ProductImageGallery = ({ product }: ProductImageGalleryProps) => {
       }
 
       // Create product object for cart (matching ProductCard structure)
-      const productForCart = {
-        id: product.id,
+      const productForCart: AddToCartProduct = {
+        id: product.id!,
         name: product.name,
         hasFixedPrice: product.hasFixedPrice,
         slug: product.slug,
         fixedPrice: product.fixedPrice,
-        unitPrices: product.unitPrices,
+        unitPrices: product.unitPrices ?? undefined, // Convert null to undefined
         images: productImages,
         rating: product.rating || product.averageRating,
-        priceType: product.hasFixedPrice ? "fixed" : "variable",
+        // priceType: product.hasFixedPrice ? "fixed" : "variable",
       };
 
       // Prepare selectedUnit for variable pricing
@@ -277,15 +288,19 @@ const ProductImageGallery = ({ product }: ProductImageGalleryProps) => {
       }
 
       // Dispatch to cart with same structure as ProductCard
-      await dispatch(
-        addItemToCart({
-          product: productForCart,
-          quantity,
-          selectedUnit: selectedUnitForCart,
-          userId: userId,
-          guestId: guestId,
-        })
-      ).unwrap();
+// Dispatch to cart with same structure as ProductCard
+await dispatch(
+  addItemToCart({
+    product: productForCart,
+    quantity,
+    selectedUnit: selectedUnitForCart ? {
+      unit: selectedUnitForCart.unit,
+      price: selectedUnitForCart.price ?? 0 // Provide fallback for undefined price
+    } : null,
+    userId: userId,
+    // guestId: guestId,
+  })
+).unwrap();
 
       console.log("Added to cart:", {
         productId: product.id,
@@ -315,7 +330,7 @@ const ProductImageGallery = ({ product }: ProductImageGalleryProps) => {
 
     try {
       setIsWishlistUpdating(true);
-      await dispatch(toggleItem(product.id)).unwrap();
+      await dispatch(toggleItem(product.id!)).unwrap();
       console.log(
         `${isInWishlist ? "Removed from" : "Added to"} wishlist:`,
         name

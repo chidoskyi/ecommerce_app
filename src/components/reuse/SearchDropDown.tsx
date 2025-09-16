@@ -12,6 +12,23 @@ export interface SearchBarProps {
   placeholder: string;
 }
 
+// Add these interfaces
+interface PageSuggestion {
+  id: number;
+  name: string;
+  path: string;
+}
+
+interface CategorySuggestion {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  image?: string;
+  productCount?: number;
+  status?: string;
+}
+
 // SearchDropdown Component
 const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }: {
   isVisible: boolean;
@@ -21,8 +38,8 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
 }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [productSuggestions, setProductSuggestions] = useState<Product[]>([]);
-  const [pageSuggestions, setPageSuggestions] = useState([]);
-  const [categorySuggestions, setCategorySuggestions] = useState([]);
+  const [pageSuggestions, setPageSuggestions] = useState<PageSuggestion[]>([]);
+  const [categorySuggestions, setCategorySuggestions] = useState<CategorySuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
 
@@ -31,13 +48,14 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
   const { categories, actions: categoryActions } = useCategories();
 
   // Sample pages - replace with your actual data
-  const samplePages = [
+  const samplePages: PageSuggestion[] = [
     { id: 1, name: "Privacy policy", path: "/privacy-policy" },
     { id: 2, name: "Refund policy", path: "/refund-policy" },
     { id: 3, name: "Terms of service", path: "/terms-of-service" },
     { id: 4, name: "About us", path: "/about-us" },
     { id: 5, name: "Contact us", path: "/contact-us" },
   ];
+
 
   // Load categories when component mounts
   useEffect(() => {
@@ -113,7 +131,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
       
       setProductSuggestions(filteredProducts);
       setPageSuggestions(filteredPages);
-      setCategorySuggestions(filteredCategories);
+      setCategorySuggestions(filteredCategories as unknown as CategorySuggestion[]);
       setIsLoading(false);
     }, 300);
     

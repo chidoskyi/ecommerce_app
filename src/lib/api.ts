@@ -72,15 +72,15 @@ api.interceptors.request.use(
       console.log('📁 Detected FormData - letting browser handle Content-Type')
       // Remove any existing Content-Type header for FormData
       if (config.headers) {
-        delete config.headers['Content-Type'];
+        config.headers.delete('Content-Type');
       }
-    } else if (config.data && typeof config.data === 'object' && !config.headers['Content-Type']) {
+    } else if (config.data && typeof config.data === 'object' && !config.headers?.['Content-Type']) {
       // For JSON objects, set Content-Type if not already set
-      config.headers['Content-Type'] = 'application/json';
+      config.headers?.set('Content-Type', 'application/json');
     }
 
     // Skip auth headers if already set
-    if (config.headers.Authorization) {
+    if (config.headers?.['Authorization']) {
       console.log('ℹ️ Authorization header already exists')
       return config
     }
@@ -88,7 +88,10 @@ api.interceptors.request.use(
     const authHeaders = await getAuthHeaders()
     if (authHeaders.Authorization) {
       console.log('➕ Adding auth headers to request')
-      config.headers = { ...config.headers, ...authHeaders }
+      // Use the set method to add headers individually
+      Object.entries(authHeaders).forEach(([key, value]) => {
+        config.headers?.set(key, value);
+      });
     } else {
       console.warn('⚠️ No auth headers available')
     }
@@ -122,10 +125,10 @@ api.interceptors.response.use(
       const authHeaders = await getAuthHeaders()
       if (authHeaders.Authorization) {
         console.log('✅ Got new token, retrying request')
-        originalRequest.headers = { 
-          ...originalRequest.headers,
-          ...authHeaders
-        }
+        // Use the set method to add headers individually
+        Object.entries(authHeaders).forEach(([key, value]) => {
+          originalRequest.headers?.set(key, value);
+        });
         return api(originalRequest)
       }
       

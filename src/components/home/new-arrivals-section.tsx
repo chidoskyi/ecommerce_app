@@ -19,7 +19,7 @@ export default function NewArrivalsSection() {
   const router = useRouter();
 
   // Fetch new arrivals
-  useEffect(() => {
+
     const fetchNewArrivals = async () => {
       try {
         setLoading(true);
@@ -44,6 +44,7 @@ export default function NewArrivalsSection() {
       }
     };
 
+  useEffect(() => {
     fetchNewArrivals();
   }, []);
 
@@ -142,11 +143,11 @@ export default function NewArrivalsSection() {
               id={product.id}
               name={product.name}
               price={product.hasFixedPrice ? product.fixedPrice : product.displayPrice}
+              images={product.images || ["/placeholder.svg?height=200&width=200"]}
               description={product.description || "No description available."}
-              unit={product.unitPrices && product.unitPrices.length > 0 ? product.unitPrices[0].unit : "Per Item"}
-              category={product.category?.name || "Uncategorized"}
-              rating={product.rating || product.averageRating || 0}
-              isFeatured={product.isFeatured}
+              unit={product.unitPrices?.[0]?.unit || "Per Item"}
+              category={product.category?.name || "Fruits"}
+              rating={product.reviews?.[0].rating}
             />
           </SwiperSlide>
         ))}

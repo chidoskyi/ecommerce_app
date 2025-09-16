@@ -1,11 +1,15 @@
+import { DisplayUser } from ".";
+
 export interface User {
   id: string;
+  name: string;
   email: string;
   fullName: string;
   username: string;
   primaryEmailAddress: string;
   emailAddresses: string;
   password: string;
+  initial?: string
   firstName: string | null;
   lastName: string | null;
   phone: string | null;
@@ -16,6 +20,21 @@ export interface User {
   lastLoginAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+export interface NewUser {
+  email: string;
+  password: string;
+  name: string;
+  role: 'USER' | 'ADMIN' | 'MODERATOR';
+  // phone: string | null;
+  // id: string;
+  // status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  // fullName: string;
+  // username: string;
+  // emailAddresses: string;
+  // firstName: string | null;
+  // lastName: string | null;
+  // avatar: string | null;
 }
 
 export interface CreateUserData {
@@ -73,7 +92,7 @@ export interface UserDropdownProps {
   setShowDropdown: (show: boolean) => void;
   handleSignIn: () => void;
   handleLogout: () => void;
-  user: User | null;
+  user?: DisplayUser | null;
 }
 
 // Define the user state interface

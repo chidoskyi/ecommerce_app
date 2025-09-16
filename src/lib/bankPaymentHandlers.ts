@@ -1,15 +1,37 @@
 // /api/checkout/route.ts (with internal handlers)
 import prisma from "@/lib/prisma";
 import { v4 as uuidv4 } from "uuid";
-import { CheckoutStatus, PaymentStatus, OrderStatus, User, Address, CartItem, Product } from "@prisma/client";
+import {
+  CheckoutStatus,
+  PaymentStatus,
+  OrderStatus,
+  User,
+  Address,
+  Product,
+  UnitPrice,
+  Prisma,
+  Checkout,
+  Order,
+  ShippingAddress,
+} from "@prisma/client";
 import EmailService from "@/lib/emailService";
 import { AuthenticatedUser } from "./auth";
 
 const emailService = new EmailService();
 
+export type CartItemWithProduct = Prisma.CartItemGetPayload<{
+  include: {
+    product: {
+      include: {
+        category: true;
+      };
+    };
+  };
+}>;
+
 // Request data interface
-interface CheckoutRequestData {
-  cartItems: CartItem[];
+export interface CheckoutRequestData {
+  cartItems: CartItemWithProduct[];
   shippingAddress: Address;
   billingAddress?: Address;
   couponId?: string;
@@ -19,7 +41,7 @@ interface CheckoutRequestData {
 }
 
 // Pricing information interface
-interface PricingInfo {
+export interface PricingInfo {
   fixedPrice: number | null;
   unitPrice: number | null;
   selectedUnit: string | null;
@@ -43,14 +65,14 @@ export interface ValidatedItem {
 }
 
 // Calculation result interface
-interface CalculationResult {
+export interface CalculationResult {
   userData: User;
   validatedItems: ValidatedItem[];
   totalWeight: number;
   deliveryFee: number;
   finalSubtotal: number;
   totalAmount: number;
-  shippingAddress: Address;
+  shippingAddress: ShippingAddress;
   billingAddress: Address;
   couponId?: string;
   discountAmount: number;
@@ -58,17 +80,68 @@ interface CalculationResult {
 }
 
 // User interface for the validation function
-interface ValidationUser {
+export interface ValidationUser {
   id: string;
   clerkId?: string;
   email: string;
   role?: string;
 }
-  
+
+export interface BankTransferResult {
+  success: boolean;
+  isPendingOrder?: boolean;
+  isRetry?: boolean;
+  checkout: Checkout;
+  order: Order;
+  invoice: InvoiceDisplay;
+  showInvoice: boolean;
+  message: string;
+  deliveryInfo: {
+    totalWeight: number;
+    deliveryFee: number;
+  };
+  paymentReference?: string;
+}
+
+interface InvoiceDisplay {
+  id: string;
+  invoiceNumber: string;
+  orderDate: Date;
+  dueDate: Date;
+  status: string;
+  customer: {
+    name: string;
+    email: string;
+    phone: string | null;
+  };
+  items: Array<{
+    name: string;
+    quantity: number;
+    price: number | null; // Changed from number to number | null
+    total: number;
+  }>;
+  subtotal: number;
+  tax: number;
+  shipping: number;
+  discount: number;
+  total: number;
+  currency: string;
+  bankDetails: Array<{
+    bankName: string;
+    accountName: string;
+    accountNumber: string;
+    sortCode?: string;
+  }>;
+  deliveryInfo: {
+    totalWeight: number;
+    deliveryFee: number;
+  };
+  paymentInstructions: string[];
+}
 
 // Shared validation and calculation function
 export async function validateAndCalculate(
-  user: ValidationUser, 
+  user: ValidationUser,
   requestData: CheckoutRequestData
 ): Promise<CalculationResult> {
   const {
@@ -109,26 +182,43 @@ export async function validateAndCalculate(
   const validatedItems: ValidatedItem[] = [];
 
   for (const item of cartItems) {
+    // Access the product from the included relation
+    const product = item.product;
+
     // Validate product data exists
-    if (!item.product) {
+    if (!product) {
       throw new Error(`Product data missing for item ${item.id}`);
     }
 
-    if (!item.productId.weight || item.product.weight <= 0) {
-      throw new Error(`Product ${item.product.name} must have a valid weight`);
+    // Fix weight validation - convert string to number and validate
+    // const productWeight = product.weight ?? 0;
+    if (!product.weight || product.weight <= 0) {
+      throw new Error(`Product ${product.name} must have a valid weight`);
     }
 
-    // Handle unit selection format (could be string or {unit, price} object)
-    const selectedUnit: string | null =
-      typeof item.selectedUnit === "object"
-        ? item.selectedUnit.unit
-        : item.selectedUnit || null;
-
-    const unitPrice: number | undefined =
-      typeof item.selectedUnit === "object"
-        ? item.selectedUnit.price
-        : item.unitPrice || undefined;
-
+    // Handle unit selection - safely handle different data types
+    // Fix: Properly type and handle selectedUnit with explicit type guard
+    const unitData = item.selectedUnit;
+    let selectedUnit: string | null = null;
+    let unitPrice: number | undefined = undefined;
+    
+    // Type guard function to check if unitData is a UnitPrice object
+    const isUnitPrice = (data: unknown): data is UnitPrice => {
+      return data !== null &&
+             data !== undefined &&
+             typeof data === 'object' && 
+             'unit' in data &&
+             'price' in data &&
+             typeof (data as { unit: unknown; price: unknown }).unit === 'string' && 
+             typeof (data as { unit: unknown; price: unknown }).price === 'number';
+    };
+    
+    // Check if unitData is a proper UnitPrice object
+    if (isUnitPrice(unitData)) {
+      selectedUnit = unitData.unit;
+      unitPrice = unitData.price;
+    }
+    
     // Calculate item price
     let itemPrice = 0;
     let pricingInfo: PricingInfo = {
@@ -137,7 +227,7 @@ export async function validateAndCalculate(
       selectedUnit: null,
       totalPrice: 0,
     };
-
+    
     // Case 1: Fixed price item
     if (item.fixedPrice !== null && item.fixedPrice !== undefined) {
       itemPrice = item.fixedPrice;
@@ -150,16 +240,25 @@ export async function validateAndCalculate(
     }
     // Case 2: Unit price item
     else if (unitPrice !== null && unitPrice !== undefined && selectedUnit) {
-      // Validate the selected unit exists in product's unitPrices
-      if (
-        item.product.unitPrices &&
-        !item.product.unitPrices.some((u: UnitPrice) => u.unit === selectedUnit)
-      ) {
+      // Ensure unitPrices exists and is an array
+      if (!item.product.unitPrices || !Array.isArray(item.product.unitPrices)) {
         throw new Error(
-          `Selected unit "${selectedUnit}" is not valid for product ${item.product.name}`
+          `Product ${item.product.name} has no unit prices defined`
         );
       }
-
+    
+      // Validate the selected unit exists in product's unitPrices (case-insensitive)
+      const availableUnits = item.product.unitPrices.map((u: UnitPrice) => u.unit);
+      const unitExists = availableUnits.some(unit => 
+        unit && unit.toLowerCase() === selectedUnit.toLowerCase()
+      );
+    
+      if (!unitExists) {
+        throw new Error(
+          `Selected unit "${selectedUnit}" is not valid for product ${item.product.name}. Available units: ${availableUnits.join(', ')}`
+        );
+      }
+    
       itemPrice = unitPrice;
       pricingInfo = {
         fixedPrice: null,
@@ -186,6 +285,7 @@ export async function validateAndCalculate(
       );
     }
 
+    // Use the parsed weight for calculations
     const itemWeight: number = Number(item.product.weight) * item.quantity;
     calculatedSubtotal += pricingInfo.totalPrice;
     totalWeight += itemWeight;
@@ -193,7 +293,9 @@ export async function validateAndCalculate(
     const validatedItem: ValidatedItem = {
       productId: item.productId,
       title: item.product.name,
+      product: item.product,
       quantity: item.quantity,
+      sku: item.product.sku,
       fixedPrice: pricingInfo.fixedPrice,
       unitPrice: pricingInfo.unitPrice,
       selectedUnit: pricingInfo.selectedUnit,
@@ -208,11 +310,6 @@ export async function validateAndCalculate(
 
   // Calculate dynamic delivery fee
   const deliveryFee = 4500;
-  // try {
-  //   deliveryFee = calculateDeliveryFee(totalWeight, shippingAddress.city);
-  // } catch (error) {
-  //   throw new Error('Unable to calculate delivery fee for the specified location');
-  // }
 
   // Use provided subtotal if available, otherwise use calculated one
   const finalSubtotal: number = subtotal || calculatedSubtotal;
@@ -233,12 +330,11 @@ export async function validateAndCalculate(
   };
 }
 
-
 // Bank transfer payment handler
 export async function handleBankTransferPayment(
   user: AuthenticatedUser,
   calculatedData: CalculationResult
-): Promise<void> {
+): Promise<BankTransferResult> {
   const {
     userData,
     validatedItems,
@@ -254,30 +350,40 @@ export async function handleBankTransferPayment(
   } = calculatedData;
 
   // Clean and format shipping address to match ShippingAddress type
+  // Clean and format shipping address to match ShippingAddress type
   const cleanShippingAddress = shippingAddress
     ? {
-        firstName: shippingAddress.firstName,
-        lastName: shippingAddress.lastName,
-        address: shippingAddress.address,
-        city: shippingAddress.city,
-        state: shippingAddress.state,
-        country: shippingAddress.country,
-        zip: shippingAddress.zip,
+        firstName: shippingAddress.firstName || "",
+        lastName: shippingAddress.lastName || "",
+        address: shippingAddress.address || "",
+        city: shippingAddress.city || "",
+        state: shippingAddress.state || "",
+        country: shippingAddress.country || "",
+        zip: shippingAddress.zip || "",
         phone: shippingAddress.phone || null,
       }
-    : null;
+    : {
+        firstName: userData.firstName || "",
+        lastName: userData.lastName || "",
+        address: "",
+        city: "",
+        state: "",
+        country: "",
+        zip: "",
+        phone: userData.phone || null,
+      };
 
   // Clean and format billing address to match BillingAddress type
   // If no billing address provided, use shipping address
   const cleanBillingAddress = billingAddress
     ? {
-        firstName: billingAddress.firstName,
-        lastName: billingAddress.lastName,
-        address: billingAddress.address,
-        city: billingAddress.city,
-        state: billingAddress.state,
-        country: billingAddress.country,
-        zip: billingAddress.zip,
+        firstName: billingAddress.firstName || "",
+        lastName: billingAddress.lastName || "",
+        address: billingAddress.address || "",
+        city: billingAddress.city || "",
+        state: billingAddress.state || "",
+        country: billingAddress.country || "",
+        zip: billingAddress.zip || "",
         phone: billingAddress.phone || null,
       }
     : cleanShippingAddress
@@ -291,7 +397,16 @@ export async function handleBankTransferPayment(
         zip: cleanShippingAddress.zip,
         phone: cleanShippingAddress.phone,
       }
-    : null;
+    : {
+        firstName: userData.firstName || "",
+        lastName: userData.lastName || "",
+        address: "",
+        city: "",
+        state: "",
+        country: "",
+        zip: "",
+        phone: userData.phone || null,
+      };
 
   try {
     // ===== COMPREHENSIVE EXISTING RECORDS CHECK =====
@@ -352,13 +467,13 @@ export async function handleBankTransferPayment(
       });
     }
 
-        // ===== CALCULATE ORDER AGE ONCE =====
-        const maxOrderAge = 24 * 60 * 60 * 1000; // 24 hours
-        let orderAge = 0;
-        
-        if (existingOrder) {
-          orderAge = Date.now() - existingOrder.createdAt.getTime();
-        }
+    // ===== CALCULATE ORDER AGE ONCE =====
+    const maxOrderAge = 24 * 60 * 60 * 1000; // 24 hours
+    let orderAge = 0;
+
+    if (existingOrder) {
+      orderAge = Date.now() - existingOrder.createdAt.getTime();
+    }
 
     // ===== PREVENT DUPLICATE PENDING ORDERS =====
 
@@ -393,7 +508,6 @@ export async function handleBankTransferPayment(
               currency,
               shippingAddress: cleanShippingAddress,
               billingAddress: cleanBillingAddress,
-              shippingMethod,
               paymentMethod: "bank_transfer",
               paymentStatus: "UNPAID",
               couponId,
@@ -512,7 +626,7 @@ export async function handleBankTransferPayment(
           items: existingOrder.items.map((item) => ({
             name: item.title,
             quantity: item.quantity,
-            price: item.price,
+            price: item.unitPrice,
             total: item.totalPrice,
           })),
           subtotal: existingOrder.subtotalPrice,
@@ -554,14 +668,24 @@ export async function handleBankTransferPayment(
       }
     }
 
-   // ===== HANDLE EXISTING FAILED ORDERS =====
+    // ===== HANDLE EXISTING FAILED ORDERS =====
     // If we have a failed order or expired pending order
-    if (existingOrder && (existingOrder.status === "FAILED" || orderAge > maxOrderAge)) {
-      console.log("Found existing failed/expired order:", existingOrder.id, "Status:", existingOrder.status);
+    if (
+      existingOrder &&
+      (existingOrder.status === "FAILED" || orderAge > maxOrderAge)
+    ) {
+      console.log(
+        "Found existing failed/expired order:",
+        existingOrder.id,
+        "Status:",
+        existingOrder.status
+      );
 
       // Check if order is expired or failed
       if (orderAge > maxOrderAge || existingOrder.status === "FAILED") {
-        console.log("Order is expired or failed, cancelling and cleaning up...");
+        console.log(
+          "Order is expired or failed, cancelling and cleaning up..."
+        );
 
         // Cancel expired order
         await prisma.order.update({
@@ -640,7 +764,6 @@ export async function handleBankTransferPayment(
               currency,
               shippingAddress: cleanShippingAddress,
               billingAddress: cleanBillingAddress,
-              shippingMethod,
               paymentMethod: "bank_transfer",
               paymentStatus: "UNPAID",
               couponId,
@@ -736,9 +859,9 @@ export async function handleBankTransferPayment(
               items: {
                 create: existingOrder.items.map((item) => ({
                   productId: item.productId,
-                  name: item.title,
+                  title: item.title,
                   quantity: item.quantity,
-                  unitPrice: item.price,
+                  unitPrice: item.unitPrice,
                   totalPrice: item.totalPrice,
                   taxRate: 0,
                   taxAmount: 0,
@@ -766,7 +889,7 @@ export async function handleBankTransferPayment(
           items: existingOrder.items.map((item) => ({
             name: item.title,
             quantity: item.quantity,
-            price: item.price,
+            price: item.unitPrice,
             total: item.totalPrice,
           })),
           subtotal: existingOrder.subtotalPrice,
@@ -835,7 +958,6 @@ export async function handleBankTransferPayment(
         currency,
         shippingAddress: cleanShippingAddress,
         billingAddress: cleanBillingAddress,
-        shippingMethod,
         paymentMethod: "bank_transfer",
         paymentStatus: PaymentStatus.UNPAID,
         couponId,
@@ -880,6 +1002,9 @@ export async function handleBankTransferPayment(
         userId: user.id,
         clerkId: user.clerkId,
         email: userData.email,
+        customerName:
+          `${userData.firstName || ""} ${userData.lastName || ""}`.trim() ||
+          undefined,
         phone: userData.phone || "",
         status: OrderStatus.PENDING,
         paymentStatus: PaymentStatus.UNPAID,
@@ -909,36 +1034,27 @@ export async function handleBankTransferPayment(
             product: true,
           },
         },
-        user: true, // Include user data for email
+        user: true,
       },
     });
 
-    // Send confirmation email to customer
-    try {
-      if (order.email) {
-        // Use the email from order data directly
-        console.log("Sending order confirmation email to:", order.email);
+    // Then add a runtime check
+// After creating the order
+if (!order.user) {
+  throw new Error("Order created without user association");
+}
 
-        // Create user object for email service if needed
-        const userForEmail = {
-          id: user.id,
-          clerkId: user.clerkId,
-          email: order.email,
-          firstName: userData.firstName || "",
-          lastName: userData.lastName || "",
-          // Add other required properties for email service
-        };
-
-        await emailService.sendOrderConfirmation(userForEmail, order);
-        console.log("Order confirmation email sent successfully");
-      } else {
-        console.warn("No email found for order:", order.id);
-      }
-    } catch (emailError) {
-      console.error("Failed to send order confirmation email:", emailError);
-      // Consider logging this to a monitoring service
-      // Don't throw error - payment was successful
-    }
+try {
+  if (order.user.email) {
+    console.log("Sending order confirmation email to:", order.user.email);
+    await emailService.sendOrderConfirmation(order.user, order);
+    console.log("Order confirmation email sent successfully");
+  } else {
+    console.warn("No email found for order:", order.id);
+  }
+} catch (emailError) {
+  console.error("Failed to send order confirmation email:", emailError);
+}
 
     // Link checkout to order
     await prisma.checkout.update({
@@ -1152,8 +1268,15 @@ export async function handleBankTransferPayment(
       // Don't throw cleanup errors, just log them
     }
 
-    throw new Error(
-      `Failed to process bank transfer payment: ${error.message}`
-    );
+    // Properly handle the unknown error type
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to process bank transfer payment: ${error.message}`
+      );
+    } else {
+      throw new Error(
+        `Failed to process bank transfer payment: ${String(error)}`
+      );
+    }
   }
 }

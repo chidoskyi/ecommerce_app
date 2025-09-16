@@ -245,7 +245,7 @@ export default function OrdersPage() {
                       <div key={index} className="flex items-center gap-4">
                         <div className="h-16 w-16 rounded bg-muted flex items-center justify-center overflow-hidden">
                           <Image
-                            src={item.product.images[0] || "/placeholder.svg"}
+                            src={item.product?.images?.[0] || "/placeholder.svg"}
                             alt={item.title}
                             width={60}
                             height={60}

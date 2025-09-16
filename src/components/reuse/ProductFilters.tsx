@@ -49,7 +49,7 @@ export function ProductFilters({
       
       products.forEach(product => {
         // Get fixed price if available
-        if (product.hasFixedPrice && product.fixedPrice > 0) {
+        if (product.hasFixedPrice && product.fixedPrice !== undefined && product.fixedPrice > 0) {
           allPrices.push(product.fixedPrice);
         }
         

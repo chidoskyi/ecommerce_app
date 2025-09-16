@@ -149,7 +149,7 @@ export const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
                       <TableCell>{item.title}</TableCell>
                       <TableCell className="text-right"><PriceFormatter amount={item.price} showDecimals/></TableCell>
                       <TableCell className="text-right">{item.quantity}</TableCell>
-                      <TableCell className="text-right"><PriceFormatter amount={item.price * item.quantity} showDecimals/></TableCell>
+                      <TableCell className="text-right"><PriceFormatter amount={(item.price ?? 0 )* item.quantity} showDecimals/></TableCell>
                     </TableRow>
                   )) || (
                     <TableRow>

@@ -154,11 +154,11 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
           {/* Search Dropdown */}
           <SearchDropdown
-            isVisible={isDropdownVisible}
-            searchQuery={inputValue}
-            onClose={handleCloseDropdown}
-            searchContainerRef={searchContainerRef}
-          />
+  isVisible={isDropdownVisible}
+  searchQuery={inputValue}
+  onClose={handleCloseDropdown}
+  searchContainerRef={searchContainerRef as React.RefObject<HTMLDivElement>}
+/>
         </>
       )}
     </div>
@@ -727,7 +727,7 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
         setShowDropdown={setShowDropdown}
         handleSignIn={handleSignIn}
         handleLogout={handleLogout}
-        user={user}
+        user={user || undefined}
       />
     </div>
   </div>

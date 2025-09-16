@@ -11,18 +11,18 @@ export type PriceType = "FIXED" | "VARIABLE";
   }
 
   export interface Product {
-    id: string;
+    id?: string;
     name: string;
     slug: string;
     description: string | null;
     hasFixedPrice: boolean;
     priceType: PriceType;
-    fixedPrice: number;
-    unitPrices: UnitPrice[] | null;
+    fixedPrice?: number;
+    unitPrices?: UnitPrice[] | null;
     price?: number;
     sku: string;
-    quantity: number;
-    categoryId: string | null;
+    quantity?: number;
+    categoryId?: string | null;
     category?: {
       id: string;
       name: string;
@@ -32,25 +32,26 @@ export type PriceType = "FIXED" | "VARIABLE";
     isFeatured: boolean;
     isFruit?: boolean;
     isVegetable?: boolean;
-    isTrending: boolean;
-    isDealOfTheDay: boolean;
-    isBestSelling: boolean;
-    isNewArrival: boolean;
-    rating: number | null;
+    isTrending?: boolean;
+    isDealOfTheDay?: boolean;
+    isBestSelling?: boolean;
+    isNewArrival?: boolean;
+    rating?: number | null;
     averageRating?: number;
     salesCount?: number;
     reviewCount?: number;
-    reviews: Review[];
+    reviews?: Review[];
+    imagesToDelete?: string[] | undefined; // Change from [] to string[]
     displayPrice?: number;
     priceRange?: {
       min: number;
       max: number;
     } | null;
-    images: string[];
-    newImageFiles: string[];
-    weight: string | null;
-    createdAt: Date;
-    updatedAt: Date;
+    images?: string[];
+    newImageFiles?: File[];
+    weight?: string | null;
+    createdAt?: Date;
+    updatedAt?: Date;
   }
 
 export interface NewProduct {
@@ -116,7 +117,7 @@ export interface FilterParams {
   search: string;
   category: string | null;
   sortBy: string;
-  sortOrder: string;
+  sortOrder: "asc" | "desc";
   page: number;
   [key: string]: string | number | boolean | null | undefined;
 }
@@ -159,10 +160,10 @@ export interface ProductImageGalleryProps {
 export interface ProductOption {
   id: string;
   weight: string;
-  price: number;
+  price?: number;
   image: string;
   unitPrice: UnitPrice;
-  fixedPrice: number;
+  fixedPrice?: number;
   quantity?: number;
   unit?: string;
   unitType?: string;
@@ -216,24 +217,26 @@ export interface ProductTableProps {
   onResetFilters: () => void
 }
 
+// Better interface design with optional properties
 export interface ProductFilters {
-  search: string;
-  category: string;
-  minPrice: string;
-  maxPrice: string;
-  minRating: string;
-  sortBy: string;
-  sortOrder: 'asc' | 'desc';
-  status: string;
-  priceType: string;
-  featured: string;
-  fruit: string;
-  vegetable: string;
-  trending: string;
-  dealOfTheDay: string;
-  newArrival: string;
-  page: number;
-  limit: number;
+  search?: string;
+  category?: string;
+  minPrice?: string;
+  maxPrice?: string;
+  minRating?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  status?: ProductStatus;
+  priceType?: PriceType | "all";
+  price?: string;
+  featured?: string;
+  fruit?: string;
+  vegetable?: string;
+  trending?: string;
+  dealOfTheDay?: string;
+  newArrival?: string;
+  page?: number;
+  limit?: number;
 }
 
 export interface Pagination {
@@ -269,12 +272,12 @@ export interface CreateProductData {
   description: string;
   hasFixedPrice?: boolean;
   priceType?: 'FIXED' | 'VARIABLE';
-  fixedPrice?: string;
-  quantity?: string;
-  weight?: string;
-  unitPrices?: UnitPrice[];
+  fixedPrice?: number | string; // Accept both number and string
+  quantity?: number | string; 
+  weight?: string | null;
+  unitPrices?: UnitPrice[] | null;
   sku?: string;
-  categoryId?: string;
+  categoryId?: string | null;
   images?: (File | string | CloudImage | ImageWithFile)[]; // Updated type
   uploadedImages?: string[];
   slug?: string;
@@ -289,6 +292,7 @@ export interface CreateProductData {
 
 export interface UpdateProductData extends Partial<CreateProductData> {
   removeImages?: string[];
+  description?: string;
 }
 
 export interface DeleteProductResponse {
@@ -338,7 +342,7 @@ export type ProductFormState = {
   id: string;
   name: string;
   slug?: string;
-  description: string;
+  description?: string;
   hasFixedPrice: boolean;
   priceType: PriceType;
   fixedPrice: string;
@@ -354,8 +358,10 @@ export type ProductFormState = {
   isDealOfTheDay: boolean;
   isNewArrival: boolean;
   images: (string | ProductImage)[];
+  newImageFiles?: File[];
+  imagesToDelete?: string[];
   weight?: string;
-  createdAt: string;
+  createdAt?: string;
 };
 
 
@@ -363,6 +369,9 @@ export type ProductFormState = {
 export interface ProductViewDialogProps {
   product: Product;
   categories: Category[]
+  onEdit: () => void;
+  onDelete: () => void;
+  onStatusChange: (key: string, value: string) => void;
 }
 
 // Helper function to convert Product to ProductFormState
@@ -386,8 +395,8 @@ export const productToFormState = (product?: Product): ProductFormState => {
     status: product?.status || "ACTIVE",
     isFeatured: product?.isFeatured ?? false,
     isTrending: product?.isTrending ?? false,
-    isFruit: product?.isFruit ?? false, // FIXED: Added missing property
-    isVegetable: product?.isVegetable ?? false, // FIXED: Added missing property
+    isFruit: product?.isFruit ?? false, 
+    isVegetable: product?.isVegetable ?? false, 
     isDealOfTheDay: product?.isDealOfTheDay ?? false,
     isNewArrival: product?.isNewArrival ?? false,
     images: product?.images || [],
@@ -413,7 +422,7 @@ export function formStateToApiData(formData: ProductFormState): Product {
 
   const data: Product = {
     name: formData.name,
-    description: formData.description,
+    description: formData.description ?? null,
     hasFixedPrice: formData.hasFixedPrice,
     priceType: formData.priceType as Product["priceType"],
     sku: formData.sku,
@@ -423,10 +432,18 @@ export function formStateToApiData(formData: ProductFormState): Product {
     isFruit: formData.isFruit,
     isVegetable: formData.isVegetable,
     isDealOfTheDay: formData.isDealOfTheDay,
+    newImageFiles: formData.newImageFiles,
+    imagesToDelete: formData.imagesToDelete, 
     isNewArrival: formData.isNewArrival,
     slug: formData.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
     weight: formData.weight,
   };
+
+    // Only include id if it exists (for updates)
+    if (formData.id) {
+      data.id = formData.id;
+    }
+  
 
   // Handle pricing
   if (formData.hasFixedPrice) {
@@ -453,23 +470,22 @@ export function formStateToApiData(formData: ProductFormState): Product {
   if (formData.images && Array.isArray(formData.images)) {
     console.log("🔧 Processing images for API data...");
 
-    const processedImages = [];
-    const newFiles = [];
+    const processedImages: string[] = []; // Explicitly type as string array
+    const newFiles: File[] = []; // Also type this for consistency
 
     formData.images.forEach((image) => {
-
       // Handle different image formats
       if (image instanceof File) {
         // New file to be uploaded
         newFiles.push(image);
-      } else if (image?.file instanceof File) {
-        // New file wrapped in object
+      } else if (typeof image === "object" && image !== null && "file" in image && image.file instanceof File) {
+        // New file wrapped in object - type guard for object with file property
         newFiles.push(image.file);
       } else if (typeof image === "string" && image.startsWith("http")) {
         // Existing image URL
         processedImages.push(image);
-      } else if (image?.url && typeof image.url === "string") {
-        // Existing image in object format
+      } else if (typeof image === "object" && image !== null && "url" in image && typeof image.url === "string") {
+        // Existing image in object format - type guard for object with url property
         processedImages.push(image.url);
       } else {
         console.log("⚠️ Could not process image:", image);

@@ -7,8 +7,8 @@ import { useProducts } from "@/app/store/slices/productSlice";
 import { Product } from "@/types/products";
 
 export interface RelatedProductsProps {
-  currentProductId: string | number;
-  currentProductCategory: string | number | { id: string | number; name: string };
+  currentProductId: string;
+  currentProductCategory: string | { id: string; name: string };
   maxProducts?: number;
   title?: string;
   showViewAll?: boolean;
@@ -24,15 +24,15 @@ export const RelatedProducts = ({
   const { products } = useProducts();
 
   // Helper function to get category ID from different formats
-  const getCategoryId = () => {
+  const getCategoryId = (): string => {
     if (typeof currentProductCategory === 'object' && currentProductCategory?.id) {
       return currentProductCategory.id;
     }
-    return currentProductCategory;
+    return currentProductCategory as string;
   };
 
   // Helper function to get category name for display
-  const getCategoryName = () => {
+  const getCategoryName = (): string => {
     if (typeof currentProductCategory === 'object' && currentProductCategory?.name) {
       return currentProductCategory.name;
     }
@@ -51,20 +51,14 @@ export const RelatedProducts = ({
     const categoryId = getCategoryId();
     
     return products
-      .filter((product) => {
-        // Handle different category ID formats
-        const productCategoryId = typeof product.categoryId === 'object' 
-          ? product.categoryId?.id 
-          : product.categoryId;
+      .filter((product: Product) => {
+        // Since categoryId is string | null, we don't need object checks
+        const productCategoryId = product.categoryId;
+        const productCategory = product.category;
         
-        const productCategoryName = typeof product.categoryId === 'object'
-          ? product.categoryId?.name
-          : product.category?.name;
-
-        // Match by category ID or name, and exclude current product
+        // Match by category ID or category object ID, and exclude current product
         const categoryMatch = productCategoryId === categoryId || 
-                             productCategoryName === currentProductCategory ||
-                             product.category?.id === categoryId;
+                             productCategory?.id === categoryId;
         
         const notCurrentProduct = product.id !== currentProductId;
         
@@ -75,7 +69,7 @@ export const RelatedProducts = ({
 
   const relatedProducts = getRelatedProducts();
 
-  // If no related products found, try to get products from the same category using utility
+  // If no related products found, try to get any products
   const fallbackProducts = relatedProducts.length === 0 
     ? products
         .filter(p => p.id !== currentProductId)
@@ -99,32 +93,20 @@ export const RelatedProducts = ({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
-        {fallbackProducts.map((product) => {
-          // Get proper product pricing
-          // const productPrice = product.hasFixedPrice && product.fixedPrice > 0
-          //   ? product.fixedPrice
-          //   : product.displayPrice || 
-          //     (product.unitPrices?.[0]?.price) || 
-          //     0;
-
-          return (
-            <ProductCard 
-              { ...product }
-              key={product.id}
-              id={product.id}
-              name={product.name}
-              hasFixedPrice={product.hasFixedPrice}
-              fixedPrice={product.fixedPrice}
-              slug={product.slug || ''}
-              unitPrice={product.unitPrices?.[0] || { unit: '', price: 0 }}
-              images={product.images?.[0] || product.images || "/placeholder.svg"}
-              category={typeof product.categoryId === 'object' 
-                ? product.categoryId?.name 
-                : product.category?.name || "General"}
-              rating={product.rating || product.averageRating || 0}
-            />
-          );
-        })}
+        {fallbackProducts.map((product) => (
+          <ProductCard 
+          key={product.id}
+          id={product.id}
+          name={product.name}
+          slug={product.slug || ''}
+          price={product.hasFixedPrice ? product.fixedPrice : product.displayPrice}
+          images={product.images || ["/placeholder.svg?height=200&width=200"]}
+          description={product.description || "No description available."}
+          unit={product.unitPrices?.[0]?.unit || "Per Item"}
+          category={product.category?.name || "Uncategorized"}
+          rating={product.reviews?.[0].rating}
+        />
+        ))}
       </div>
 
       {/* Show category info if available */}

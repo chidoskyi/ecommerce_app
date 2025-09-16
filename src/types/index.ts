@@ -74,13 +74,23 @@ export interface MobileSidebarProps {
   isSignedIn?: boolean;
   handleSignIn?: () => void;
   handleLogout?: () => void;
-  user?: User;
+  user?: DisplayUser;
 }
 
 export interface PaginationProps {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+}
+
+// Update your DisplayUser interface
+export interface DisplayUser {
+  id?: string; // Make optional
+  name: string;
+  email: string;
+  firstName?: string;
+  initial: string;
+  avatar?: string | null; // Make optional
 }
 
 export interface DesktopHeaderProps {
@@ -95,7 +105,7 @@ export interface DesktopHeaderProps {
   setShowDropdown: (show: boolean) => void;
   handleSignIn: () => void;
   handleLogout: () => void;
-  user?: User;
+  user?: DisplayUser | undefined; 
 }
 
 export interface MobileHeaderProps {

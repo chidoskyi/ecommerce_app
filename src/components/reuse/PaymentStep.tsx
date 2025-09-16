@@ -41,7 +41,7 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
 
   const paymentMethods = [
     {
-      id: "paystack",
+      id: "paystack" as const,
       name: "Paystack",
       description: "Pay securely with card, bank, or USSD",
       icon: <CreditCard className="w-6 h-6 text-blue-600" />,
@@ -51,7 +51,7 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
       nextStep: "Complete payment → Order confirmed",
     },
     {
-      id: "opay",
+      id: "opay" as const,
       name: "Opay",
       description: "Pay with your Opay wallet or card",
       icon: <Smartphone className="w-6 h-6 text-green-600" />,
@@ -61,7 +61,7 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
       nextStep: "Complete payment → Order confirmed",
     },
     {
-      id: "wallet",
+      id: "wallet" as const,
       name: "Shop Wallet",
       description: "Use your Shop wallet balance",
       icon: <Wallet className="w-6 h-6 text-purple-600" />,
@@ -72,7 +72,7 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
       nextStep: "Instant payment → Order confirmed",
     },
     {
-      id: "bank_transfer",
+      id: "bank_transfer" as const,
       name: "Bank Transfer",
       description: "Pay via direct bank transfer",
       icon: <Building2 className="w-6 h-6 text-orange-600" />,

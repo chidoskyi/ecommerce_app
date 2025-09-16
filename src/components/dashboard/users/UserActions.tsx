@@ -39,7 +39,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
   };
 
   const handleDelete = async () => {
-    if (window.confirm(`Are you sure you want to delete ${user.name}?`)) {
+    if (window.confirm(`Are you sure you want to delete ${user.firstName}?`)) {
       try {
         await dispatch(deleteUser(user.id)).unwrap();
         // Success handled by Redux state updates

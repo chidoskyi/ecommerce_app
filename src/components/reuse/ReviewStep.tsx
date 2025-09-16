@@ -116,7 +116,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
                   {/* Price (Right Side) */}
                   <div className="ml-4 flex-shrink-0">
                     <PriceFormatter
-                      amount={item.price * item.quantity}
+                      amount={(item.price ?? 0) * item.quantity}
                       showDecimals
                       className="font-semibold text-gray-900"
                     />

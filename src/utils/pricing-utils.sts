@@ -4,8 +4,11 @@
 /**
  * Get the display price for a product based on its pricing type
  * @param {Object} product - Product object with pricing information
- * @param {string} unit - Specific unit for variable pricing (optional)
- * @returns {number} - Price value
+ * @param {string} unit - Specific unit for variable pricing (optional)223evwcfjmnvjve239 vv9-vh9v  v-0v 
+ * 
+ 
+ 
+ kkkkkk * @returns {number} - Price value
  */
 export const getProductDisplayPrice = (product, unit = null) => {
     if (product.hasFixedPrice && product.priceType === 'FIXED') {

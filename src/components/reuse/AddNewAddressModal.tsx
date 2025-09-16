@@ -94,7 +94,7 @@ export const AddNewAddressModal: React.FC<AddNewAddressModalProps> = ({
       newErrors.country = 'Country is required';
     }
 
-    if (!formData.phone.trim()) {
+    if (!formData.phone?.trim()) {
       newErrors.phone = 'Phone number is required';
     } else if (!/^[0-9+\-\s()]{10,}$/.test(formData.phone)) {
       newErrors.phone = 'Please enter a valid phone number';

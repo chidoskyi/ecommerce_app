@@ -19,6 +19,7 @@ import {
   openCart,
 } from "@/app/store/slices/cartSlice";
 import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
+import { AddToCartProduct } from "@/types/carts";
 
 export default function ProductCard({
   id,
@@ -35,10 +36,10 @@ export default function ProductCard({
   const dispatch = useAppDispatch();
   const router = useRouter();
 
-  // Redux state
-  const isInWishlist = useAppSelector(selectIsInWishlist(id));
-  const cartLoading = useAppSelector(selectCartLoading);
-  const itemQuantityInCart = useAppSelector(selectItemQuantity(id));
+// Redux state
+const isInWishlist = useAppSelector(selectIsInWishlist(id || ""));
+const cartLoading = useAppSelector(selectCartLoading);
+const itemQuantityInCart = useAppSelector(selectItemQuantity(id || ""));
 
   // Local state
   const [isHovered, setIsHovered] = useState(false);
@@ -102,7 +103,7 @@ export default function ProductCard({
 
   // Get display price for card
   const getCardDisplayPrice = () => {
-    if (hasFixedPrice && fixedPrice > 0) return fixedPrice;
+    if (hasFixedPrice && fixedPrice && fixedPrice > 0) return fixedPrice;
     if (unitPrices && unitPrices.length > 0) return unitPrices[0].price;
     return 0;
   };
@@ -144,13 +145,34 @@ export default function ProductCard({
 
     try {
       setIsWishlistUpdating(true);
-      await dispatch(toggleItem(id)).unwrap();
+      await dispatch(toggleItem(id || "")).unwrap();
     } catch (error) {
       console.error("Failed to update wishlist:", error);
     } finally {
       setIsWishlistUpdating(false);
     }
   };
+
+  const getValidImageUrl = (images: string[] | undefined | null): string => {
+    if (!images || images.length === 0) {
+      return "/placeholder.svg?height=200&width=200";
+    }
+    
+    const firstImage = images[0];
+    
+    // Validate the URL format
+    if (!firstImage || 
+        (!firstImage.startsWith('http://') && 
+         !firstImage.startsWith('https://') && 
+         !firstImage.startsWith('/'))) {
+      return "/placeholder.svg?height=200&width=200";
+    }
+    
+    return firstImage;
+  };
+  
+
+  // Add this interface to your types file
 
   // Handle add to cart
   const handleAddToCart = (e: React.MouseEvent) => {
@@ -168,30 +190,36 @@ export default function ProductCard({
 
   const handleConfirmAdd = async () => {
     if (isAddingToCart || (!userId && !guestId)) return;
-
+  
+    // Early return if essential data is missing
+    if (!id) {
+      console.error("Cannot add to cart: Product ID is missing");
+      return;
+    }
+  
     try {
       setIsAddingToCart(true);
       
-      const productForCart = {
-        id,
-        name,
-        hasFixedPrice,
-        slug,
-        fixedPrice,
-        unitPrices,
-        images,
-        rating,
-        priceType: hasFixedPrice ? 'fixed' : 'variable',
+      const productForCart: AddToCartProduct = {
+        id: id, // We've already checked it's not undefined above
+        guestId: guestId,
+        name: name || "", // Provide fallback for undefined
+        hasFixedPrice: hasFixedPrice ?? false, // Provide fallback for undefined
+        slug: slug || "", // Provide fallback for undefined
+        fixedPrice: fixedPrice, // This can remain undefined as it's optional in AddToCartProduct
+        // priceType: priceType, // This can remain undefined as it's optional in AddToCartProduct
+        unitPrices: unitPrices ?? [], // Provide fallback for null/undefined
+        images: images ?? [], // Provide fallback for undefined
+        rating: rating, // This can remain undefined as it's optional in AddToCartProduct
       };
-
-      await dispatch(addItemToCart({ 
-        product: productForCart, 
+  
+      await dispatch(addItemToCart({
+        product: productForCart,
         quantity,
         selectedUnit: hasFixedPrice ? null : selectedUnit,
         userId: userId,
-        guestId: guestId
       })).unwrap();
-
+  
       setShowQuantity(false);
       setQuantity(1);
       setSelectedUnit(null);
@@ -232,7 +260,7 @@ export default function ProductCard({
       {/* Image Container with Action Buttons */}
       <div className={`aspect-square bg-gray-50 rounded-lg mb-3 overflow-hidden relative ${showQuantity ? "" : "flex-shrink-0"}`}>
         <Image
-          src={images?.[0] || "/placeholder.svg?height=200&width=200"}
+  src={getValidImageUrl(images)}  
           alt={name}
           fill
           className="w-full h-full object-cover"

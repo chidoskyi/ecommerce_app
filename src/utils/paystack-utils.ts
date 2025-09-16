@@ -3,6 +3,7 @@ import { PaystackChargeData } from '@/app/api/webhooks/paystack/route';
 import { paystackService } from '@/lib/paystack';
 import prisma from '@/lib/prisma';
 import EmailService from '@/lib/emailService';
+import { TransactionStatus } from '@prisma/client';
 
 const emailService = new EmailService()
 
@@ -32,7 +33,7 @@ export async function updateTransactionStatus(
       const updatedTransaction = await prisma.transaction.update({
         where: { id: transaction.id },
         data: {
-          status: status.toUpperCase(),
+          status: status.toUpperCase() as TransactionStatus,
           processedAt: new Date(),
           providerData: providerData
             ? JSON.stringify(providerData)
@@ -82,8 +83,7 @@ export async function handleSuccessfulPayment(data: PaystackChargeData) {
               product: true,
             },
           },
-          user: true, // Include user data for email
-          shippingAddress: true, // Include shipping address
+          user: true, 
         },
       });
   
@@ -111,7 +111,6 @@ export async function handleSuccessfulPayment(data: PaystackChargeData) {
             },
           },
           user: true,
-          shippingAddress: true,
         },
       });
   

@@ -1,5 +1,4 @@
 import React from "react";
-import { useDispatch, useSelector } from "react-redux";
 import {
   updateReview,
   deleteReview,
@@ -26,16 +25,17 @@ import {
 } from "lucide-react";
 import { Review } from "@/types/reviews";
 import { StarRating } from "@/components/reuse/StarRating";
+import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 
 export interface ReviewRowProps {
   review: Review;
 }
 
 const ReviewRow: React.FC<ReviewRowProps> = ({ review }) => {
-  const dispatch = useDispatch();
-  const selectedReviews = useSelector(selectSelectedReviews);
-  const isUpdating = useSelector(selectIsReviewUpdating(review.id));
-  const isDeleting = useSelector(selectIsReviewDeleting(review.id));
+  const dispatch = useAppDispatch();
+  const selectedReviews = useAppSelector(selectSelectedReviews);
+  const isUpdating = useAppSelector(selectIsReviewUpdating(review.id));
+  const isDeleting = useAppSelector(selectIsReviewDeleting(review.id));
   const [showMobileActions, setShowMobileActions] = React.useState(false);
 
   const isSelected = selectedReviews.includes(review.id);
@@ -294,8 +294,8 @@ const ReviewsTable: React.FC<ReviewsTableProps> = ({
   error,
   onRefresh,
 }) => {
-  const dispatch = useDispatch();
-  const isAllSelected = useSelector(selectIsAllReviewsSelected);
+  const dispatch = useAppDispatch();
+  const isAllSelected = useAppSelector(selectIsAllReviewsSelected);
 
   const handleSelectAll = () => {
     if (isAllSelected) {

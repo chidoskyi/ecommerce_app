@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import * as Selection from '@radix-ui/react-select'
+import * as Selection from "@radix-ui/react-select";
 import {
   Select,
   SelectContent,
@@ -35,8 +35,8 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import Image from "next/image";
 import { toast } from "react-toastify";
 import {
+  CreateProductData,
   formStateToApiData,
-  // Product,
   ProductFormProps,
   ProductFormState,
   productToFormState,
@@ -50,6 +50,7 @@ import {
   updateProduct,
   fetchProducts,
   uploadProductImages,
+  deleteProductImage,
 } from "@/app/store/slices/adminProductsSlice";
 
 export interface ProductFormPropsExtended
@@ -62,13 +63,27 @@ export interface ProductFormPropsExtended
   onEditProduct?: () => void; // Add this new prop
 }
 
-interface ImagePreview {
-  previewUrl: string;
+interface LocalImage {
+  previewUrl?: string;
   file?: File;
-  url: string;
+  url?: string;
   id?: string;
   image?: string;
+  isNew?: boolean;
+  name?: string;
+  size?: number;
+  type?: string;
 }
+
+interface CloudImage {
+  id: string;
+  url: string;
+  // other cloud image properties
+}
+
+type ProductImage = CloudImage | LocalImage;
+
+// interface ImagePreview extends CloudImage, LocalImage {}
 
 export function ProductForm({
   mode,
@@ -127,6 +142,8 @@ export function ProductForm({
       priceType: "FIXED",
       fixedPrice: "0",
       unitPrices: [],
+      newImageFiles: [],
+      imagesToDelete: [],
       sku: "",
       quantity: "0",
       categoryId: "",
@@ -252,8 +269,48 @@ export function ProductForm({
     []
   );
 
+  const getImageUrl = useCallback((image: string | ProductImage): string => {
+    if (typeof image === "string") return image;
+    if (image && typeof image === "object") {
+      if ("previewUrl" in image && image.previewUrl) return image.previewUrl;
+      if ("url" in image && image.url) return image.url;
+    }
+    return "/placeholder.svg";
+  }, []);
+
   const handleRemoveImage = useCallback(
-    (index: number) => {
+    async (index: number) => {
+      const imageToRemove = formData.images[index];
+
+      // If we're in edit mode and this is a cloud-stored image (has a URL but no file)
+      if (
+        mode === "edit" &&
+        imageToRemove &&
+        typeof imageToRemove === "object" &&
+        "url" in imageToRemove &&
+        imageToRemove.url &&
+        !("file" in imageToRemove)
+      ) {
+        try {
+          setLoading(true);
+          await dispatch(
+            deleteProductImage({
+              productId: product?.id || "",
+              imageUrl: imageToRemove.url, // Use imageUrl instead of imageId
+            })
+          ).unwrap();
+
+          toast.success("Image removed from cloud successfully");
+        } catch (error) {
+          console.error("Error deleting image from cloud:", error);
+          toast.error("Failed to delete image from cloud");
+          return; // Don't remove from local state if cloud deletion fails
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      // Remove from local state (for both cloud images and local previews)
       setFormData((prevData) => {
         const updatedImages = [...prevData.images];
         const removedImage = updatedImages.splice(index, 1)[0];
@@ -262,6 +319,7 @@ export function ProductForm({
         if (
           removedImage &&
           typeof removedImage === "object" &&
+          "previewUrl" in removedImage &&
           removedImage.previewUrl
         ) {
           URL.revokeObjectURL(removedImage.previewUrl);
@@ -277,19 +335,11 @@ export function ProductForm({
         return { ...prevData, images: updatedImages };
       });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [imagePreview]
+    [mode, product?.id, dispatch, formData.images, imagePreview, getImageUrl]
   );
 
-  const getImageUrl = useCallback((image: ImagePreview): string => {
-    if (typeof image === "string") return image;
-    if (image?.previewUrl) return image.previewUrl;
-    if (image?.url) return image.url;
-    return "/placeholder.svg";
-  }, []);
-
   const handlePreviewImage = useCallback(
-    (image: ImagePreview) => {
+    (image: ProductImage) => {
       const url = getImageUrl(image);
       setImagePreview(url);
       setIsPreviewOpen(true);
@@ -386,28 +436,45 @@ export function ProductForm({
             // Create product first, then upload images separately
             console.log("🆕 Creating product with file uploads...");
 
-            // Create product without images first
-            const productDataWithoutFiles = { ...apiData };
-            delete productDataWithoutFiles.newImageFiles;
+            // Create product without images first using destructuring
+            const { newImageFiles, ...productDataWithoutFiles } = apiData;
+
+            // Ensure description is never null - convert null to empty string
+            const productDataForApi: CreateProductData = {
+              ...productDataWithoutFiles,
+              description: productDataWithoutFiles.description || "",
+              weight: productDataWithoutFiles.weight || "", // Provide empty string as defaul
+            } as CreateProductData;
 
             const result = await dispatch(
-              createProduct(productDataWithoutFiles)
+              createProduct(productDataForApi)
             ).unwrap();
             console.log("✅ Product created, now uploading images...");
 
             // Upload images to the created product
-            if (apiData.newImageFiles.length > 0) {
+            if (newImageFiles.length > 0) {
+              if (!result.id) {
+                console.error("❌ No product ID available for image upload");
+                throw new Error("Product ID is required for image upload");
+              }
+              
               await dispatch(
                 uploadProductImages({
-                  productId: result.id,
-                  files: apiData.newImageFiles,
+                  productId: result.id, // Now TypeScript knows it's a string
+                  files: newImageFiles,
                 })
               ).unwrap();
               console.log("✅ Images uploaded successfully");
             }
           } else {
-            // No file uploads, create normally
-            const result = await dispatch(createProduct(apiData)).unwrap();
+            // No file uploads, create normally with description fix
+            const productDataForApi = {
+              ...apiData,
+              description: apiData.description || "",
+            };
+            const result = await dispatch(
+              createProduct(productDataForApi)
+            ).unwrap();
             console.log("✅ Product created successfully:", result);
           }
 
@@ -436,26 +503,33 @@ export function ProductForm({
           // For updates, handle images separately
           console.log("📝 Updating existing product...");
 
-          // Update product data (without new files)
-          const productDataWithoutFiles = { ...apiData };
-          delete productDataWithoutFiles.newImageFiles;
+          // Update product data (without new files) using destructuring
+          const { newImageFiles, ...productDataWithoutFiles } = apiData;
 
+          // Ensure description is never null
+          const productDataForApi = {
+            ...productDataWithoutFiles,
+            description: productDataWithoutFiles.description || "",
+          };
+
+          if (!product.id) {
+            throw new Error("Product ID is required for update");
+          }
+          
           const result = await dispatch(
             updateProduct({
-              id: product.id,
-              productData: productDataWithoutFiles,
+              id: product.id, // Now TypeScript knows it's a string
+              productData: productDataForApi,
             })
           ).unwrap();
 
           // Upload any new images
-          if (apiData.newImageFiles && apiData.newImageFiles.length > 0) {
-            console.log(
-              `📤 Uploading ${apiData.newImageFiles.length} new images...`
-            );
+          if (newImageFiles && newImageFiles.length > 0) {
+            console.log(`📤 Uploading ${newImageFiles.length} new images...`);
             await dispatch(
               uploadProductImages({
                 productId: product.id,
-                files: apiData.newImageFiles,
+                files: newImageFiles,
               })
             ).unwrap();
             console.log("✅ New images uploaded successfully");
@@ -473,17 +547,17 @@ export function ProductForm({
         }
       } catch (error: unknown) {
         console.error("❌ Error in form submission:", error);
-        
+
         let errorMessage = "Failed to save product";
-        
+
         if (error instanceof Error) {
           errorMessage = error.message;
-        } else if (typeof error === 'string') {
+        } else if (typeof error === "string") {
           errorMessage = error;
         }
-        
+
         toast.error(errorMessage);
-      
+
         if (onError) {
           onError(errorMessage);
         }
@@ -547,7 +621,7 @@ export function ProductForm({
                 <ChevronDown className="h-4 w-4" />
               </Selection.Icon>
             </Selection.Trigger>
-  
+
             <Selection.Portal>
               <Selection.Content className="bg-white border border-gray-300 rounded-md shadow-lg z-50">
                 <Selection.Viewport className="p-1">
@@ -565,7 +639,7 @@ export function ProductForm({
             </Selection.Portal>
           </Selection.Root>
         </div>
-  
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Desktop Tabs */}
           <TabsList className="hidden md:grid w-full grid-cols-4">
@@ -939,6 +1013,11 @@ export function ProductForm({
                   {/* Image Previews */}
                   {formData.images.map((image, index) => {
                     const imageUrl = getImageUrl(image);
+                    // Convert string to LocalImage if needed, otherwise use as-is
+                    const imageForPreview =
+                      typeof image === "string"
+                        ? { url: image, isNew: false }
+                        : image;
                     return (
                       <div
                         key={index}
@@ -960,7 +1039,7 @@ export function ProductForm({
                               className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 cursor-pointer"
                               onClick={(e) => {
                                 e.preventDefault();
-                                handlePreviewImage(image);
+                                handlePreviewImage(imageForPreview);
                               }}
                             >
                               <Eye className="h-3 w-3 sm:h-3 sm:w-3 md:h-4 md:w-4 text-white" />
@@ -1034,7 +1113,7 @@ export function ProductForm({
         </Dialog>
       </div>
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeTab,
     formData,
@@ -1062,7 +1141,7 @@ export function ProductForm({
         }
       });
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (mode === "add") {

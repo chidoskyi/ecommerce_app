@@ -1,6 +1,7 @@
 // store/slices/cartSlice.js
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Product, UnitPrice } from "@/types/products";
-import { CartItem, CartItemWithProduct } from "@/types/carts";
+import { AddToCartProduct, CartItem, CartItemWithProduct, LocalCartItem } from "@/types/carts";
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { toast } from "react-toastify";
 import axios from "axios";
@@ -148,7 +149,7 @@ export const addItemToCart = createAsyncThunk(
       selectedUnit,
       userId,
     }: {
-      product: Product;
+      product: AddToCartProduct;
       quantity?: number;
       selectedUnit?: UnitPrice | null;
       userId?: string | null;
@@ -240,7 +241,7 @@ export const addItemToCart = createAsyncThunk(
         } else {
           // Add new item
           // Add new item
-          const newItem: CartItemWithProduct = {
+          const newItem: LocalCartItem = {
             id: StorageUtil.generateCartItemId(),
             productId: product.id,
             quantity,

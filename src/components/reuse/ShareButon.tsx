@@ -112,8 +112,8 @@ const ShareButton = () => {
 
             {/* Share Options */}
             <div className="grid grid-cols-2 gap-3">
-              {/* Native Share (for mobile) */}
-              {navigator.share && (
+              {/* Native Share (for mobile) - FIXED CONDITION */}
+              {'share' in navigator && (
                 <button
                   onClick={shareViaNative}
                   className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors cursor-pointer"

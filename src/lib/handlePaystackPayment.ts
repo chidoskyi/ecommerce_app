@@ -2,7 +2,7 @@
 import prisma from "@/lib/prisma";
 import { paystackService } from "@/lib/paystack"; // You'll need to create this service
 import { v4 as uuidv4 } from "uuid";
-import { Address, User } from "@prisma/client";
+import { Address, ShippingAddress, User } from "@prisma/client";
 import { AuthenticatedUser } from "./auth";
 
 // Validated item interface
@@ -26,7 +26,7 @@ interface CalculationResult {
   deliveryFee: number;
   finalSubtotal: number;
   totalAmount: number;
-  shippingAddress: Address;
+  shippingAddress: ShippingAddress;
   billingAddress: Address;
   couponId?: string;
   discountAmount: number;
@@ -236,11 +236,11 @@ export async function handlePaystackPayment(user: AuthenticatedUser, calculatedD
 
           const paymentResponse = await paystackService.initializePayment({
             reference: newPaymentReference,
-            amount: Math.round(existingOrder.totalPrice * 100), // Convert to kobo
+            amount: Math.round(existingOrder.totalPrice * 100),
             currency: "NGN",
             email: userData.email,
-            first_name: userData.firstName,
-            last_name: userData.lastName,
+            first_name: userData.firstName ?? undefined, // Convert null to undefined
+            last_name: userData.lastName ?? undefined,   // Convert null to undefined
             phone: userData.phone || "",
             callback_url: `${process.env.NEXT_PUBLIC_BASE_URL}/api/payments/paystack/callback`,
             metadata: {
@@ -338,7 +338,6 @@ export async function handlePaystackPayment(user: AuthenticatedUser, calculatedD
                   currency,
                   shippingAddress: cleanShippingAddress,
                   billingAddress: cleanBillingAddress,
-                  shippingMethod,
                   paymentMethod: "paystack",
                   paymentStatus: "PENDING",
                   couponId,
@@ -355,7 +354,7 @@ export async function handlePaystackPayment(user: AuthenticatedUser, calculatedD
                       fixedPrice: item.fixedPrice || null,
                       unitPrice: item.unitPrice || null,
                       selectedUnit: item.selectedUnit || null,
-                      totalPrice: item.totalPrice || item.price * item.quantity,
+                      totalPrice: item.totalPrice,
                     })),
                   },
                 },
@@ -373,7 +372,6 @@ export async function handlePaystackPayment(user: AuthenticatedUser, calculatedD
                   currency,
                   shippingAddress: cleanShippingAddress,
                   billingAddress: cleanBillingAddress,
-                  shippingMethod,
                   paymentMethod: "paystack",
                   paymentStatus: "PENDING",
                   couponId,
@@ -386,7 +384,7 @@ export async function handlePaystackPayment(user: AuthenticatedUser, calculatedD
                       fixedPrice: item.fixedPrice || null,
                       unitPrice: item.unitPrice || null,
                       selectedUnit: item.selectedUnit || null,
-                      totalPrice: item.totalPrice || item.price * item.quantity,
+                      totalPrice: item.totalPrice,
                     })),
                   },
                   createdAt: new Date(),
@@ -458,7 +456,7 @@ export async function handlePaystackPayment(user: AuthenticatedUser, calculatedD
                       fixedPrice: item.fixedPrice || null,
                       unitPrice: item.unitPrice || null,
                       selectedUnit: item.selectedUnit || null,
-                      totalPrice: item.totalPrice || item.price * item.quantity,
+                      totalPrice: item.totalPrice,
                       taxRate: 0,
                       taxAmount: 0,
                     })),
@@ -575,7 +573,6 @@ export async function handlePaystackPayment(user: AuthenticatedUser, calculatedD
         currency,
         shippingAddress: cleanShippingAddress,
         billingAddress: cleanBillingAddress,
-        shippingMethod,
         paymentMethod: "paystack",
         paymentStatus: "UNPAID",
         couponId,
@@ -601,6 +598,10 @@ export async function handlePaystackPayment(user: AuthenticatedUser, calculatedD
         coupon: true,
       },
     });
+
+    if (!cleanShippingAddress) {
+      throw new Error("Shipping address is required to create an order");
+    }
 
     // Create new order
     const order = await prisma.order.create({
@@ -654,8 +655,8 @@ export async function handlePaystackPayment(user: AuthenticatedUser, calculatedD
         amount: Math.round(totalAmount * 100), // Convert to kobo (smallest currency unit)
         currency: "NGN",
         email: userData.email,
-        first_name: userData.firstName,
-        last_name: userData.lastName,
+        first_name: userData.firstName ?? undefined, // Convert null to undefined
+        last_name: userData.lastName ?? undefined,   // Convert null to undefined
         phone: userData.phone || "",
         callback_url: `${process.env.NEXT_PUBLIC_BASE_URL}/api/payments/paystack/callback`,
         metadata: {
@@ -842,17 +843,25 @@ export async function handlePaystackPayment(user: AuthenticatedUser, calculatedD
     }
   } catch (error) {
     console.error("Error in handlePaystackPayment:", error);
-
-    // Enhanced error handling
-    if (error.code === "P2002") {
-      console.error("Unique constraint violation still occurred after cleanup");
+  
+    // Check if it's an error with a code property
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+      const err = error as { code?: string; message?: string };
+      
+      if (err.code === "P2002") {
+        console.error("Unique constraint violation still occurred after cleanup");
+        throw new Error(
+          "Checkout conflict detected. Please refresh the page and try again."
+        );
+      }
+  
       throw new Error(
-        "Checkout conflict detected. Please refresh the page and try again."
+        "Payment initialization failed: " + (err.message || "Unknown error")
       );
     }
-
+  
     throw new Error(
-      "Payment initialization failed: " + (error.message || "Unknown error")
+      "Payment initialization failed: Unknown error"
     );
   }
 }

@@ -32,22 +32,23 @@ export interface Checkout {
   }
   
 
-  export interface CheckoutItem {
-    id: string;
-    checkoutId: string;
-    productId: string;
-    title: string;
-    quantity: number;
-    price: number;
-    totalPrice: number;
-    fixedPrice: number;
-    unitPrice?: number;
-    selectedUnit: string;
-    weight?: number;
-    totalWeight?: number;
-    createdAt: Date;
-    product: Product;
-  }
+export type CheckoutItem = {
+  id: string;
+  totalPrice: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+  totalWeight: number | null;
+  checkoutId: string;
+  productId: string;
+  quantity: number;
+  fixedPrice?: number | null;
+  unitPrice: number | null;
+  selectedUnit: string | null;
+  title: string;
+  weight: number | null;
+  price?: number; // Add this
+  product: Product; // Add this
+}
 
   export interface CheckoutProps {
     orderItems?: OrderItem[];
@@ -78,6 +79,9 @@ export interface Checkout {
     // Order data
     currentOrder: Order | null
     orders: Order[]
+
+    // Loading data
+    isLoading: boolean,
     
     // Invoice data
     currentInvoice: Invoice | null
@@ -114,10 +118,12 @@ export interface Checkout {
     onPlaceOrder: () => void;
   }
 
+  export type PaymentMethodType = "opay" | "bank_transfer" | "paystack" | "wallet";
+
   export interface PaymentStepProps {
     selectedPayment: string;
     walletBalance: number;
-    onPaymentSelect: (method: string) => void;
+    onPaymentSelect: (method: "opay" | "bank_transfer" | "paystack" | "wallet") => void;
     onPrevious?: () => void;
     onReviewOrder?: () => void;
   }

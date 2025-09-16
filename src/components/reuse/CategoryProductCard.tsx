@@ -15,7 +15,7 @@ export default function CategoryProductCard({
   name,
   price,
   slug,
-  image,
+  images,
   rating = undefined,
   unit = undefined,
 }: ProductCardProps) {
@@ -24,6 +24,7 @@ export default function CategoryProductCard({
   const [isInCart, setIsInCart] = useState(false);
 
   const productSlug = slug || `${slugify(name)}-${id}`;
+  const image = images?.[0] || "/placeholder-product.jpg";
 
   // Helper function to safely handle null/undefined values
   // const hasValue = (value?: number | null): value is number => {

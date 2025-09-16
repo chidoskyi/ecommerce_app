@@ -3,16 +3,16 @@ import { Invoice } from "./invoice";
 import { Product } from "./products";
 import { CheckoutItem } from "./checkout";
 import { User } from "./users";
-import { BillingAddress, PaymentStatus, ShippingAddress } from "@prisma/client";
+import { BillingAddress, User as UserData, PaymentStatus, ShippingAddress, UnitPrice } from "@prisma/client";
 
 // Order Types aligned with Prisma schema
-export interface Order {
+export interface OrderP {
   id: string;
   orderNumber: string;
   userId: string | null;
   clerkId: string | null;
   email: string;
-  customerName: string;
+  customerName: string | null | undefined;
   phone: string | null;
   status:
     | "PENDING"
@@ -21,13 +21,14 @@ export interface Order {
     | "SHIPPED"
     | "DELIVERED"
     | "CANCELLED"
-    | "REFUNDED";
-  paymentStatus: "PENDING" | "PAID" | "FAILED" | "REFUNDED" | "UNPAID";
+    | "REFUNDED"
+    | "FAILED";
+  paymentStatus: "PENDING" | "PAID" | "FAILED" | "REFUNDED" | "UNPAID" | "CANCELLED";
   subtotalPrice: number;
   totalTax: number;
   totalShipping: number;
   totalDiscount: number;
-  user: User;
+  user: User | null; // ← Change this to nullable
   totalPrice: number;
   shippingAddress: Address;
   paymentMethod: string | null;
@@ -40,21 +41,59 @@ export interface Order {
   cancelledAt: Date | null;
   processedAt: Date | null;
   items: OrderItem[] | CheckoutItem[];
-  product: Product[]
+  // product: Product[]
+  [key: string]: unknown;
+}
+export interface Order {
+  id: string;
+  orderNumber: string;
+  userId: string | null;
+  clerkId: string | null;
+  email: string;
+  customerName: string | null | undefined;
+  phone: string | null;
+  status:
+    | "PENDING"
+    | "CONFIRMED"
+    | "PROCESSING"
+    | "SHIPPED"
+    | "DELIVERED"
+    | "CANCELLED"
+    | "REFUNDED"
+    | "FAILED";
+  paymentStatus: "PENDING" | "PAID" | "FAILED" | "REFUNDED" | "UNPAID" | "CANCELLED";
+  subtotalPrice: number;
+  totalTax: number;
+  totalShipping: number;
+  totalDiscount: number;
+  user: UserData | null; // ← Change this to nullable
+  totalPrice: number;
+  shippingAddress: Address;
+  paymentMethod: string | null;
+  paymentId: string | null;
+  transactionId?: string | null;
+  notes: string | null;
+  createdAt: Date;
+  paidAt: Date;
+  updatedAt: Date;
+  cancelledAt: Date | null;
+  processedAt: Date | null;
+  items: OrderItem[] | CheckoutItem[];
+  // product: Product[]
   [key: string]: unknown;
 }
 
 export interface OrderItem {
   id: string;
   orderId: string;
-  checkoutId: string;
+  checkoutId?: string;
   productId: string;
   title: string;
   image?: string;
   quantity: number;
-  price: number;
-  fixedPrice: number;  
-  selectedUnit: string
+  price?: number;
+  fixedPrice?: number;  
+  selectedUnit?: UnitPrice
   totalPrice: number;
   createdAt: Date;
   updatedAt: Date;

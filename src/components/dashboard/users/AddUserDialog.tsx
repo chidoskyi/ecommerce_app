@@ -13,7 +13,10 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { NewUser, UserRole } from '@/types/users';
+import { 
+  NewUser,
+   UserRole
+   } from '@/types/users';
 
 export interface AddUserDialogProps {
   onAddUser: (user: NewUser) => void;
@@ -25,18 +28,18 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({ onAddUser }) => {
     name: '',
     email: '',
     password: '',
-    role: 'customer',
+    role: 'USER',
   });
 
   const handleSubmit = () => {
     onAddUser(newUser);
     setOpen(false);
-    setNewUser({ name: '', email: '', password: '', role: 'customer' });
+    setNewUser({ name: '', email: '', password: '', role: 'USER' });
   };
 
   const handleCancel = () => {
     setOpen(false);
-    setNewUser({ name: '', email: '', password: '', role: 'customer' });
+    setNewUser({ name: '', email: '', password: '', role: 'USER' });
   };
 
   return (

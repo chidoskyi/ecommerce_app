@@ -14,7 +14,7 @@ import {
   selectCategoriesByStatus,
 } from "@/app/store/slices/categorySlice";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { Swiper as SwiperType } from 'swiper/types';
+import { Swiper as SwiperType } from "swiper/types";
 import { Navigation } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
@@ -109,7 +109,7 @@ export default function CategoriesSection() {
         <div className="w-64 h-1 bg-orange-600 mt-2"></div>
       </div>
 
-      <div className="text-center py-8">
+      {/* <div className="text-center py-8">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
           <p className="text-red-600 mb-4 font-medium">
             Failed to load categories
@@ -122,7 +122,7 @@ export default function CategoriesSection() {
             Try Again
           </button>
         </div>
-      </div>
+      </div> */}
     </Container>
   );
 
@@ -186,37 +186,53 @@ export default function CategoriesSection() {
           }}
           className="py-3"
         >
-          {activeCategories.map((category) => (
-            <SwiperSlide key={category.slug}>
-              <Link
-                href={`/category/${category.slug}`}
-                className="block group"
-                aria-label={`Browse ${category.name} products`}
-              >
-                <div className="text-center">
-                  <div
-                    className={`${""} rounded-2xl bg-gray-100 p-2 mb-3 hover:shadow-md transition-all duration-300 cursor-pointer group-hover:scale-105`}
-                  >
-                    <Image
-                      src={category.image || "/placeholder-category.svg"}
-                      loading="lazy"
-                      alt={category.name}
-                      width={200}
-                      height={130}
-                      className="mx-auto h-[130px] w-[200px] object-cover transition-transform duration-300 group-hover:scale-110"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = "/placeholder-category.svg";
-                      }}
-                    />
+          {activeCategories.map((category) => {
+            // Handle case where category.image might be a File object
+            const imageSrc =
+              typeof category.image === "string"
+                ? category.image
+                : category.image instanceof File
+                ? URL.createObjectURL(category.image) // Create object URL for File objects
+                : "/placeholder-category.svg";
+
+            return (
+              <SwiperSlide key={category.slug}>
+                <Link
+                  href={`/category/${category.slug}`}
+                  className="block group"
+                  aria-label={`Browse ${category.name} products`}
+                >
+                  <div className="text-center">
+                    <div
+                      className={`${""} rounded-2xl bg-gray-100 p-2 mb-3 hover:shadow-md transition-all duration-300 cursor-pointer group-hover:scale-105`}
+                    >
+                      <Image
+                        src={imageSrc}
+                        loading="lazy"
+                        alt={category.name}
+                        width={200}
+                        height={130}
+                        className="mx-auto h-[130px] w-[200px] object-cover transition-transform duration-300 group-hover:scale-110"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = "/placeholder-category.svg";
+                        }}
+                        onLoad={() => {
+                          // Clean up object URLs if they were created from File objects
+                          if (category.image instanceof File) {
+                            URL.revokeObjectURL(imageSrc);
+                          }
+                        }}
+                      />
+                    </div>
+                    <h3 className="text-sm font-medium text-gray-900 group-hover:text-orange-600 transition-colors duration-200">
+                      {category.name}
+                    </h3>
                   </div>
-                  <h3 className="text-sm font-medium text-gray-900 group-hover:text-orange-600 transition-colors duration-200">
-                    {category.name}
-                  </h3>
-                </div>
-              </Link>
-            </SwiperSlide>
-          ))}
+                </Link>
+              </SwiperSlide>
+            );
+          })}
         </Swiper>
 
         {/* Navigation Buttons - Only show if there are enough categories */}

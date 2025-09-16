@@ -9,9 +9,28 @@ import {
 import { Order, OrderItem } from "@/types/orders";
 import { Product } from "@/types/products";
 import { CartItem } from "@/types/carts";
+// import { CheckoutItem } from "@/types/checkout";
 import { Address, ContactFormData, Refund } from "../types";
-import { User } from "@/types/users";
+// import { User } from "@/types/users";
 import { getItemPrice, getUnitDisplay } from "@/utils/priceHelpers"; // Adjust the import path as needed
+import { Prisma, User } from "@prisma/client";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { CheckoutItem } from "@/types/checkout";
+
+
+export type OrderWithUser = Prisma.OrderGetPayload<{
+  include: {
+    user: true;
+    items: {
+      include: {
+        product: true;
+      };
+    };
+  };
+}>;
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+type UserFromPrisma = Prisma.UserGetPayload<{}>;
 
 // Email service class
 class EmailService {
@@ -144,15 +163,18 @@ class EmailService {
     );
   }
 
-  // Order Confirmation
+// Use Prisma generated types
+
 // Order Confirmation - Fixed to send to both user and admin
 async sendOrderConfirmation(
-  user: User,
-  order: Order
+  user: UserFromPrisma,
+  order: OrderWithUser
 ): Promise<{ customerEmail?: SentMessageInfo; adminEmail?: SentMessageInfo }> {
-  const getItemPriceDisplay = (item) => {
+  const getItemPriceDisplay = (item: OrderItem) => {
     const price = getItemPrice(item);
-    if (item.fixedPrice !== null && item.fixedPrice !== undefined) {
+    
+    // Handle both null and undefined
+    if (item.fixedPrice != null) { // This checks for both null and undefined
       return `<p>Fixed Price: ₦${item.fixedPrice.toFixed(2)}</p>`;
     } else {
       const unitDisplay = getUnitDisplay(item);
@@ -181,7 +203,7 @@ async sendOrderConfirmation(
             (item) => `
             <div style="border-bottom: 1px solid #eee; padding: 10px 0;">
               <p><strong>${item.title}</strong></p>
-              ${getItemPriceDisplay(item)}
+             ${getItemPriceDisplay(item as unknown as OrderItem)}
               <p><strong>Item Total:</strong> ₦${item.totalPrice.toFixed(2)}</p>
             </div>
             `
@@ -218,7 +240,7 @@ async sendOrderConfirmation(
             (item) => `
             <div style="border-bottom: 1px solid #eee; padding: 10px 0;">
               <p><strong>${item.title}</strong></p>
-              ${getItemPriceDisplay(item)}
+            ${getItemPriceDisplay(item as unknown as OrderItem)}
               <p><strong>Item Total:</strong> ₦${item.totalPrice.toFixed(2)}</p>
             </div>
             `

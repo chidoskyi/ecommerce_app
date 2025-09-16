@@ -16,6 +16,7 @@ import {
   selectPaymentUrl,
   selectCheckoutError,
   selectPaymentMethod,
+  selectIsLoading,
 
 } from "@/app/store/slices/checkoutSlice";
 import {
@@ -39,6 +40,7 @@ import { setCurrentOrder } from "@/app/store/slices/orderSlice";
 import Image from "next/image";
 import { CartItem } from "@/types/carts";
 import { getItemPrice } from "@/utils/priceHelpers";
+import { OrderItem } from "@/types/orders";
 
 
 export const CheckoutComponent: React.FC<CheckoutComponentProps> = ({
@@ -122,7 +124,7 @@ export const CheckoutComponent: React.FC<CheckoutComponentProps> = ({
   // Redux state
   const addresses = useAppSelector(selectAddresses);
   const defaultShippingAddress = useAppSelector(selectDefaultShippingAddress);
-  const addressLoading = useAppSelector(selectPaymentMethod);
+  const addressLoading = useAppSelector(selectIsLoading);
   const checkoutError = useAppSelector(selectCheckoutError);
   const isCreatingCheckout = useAppSelector(selectIsCreatingCheckout);
   const selectedPaymentMethod = useAppSelector(selectPaymentMethod);
@@ -396,7 +398,7 @@ export const CheckoutComponent: React.FC<CheckoutComponentProps> = ({
     }
   };
 
-  const handlePaymentSelect = (method: string) => {
+  const handlePaymentSelect = (method: "opay" | "bank_transfer" | "paystack" | "wallet") => {
     dispatch(setPaymentMethod(method));
   };
 
@@ -715,7 +717,7 @@ export const CheckoutComponent: React.FC<CheckoutComponentProps> = ({
                 {totalCartItems !== 1 ? "s" : ""})
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {orderItems.slice(0, 4).map((item) => (
+                {orderItems.slice(0, 4).map((item: OrderItem) => (
                   <div
                     key={item.id}
                     className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
@@ -735,7 +737,7 @@ export const CheckoutComponent: React.FC<CheckoutComponentProps> = ({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">
-                        {item.name}
+                        {item.title}
                       </p>
                       <p className="text-xs text-gray-500">
                         Qty: {item.quantity}
@@ -743,7 +745,7 @@ export const CheckoutComponent: React.FC<CheckoutComponentProps> = ({
                     </div>
                     <p className="text-sm font-semibold text-gray-900">
                       <PriceFormatter
-                        amount={item.price * item.quantity}
+                        amount={(item.price ?? 0) * item.quantity}
                         showDecimals
                       />
                     </p>

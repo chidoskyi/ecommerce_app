@@ -92,10 +92,13 @@ export default function CheckoutPage() {
   }
 
   // Render actual checkout component
-  return (
-    <div>
-      {/* Your actual checkout component goes here */}
-      <CheckoutComponent />
-    </div>
-  );
+// Render actual checkout component
+return (
+  <div>
+    <CheckoutComponent 
+      params={Promise.resolve({})} 
+      searchParams={Promise.resolve({})} 
+    />
+  </div>
+);
 }

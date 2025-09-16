@@ -73,7 +73,7 @@ export async function getAuthFromRequest(req?: NextRequest): Promise<User> {
 
     // Method 1: Try Clerk server-side auth first
     try {
-      const clerkAuth = auth();
+      const clerkAuth = await auth();
       clerkUserId = clerkAuth.userId;
 
       if (clerkUserId) {
@@ -215,7 +215,7 @@ export function requireAuth(handler: StaticAuthenticatedHandler): StaticApiRoute
         if (authHeader?.startsWith("Bearer ")) {
           token = authHeader.substring(7);
         } else {
-          const clerkAuth = auth();
+          const clerkAuth = await auth();
           if (clerkAuth) {
             const clerkToken = await clerkAuth.getToken();
             token = clerkToken || undefined;
@@ -289,7 +289,7 @@ export function requireAuthDynamic<T extends Record<string, string | string[]> =
         if (authHeader?.startsWith("Bearer ")) {
           token = authHeader.substring(7);
         } else {
-          const clerkAuth = auth();
+          const clerkAuth = await auth();
           if (clerkAuth) {
             const clerkToken = await clerkAuth.getToken();
             token = clerkToken || undefined;
@@ -384,7 +384,7 @@ export function requireAdmin(handler: StaticAuthenticatedHandler): StaticApiRout
           token = authHeader.substring(7);
           console.log("✅ Token retrieved from Authorization header");
         } else {
-          const clerkAuth = auth();
+          const clerkAuth = await auth();
           if (clerkAuth) {
             const clerkToken = await clerkAuth.getToken({
               template: "default",
@@ -501,7 +501,7 @@ export function requireAdminDynamic<T extends Record<string, string | string[]> 
           token = authHeader.substring(7);
           console.log("✅ Token retrieved from Authorization header");
         } else {
-          const clerkAuth = auth();
+          const clerkAuth = await auth();
           if (clerkAuth) {
             const clerkToken = await clerkAuth.getToken({
               template: "default",
@@ -607,7 +607,7 @@ export function requireRoles(roles: string[]) {
           if (authHeader?.startsWith("Bearer ")) {
             token = authHeader.substring(7);
           } else {
-            const clerkAuth = auth();
+            const clerkAuth = await auth();
             const clerkToken = await clerkAuth.getToken();
             token = clerkToken || undefined;
           }
@@ -685,7 +685,7 @@ export function requireRolesDynamic<T extends Record<string, string | string[]> 
           if (authHeader?.startsWith("Bearer ")) {
             token = authHeader.substring(7);
           } else {
-            const clerkAuth = auth();
+            const clerkAuth = await auth();
             const clerkToken = await clerkAuth.getToken();
             token = clerkToken || undefined;
           }

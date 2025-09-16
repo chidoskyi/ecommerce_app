@@ -1,9 +1,6 @@
-// /lib/paystack.ts - Enhanced Paystack Service Implementation
+// /lib/paystack.ts - Next.js Optimized Paystack Service Implementation
 import crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
-
-// Note: Install the official Paystack SDK: npm install paystack
-import Paystack from 'paystack'
 
 interface PaystackInitializePaymentParams {
   reference: string;
@@ -193,56 +190,101 @@ interface PaystackWebhookProcessResult {
 
 type PaystackPaymentStatus = 'success' | 'failed' | 'pending' | 'abandoned';
 
-interface PaystackService {
-  initializePayment(params: PaystackInitializePaymentParams): Promise<PaystackInitializeResponse>;
-  verifyPayment(reference: string): Promise<PaystackVerifyResponse>;
-  getTransaction(transactionId: string): Promise<PaystackVerifyResponse>;
-  getAllTransactions(params?: PaystackTransactionListParams): Promise<{ data: PaystackTransactionData[] }>;
-  refundTransaction(transactionId: string, amount?: number): Promise<PaystackRefundResponse>;
-  getBanks(country?: string): Promise<PaystackBankListResponse>;
-  createCustomer(params: PaystackCreateCustomerParams): Promise<PaystackCustomerResponse>;
-  getCustomer(emailOrCode: string): Promise<PaystackCustomerResponse>;
-}
-
-class PaystackServiceImpl implements PaystackService {
-  private paystack: PaystackService;
+class PaystackServiceImpl {
   private secretKey: string;
+  private publicKey: string;
+  private baseUrl = 'https://api.paystack.co';
 
   constructor() {
-    this.secretKey = process.env.PAYSTACK_SECRET_KEY!;
+    // Check for environment variables (works in both server and client contexts)
+    this.secretKey = process.env.PAYSTACK_SECRET_KEY || process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY || '';
+    this.publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
 
     if (!this.secretKey) {
-      throw new Error('PAYSTACK_SECRET_KEY is not configured in environment variables');
+      console.warn('PAYSTACK_SECRET_KEY is not configured in environment variables');
     }
 
-    // Initialize Paystack with secret key
-    this.paystack = Paystack(this.secretKey);
+    if (!this.publicKey) {
+      console.warn('NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY is not configured in environment variables');
+    }
+  }
+
+  private getAuthHeaders(): HeadersInit {
+    if (!this.secretKey) {
+      throw new Error('Paystack secret key is not configured. Please set PAYSTACK_SECRET_KEY in your environment variables.');
+    }
+
+    return {
+      'Authorization': `Bearer ${this.secretKey}`,
+      'Content-Type': 'application/json',
+    };
+  }
+
+  private async makeRequest<T>(endpoint: string, method: 'GET' | 'POST' = 'POST', data?: unknown): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+    
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: this.getAuthHeaders(),
+        body: data ? JSON.stringify(data) : undefined,
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = responseData.message || `HTTP ${response.status}: ${response.statusText}`;
+        console.error(`Paystack API Error [${endpoint}]:`, {
+          status: response.status,
+          message: errorMessage,
+          data: responseData
+        });
+        throw new Error(`Paystack API Error: ${errorMessage}`);
+      }
+
+      return responseData;
+    } catch (error) {
+      console.error(`Paystack API request failed for ${endpoint}:`, error);
+      
+      if (error instanceof Error) {
+        throw error;
+      }
+      
+      throw new Error(`Unknown error occurred while calling Paystack API: ${endpoint}`);
+    }
   }
 
   async initializePayment(params: PaystackInitializePaymentParams): Promise<PaystackInitializeResponse> {
     try {
-      const payload: Partial<PaystackInitializePaymentParams> = {
+      const payload = {
         reference: params.reference,
         amount: params.amount,
         currency: params.currency || 'NGN',
         email: params.email,
-        first_name: params.first_name,
-        last_name: params.last_name,
-        phone: params.phone,
-        callback_url: params.callback_url,
-        metadata: params.metadata
+        ...(params.first_name && { first_name: params.first_name }),
+        ...(params.last_name && { last_name: params.last_name }),
+        ...(params.phone && { phone: params.phone }),
+        ...(params.callback_url && { callback_url: params.callback_url }),
+        ...(params.metadata && { metadata: params.metadata }),
       };
 
-      // Remove undefined values
-      const cleanPayload = Object.fromEntries(
-        Object.entries(payload).filter(([, value]) => value !== undefined)
-      ) as PaystackInitializePaymentParams;
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Initializing Paystack payment:', {
+          reference: payload.reference,
+          amount: payload.amount,
+          email: payload.email,
+          currency: payload.currency
+        });
+      }
 
-      console.log('Initializing Paystack payment with payload:', JSON.stringify(cleanPayload, null, 2));
-
-      const response = await this.paystack.initializePayment(cleanPayload);
+      const response = await this.makeRequest<PaystackInitializeResponse>('/transaction/initialize', 'POST', payload);
       
-      console.log('Paystack initialization response:', JSON.stringify(response, null, 2));
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Paystack initialization successful:', {
+          reference: response.data?.reference,
+          authorization_url: response.data?.authorization_url ? '[URL_PROVIDED]' : undefined
+        });
+      }
       
       return response;
     } catch (error) {
@@ -253,11 +295,19 @@ class PaystackServiceImpl implements PaystackService {
 
   async verifyPayment(reference: string): Promise<PaystackVerifyResponse> {
     try {
-      console.log('Verifying Paystack payment:', reference);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Verifying Paystack payment:', reference);
+      }
       
-      const response = await this.paystack.verifyPayment(reference);
+      const response = await this.makeRequest<PaystackVerifyResponse>(`/transaction/verify/${reference}`, 'GET');
       
-      console.log('Paystack verification response:', JSON.stringify(response, null, 2));
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Paystack verification result:', {
+          reference: response.data?.reference,
+          status: response.data?.status,
+          amount: response.data?.amount
+        });
+      }
       
       return response;
     } catch (error) {
@@ -268,7 +318,7 @@ class PaystackServiceImpl implements PaystackService {
 
   async getTransaction(transactionId: string): Promise<PaystackVerifyResponse> {
     try {
-      const response = await this.paystack.getTransaction(transactionId);
+      const response = await this.makeRequest<PaystackVerifyResponse>(`/transaction/${transactionId}`, 'GET');
       return response;
     } catch (error) {
       console.error('Paystack get transaction error:', error);
@@ -278,7 +328,18 @@ class PaystackServiceImpl implements PaystackService {
 
   async getAllTransactions(params?: PaystackTransactionListParams): Promise<{ data: PaystackTransactionData[] }> {
     try {
-      const response = await this.paystack.getAllTransactions(params);
+      const queryParams = new URLSearchParams();
+      
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined) {
+            queryParams.append(key, value.toString());
+          }
+        });
+      }
+
+      const endpoint = `/transaction${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const response = await this.makeRequest<{ data: PaystackTransactionData[] }>(endpoint, 'GET');
       return response;
     } catch (error) {
       console.error('Paystack get transactions error:', error);
@@ -289,14 +350,11 @@ class PaystackServiceImpl implements PaystackService {
   async refundTransaction(transactionId: string, amount?: number): Promise<PaystackRefundResponse> {
     try {
       const payload: PaystackRefundPayload = {
-        transaction: transactionId
+        transaction: transactionId,
+        ...(amount !== undefined && { amount })
       };
-      
-      if (amount !== undefined) {
-        payload.amount = amount;
-      }
 
-      const response = await this.paystack.refundTransaction(transactionId, amount);
+      const response = await this.makeRequest<PaystackRefundResponse>('/refund', 'POST', payload);
       return response;
     } catch (error) {
       console.error('Paystack refund error:', error);
@@ -306,8 +364,18 @@ class PaystackServiceImpl implements PaystackService {
 
   // Utility method to validate webhook signature
   validateWebhookSignature(payload: string, signature: string): boolean {
-    const hash = crypto.createHmac('sha512', this.secretKey).update(payload).digest('hex');
-    return hash === signature;
+    if (!this.secretKey) {
+      console.error('Cannot validate webhook signature: Paystack secret key is not configured');
+      return false;
+    }
+
+    try {
+      const hash = crypto.createHmac('sha512', this.secretKey).update(payload).digest('hex');
+      return hash === signature;
+    } catch (error) {
+      console.error('Error validating webhook signature:', error);
+      return false;
+    }
   }
 
   // Process webhook event
@@ -322,7 +390,9 @@ class PaystackServiceImpl implements PaystackService {
       case 'transfer.failed':
         return this.handleTransferFailed(event.data);
       default:
-        console.log('Unhandled webhook event:', event.event);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Unhandled webhook event:', event.event);
+        }
         return { processed: false, event: event.event, status: 'pending' };
     }
   }
@@ -382,7 +452,7 @@ class PaystackServiceImpl implements PaystackService {
   // Get supported banks
   async getBanks(country: string = 'nigeria'): Promise<PaystackBankListResponse> {
     try {
-      const response = await this.paystack.getBanks(country);
+      const response = await this.makeRequest<PaystackBankListResponse>(`/bank?country=${country}`, 'GET');
       return response;
     } catch (error) {
       console.error('Paystack get banks error:', error);
@@ -393,7 +463,7 @@ class PaystackServiceImpl implements PaystackService {
   // Create customer
   async createCustomer(params: PaystackCreateCustomerParams): Promise<PaystackCustomerResponse> {
     try {
-      const response = await this.paystack.createCustomer(params);
+      const response = await this.makeRequest<PaystackCustomerResponse>('/customer', 'POST', params);
       return response;
     } catch (error) {
       console.error('Paystack create customer error:', error);
@@ -404,7 +474,7 @@ class PaystackServiceImpl implements PaystackService {
   // Get customer
   async getCustomer(emailOrCode: string): Promise<PaystackCustomerResponse> {
     try {
-      const response = await this.paystack.getCustomer(emailOrCode);
+      const response = await this.makeRequest<PaystackCustomerResponse>(`/customer/${emailOrCode}`, 'GET');
       return response;
     } catch (error) {
       console.error('Paystack get customer error:', error);
@@ -414,12 +484,14 @@ class PaystackServiceImpl implements PaystackService {
 
   // Generate payment reference
   generatePaymentReference(prefix: string = 'PAY'): string {
-    return `${prefix}_${uuidv4()}`;
+    const timestamp = Date.now().toString(36);
+    const randomId = uuidv4().split('-')[0];
+    return `${prefix}_${timestamp}_${randomId}`.toUpperCase();
   }
 
   // Validate payment amount (minimum 100 kobo = 1 NGN)
   validateAmount(amountInKobo: number): boolean {
-    return amountInKobo >= 100;
+    return Number.isInteger(amountInKobo) && amountInKobo >= 100;
   }
 
   // Get payment status from Paystack response
@@ -440,6 +512,28 @@ class PaystackServiceImpl implements PaystackService {
       default:
         return 'failed';
     }
+  }
+
+  // Get public key for client-side use
+  getPublicKey(): string {
+    return this.publicKey;
+  }
+
+  // Check if service is properly configured
+  isConfigured(): boolean {
+    return !!(this.secretKey && this.publicKey);
+  }
+
+  // Get callback URL for the current environment
+  getCallbackUrl(path: string = '/payment/callback'): string {
+    if (typeof window !== 'undefined') {
+      // Client-side
+      return `${window.location.origin}${path}`;
+    }
+    
+    // Server-side - use environment variable or default
+    const baseUrl = process.env.NEXTAUTH_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+    return `${baseUrl}${path}`;
   }
 }
 

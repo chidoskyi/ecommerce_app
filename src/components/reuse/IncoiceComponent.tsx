@@ -90,10 +90,10 @@ export function InvoiceComponent({
       loading,
       isAuthenticated,
     });
-  
+
     if (orderId && !propOrder && isAuthenticated) {
       setLocalError(null);
-  
+
       dispatch(fetchOrderById(orderId))
         .unwrap()
         .then((fetchedOrder) => {
@@ -108,7 +108,6 @@ export function InvoiceComponent({
       setLocalError("Authentication required to view invoice");
     }
   }, [orderId, propOrder, dispatch, isAuthenticated, reduxOrder, loading]); // ✅ added
-  
 
   // Add polling for pending orders (same as order detail page)
   useEffect(() => {
@@ -888,7 +887,10 @@ export function InvoiceComponent({
                                 </p>
                                 {item.selectedUnit && (
                                   <p className="text-sm text-gray-500 mt-1">
-                                    Unit: {item.selectedUnit}
+                                    Unit:{" "}
+                                    {typeof item.selectedUnit === "string"
+                                      ? item.selectedUnit
+                                      : item.selectedUnit.unit}
                                   </p>
                                 )}
                               </div>

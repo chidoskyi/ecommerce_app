@@ -474,7 +474,7 @@ export default function OrderDetailsPage() {
                       key={index}
                       className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
                     >
-                      {item.product?.images[0] && (
+                      {item.product?.images?.[0] && (
                         <Image
                           src={item.product?.images[0]}
                           alt={item.title}

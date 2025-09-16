@@ -7,12 +7,12 @@ import { useDispatch, useSelector } from "react-redux";
 import Container from "@/components/reuse/Container";
 import Link from "next/link";
 import Image from "next/image";
-import { 
-  CheckCircle, 
-  Clock, 
-  Truck, 
-  MapPin, 
-  CreditCard, 
+import {
+  CheckCircle,
+  Clock,
+  Truck,
+  MapPin,
+  CreditCard,
   Package,
   ArrowLeft,
   Copy,
@@ -20,12 +20,13 @@ import {
 import { PriceFormatter } from "@/components/reuse/FormatCurrency";
 import { AppDispatch } from "@/app/store";
 import {
-    fetchOrderById,
-    selectCurrentOrder,
-    selectLoading,
-    selectError,
-  } from "@/app/store/slices/orderSlice";
+  fetchOrderById,
+  selectCurrentOrder,
+  selectLoading,
+  selectError,
+} from "@/app/store/slices/orderSlice";
 import { CheckoutItem } from "@/types/checkout";
+import { OrderItem } from "@/types/orders";
 
 // Update the interface to match Next.js 15's expectations
 interface OrderPageProps {
@@ -36,7 +37,9 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
   const [copied, setCopied] = useState(false);
-  const [resolvedParams, setResolvedParams] = useState<{ orderId: string } | null>(null);
+  const [resolvedParams, setResolvedParams] = useState<{
+    orderId: string;
+  } | null>(null);
 
   // Resolve the params promise on component mount
   useEffect(() => {
@@ -48,7 +51,7 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
         console.error("Failed to resolve params:", error);
       }
     };
-    
+
     resolveParams();
   }, [params]);
 
@@ -85,67 +88,67 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
   // Get status configuration
   const getStatusConfig = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'completed':
-      case 'delivered':
+      case "completed":
+      case "delivered":
         return {
           icon: <CheckCircle className="w-5 h-5" />,
-          color: 'text-green-600',
-          bgColor: 'bg-green-100',
-          text: 'Order Completed'
+          color: "text-green-600",
+          bgColor: "bg-green-100",
+          text: "Order Completed",
         };
-      case 'processing':
-      case 'confirmed':
+      case "processing":
+      case "confirmed":
         return {
           icon: <Package className="w-5 h-5" />,
-          color: 'text-blue-600',
-          bgColor: 'bg-blue-100',
-          text: 'Processing Order'
+          color: "text-blue-600",
+          bgColor: "bg-blue-100",
+          text: "Processing Order",
         };
-      case 'shipped':
-      case 'in_transit':
+      case "shipped":
+      case "in_transit":
         return {
           icon: <Truck className="w-5 h-5" />,
-          color: 'text-purple-600',
-          bgColor: 'bg-purple-100',
-          text: 'Order Shipped'
+          color: "text-purple-600",
+          bgColor: "bg-purple-100",
+          text: "Order Shipped",
         };
-      case 'pending':
+      case "pending":
       default:
         return {
           icon: <Clock className="w-5 h-5" />,
-          color: 'text-orange-600',
-          bgColor: 'bg-orange-100',
-          text: 'Order Pending'
+          color: "text-orange-600",
+          bgColor: "bg-orange-100",
+          text: "Order Pending",
         };
     }
   };
 
   const getPaymentStatusConfig = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'paid':
-      case 'completed':
+      case "paid":
+      case "completed":
         return {
-          color: 'text-green-600',
-          bgColor: 'bg-green-100',
-          text: 'Payment Successful'
+          color: "text-green-600",
+          bgColor: "bg-green-100",
+          text: "Payment Successful",
         };
-      case 'pending':
+      case "pending":
         return {
-          color: 'text-orange-600',
-          bgColor: 'bg-orange-100',
-          text: 'Payment Pending'
+          color: "text-orange-600",
+          bgColor: "bg-orange-100",
+          text: "Payment Pending",
         };
-      case 'failed':
+      case "failed":
         return {
-          color: 'text-red-600',
-          bgColor: 'bg-red-100',
-          text: 'Payment Failed'
+          color: "text-red-600",
+          bgColor: "bg-red-100",
+          text: "Payment Failed",
         };
       default:
         return {
-          color: 'text-gray-600',
-          bgColor: 'bg-gray-100',
-          text: 'Payment Status Unknown'
+          color: "text-gray-600",
+          bgColor: "bg-gray-100",
+          text: "Payment Status Unknown",
         };
     }
   };
@@ -182,7 +185,8 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
               Order Not Found
             </h3>
             <p className="text-gray-600 mb-8">
-              We couldn&apos;t find the order you&apos;re looking for. Please check the order ID and try again.
+              We couldn&apos;t find the order you&apos;re looking for. Please
+              check the order ID and try again.
             </p>
             <div className="flex gap-4 justify-center">
               <button
@@ -207,8 +211,10 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
     return null;
   }
 
-  const statusConfig = getStatusConfig(order.status || 'pending');
-  const paymentStatusConfig = getPaymentStatusConfig(order.paymentStatus || 'pending');
+  const statusConfig = getStatusConfig(order.status || "pending");
+  const paymentStatusConfig = getPaymentStatusConfig(
+    order.paymentStatus || "pending"
+  );
 
   return (
     <Container className="bg-gray-50 min-h-screen py-8">
@@ -244,13 +250,17 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
                 )}
               </div>
             </div>
-            
+
             <div className="text-right">
-              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${statusConfig.bgColor} ${statusConfig.color} mb-2`}>
+              <div
+                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${statusConfig.bgColor} ${statusConfig.color} mb-2`}
+              >
                 {statusConfig.icon}
                 {statusConfig.text}
               </div>
-              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${paymentStatusConfig.bgColor} ${paymentStatusConfig.color}`}>
+              <div
+                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${paymentStatusConfig.bgColor} ${paymentStatusConfig.color}`}
+              >
                 <CreditCard className="w-4 h-4" />
                 {paymentStatusConfig.text}
               </div>
@@ -260,11 +270,16 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
           {/* Order Timeline */}
           <div className="border-t border-gray-200 pt-4">
             <div className="flex items-center gap-4 text-sm text-gray-600">
-              <span>Placed: {new Date(order.createdAt || '').toLocaleDateString()}</span>
+              <span>
+                Placed: {new Date(order.createdAt || "").toLocaleDateString()}
+              </span>
               {order.totalShipping && (
                 <>
                   <span>•</span>
-                  <span>Est. Delivery: {new Date(order.totalShipping).toLocaleDateString()}</span>
+                  <span>
+                    Est. Delivery:{" "}
+                    {new Date(order.totalShipping).toLocaleDateString()}
+                  </span>
                 </>
               )}
             </div>
@@ -279,47 +294,68 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 Order Items ({order.items?.length || 0})
               </h3>
-              
+
               <div className="space-y-4">
-                {order.items?.map((item: CheckoutItem, index: number) => (
-                  <div key={index} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                    <div className="w-16 h-16 bg-gray-200 rounded-lg flex-shrink-0">
-                      {item.product?.images[0] ? (
-                        <Image
-                          src={item.product?.images[0]}
-                          width={64}
-                          height={64}
-                          alt={item.title || item.title}
-                          className="w-full h-full object-cover rounded-lg"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gray-300 rounded-lg flex items-center justify-center">
-                          <Package className="w-6 h-6 text-gray-500" />
+                {order.items?.map(
+                  (item: OrderItem | CheckoutItem, index: number) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg"
+                    >
+                      <div className="w-16 h-16 bg-gray-200 rounded-lg flex-shrink-0">
+                        {item.product?.images?.[0] ? (
+                          <Image
+                            src={item.product.images[0]}
+                            width={64}
+                            height={64}
+                            alt={item.title || "Product image"}
+                            className="w-full h-full object-cover rounded-lg"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-300 rounded-lg flex items-center justify-center">
+                            <Package className="w-6 h-6 text-gray-500" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900 truncate">
+                          {item.title || item.title}
+                        </h4>
+                        <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
+                          <span>Qty: {item.quantity}</span>
+                          {item.selectedUnit && (
+                            <span>
+                              Unit:{" "}
+                              {typeof item.selectedUnit === "string"
+                                ? item.selectedUnit
+                                : item.selectedUnit.unit}
+                            </span>
+                          )}
+                          {item.product.weight && (
+                            <span>Weight: {item.product.weight}</span>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-gray-900 truncate">
-                        {item.title || item.title}
-                      </h4>
-                      <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
-                        <span>Qty: {item.quantity}</span>
-                        {item.selectedUnit && <span>Unit: {item.selectedUnit}</span>}
-                        {item.weight && <span>Weight: {item.weight}</span>}
+                      </div>
+
+                      <div className="text-right">
+                        <p className="font-semibold text-gray-900">
+                          <PriceFormatter
+                            amount={
+                              item.totalPrice ??
+                              (item.price ?? 0) * item.quantity
+                            }
+                            showDecimals
+                          />
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          <PriceFormatter amount={item.price} showDecimals />{" "}
+                          each
+                        </p>
                       </div>
                     </div>
-                    
-                    <div className="text-right">
-                      <p className="font-semibold text-gray-900">
-                        <PriceFormatter amount={item.totalPrice || (item.price * item.quantity)} showDecimals />
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        <PriceFormatter amount={item.price} showDecimals /> each
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  )
+                )}
               </div>
             </div>
 
@@ -329,14 +365,18 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
                 <MapPin className="w-5 h-5" />
                 Shipping Address
               </h3>
-              
+
               {order.shippingAddress ? (
                 <div className="text-gray-600 space-y-1">
                   <p className="font-medium text-gray-900">
-                    {order.shippingAddress.firstName} {order.shippingAddress.lastName}
+                    {order.shippingAddress.firstName}{" "}
+                    {order.shippingAddress.lastName}
                   </p>
                   <p>{order.shippingAddress.address}</p>
-                  <p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zip}</p>
+                  <p>
+                    {order.shippingAddress.city}, {order.shippingAddress.state}{" "}
+                    {order.shippingAddress.zip}
+                  </p>
                   <p>{order.shippingAddress.country}</p>
                   {order.shippingAddress.phone && (
                     <p>Phone: {order.shippingAddress.phone}</p>
@@ -354,22 +394,31 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 Order Summary
               </h3>
-              
+
               <div className="space-y-3">
                 <div className="flex justify-between text-gray-600">
                   <span>Subtotal</span>
-                  <PriceFormatter amount={order.subtotalPrice || 0} showDecimals />
+                  <PriceFormatter
+                    amount={order.subtotalPrice || 0}
+                    showDecimals
+                  />
                 </div>
-                
+
                 <div className="flex justify-between text-gray-600">
                   <span>Delivery Fee</span>
-                  <PriceFormatter amount={order.totalShipping || 0} showDecimals />
+                  <PriceFormatter
+                    amount={order.totalShipping || 0}
+                    showDecimals
+                  />
                 </div>
-                
+
                 <div className="border-t border-gray-200 pt-3">
                   <div className="flex justify-between text-lg font-semibold text-gray-900">
                     <span>Total</span>
-                    <PriceFormatter amount={order.totalPrice || 0} showDecimals />
+                    <PriceFormatter
+                      amount={order.totalPrice || 0}
+                      showDecimals
+                    />
                   </div>
                 </div>
               </div>
@@ -381,13 +430,13 @@ const OrderPage: React.FC<OrderPageProps> = ({ params }) => {
                     View Invoice
                   </button>
                 </Link>
-                
+
                 <Link href="/orders">
                   <button className="w-full bg-gray-200 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-300 transition-colors">
                     View All Orders
                   </button>
                 </Link>
-                
+
                 <Link href="/">
                   <button className="w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-50 transition-colors">
                     Continue Shopping

@@ -7,11 +7,12 @@ import TopBanner from "./TopBanner";
 import Container from "./Container";
 import CartSidebar from "./CartSideBar";
 import { motion, AnimatePresence } from "framer-motion";
-import { User } from "@/types/users";
+// import { User } from "@/types/users";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { selectWishlistCount } from "@/app/store/slices/wishlistSlice";
 import { StorageUtil } from "@/lib/storageKeys";
+
 
 // Import your cart actions and selectors
 import {
@@ -26,6 +27,14 @@ import {
 } from "@/app/store/slices/cartSlice";
 import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 import { toast } from "react-toastify";
+// Update your DisplayUser interface
+export interface DisplayUser {
+  id?: string; // Make optional
+  name: string;
+  email: string;
+  initial: string;
+  avatar?: string | null; // Make optional
+}
 
 // Main Header Component
 const Header: React.FC<HeaderProps> = () => {
@@ -199,8 +208,9 @@ const Header: React.FC<HeaderProps> = () => {
     return () => window.removeEventListener("refreshCart", handleCartRefresh);
   }, [isSignedIn, clerkUser?.id, dispatch]);
 
+  
   // Transform Clerk user data
-  const user: User | null = clerkUser
+  const user: DisplayUser | null = clerkUser
     ? {
         name: clerkUser.fullName || clerkUser.firstName || "User",
         initial:
@@ -325,6 +335,9 @@ const Header: React.FC<HeaderProps> = () => {
   const handleCartClose = (): void => {
     dispatch(closeCart());
   };
+  
+
+  // const userForHeader: User | undefined = user || undefined
 
   const ensureUserIdentification = (): { userId: string | null; guestId: string | null } => {
     // Get the most current values from storage and Redux
@@ -394,8 +407,8 @@ const Header: React.FC<HeaderProps> = () => {
       updateCartQuantity({
         cartItemId: itemId,
         quantity: newQuantity,
-        userId,
-        guestId,
+        // userId,
+        // guestId,
       })
     );
   };
@@ -424,8 +437,8 @@ const Header: React.FC<HeaderProps> = () => {
       updateCartQuantity({
         cartItemId: itemId,
         quantity: 0,
-        userId,
-        guestId,
+        // userId,
+        // guestId,
       })
     );
   };
@@ -510,7 +523,7 @@ const Header: React.FC<HeaderProps> = () => {
                     handleSignIn={handleSignIn}
                     handleLogout={handleLogout}
                     wishlistCount={wishlistCount}
-                    user={user}
+                    user={user || undefined} // Convert null to undefined here
                   />
 
                   <MobileHeader
@@ -539,7 +552,7 @@ const Header: React.FC<HeaderProps> = () => {
                   handleSignIn={handleSignIn}
                   handleLogout={handleLogout}
                   wishlistCount={wishlistCount}
-                  user={user}
+                  user={user || undefined} // Convert null to undefined here
                 />
 
                 <MobileHeader
@@ -563,7 +576,7 @@ const Header: React.FC<HeaderProps> = () => {
         isSignedIn={isSignedIn}
         handleSignIn={handleSignIn}
         handleLogout={handleLogout}
-        user={user}
+        user={user || undefined} // Convert null to undefined here
       />
 
       {/* Cart Sidebar */}
