@@ -1,7 +1,7 @@
 // Add this to your /api/checkout/route.ts file
 import prisma from "@/lib/prisma";
 import { walletService } from "@/lib/wallet";
-import { v4 as uuidv4 } from "uuid";
+import { v7 as uuidv4 } from "uuid";
 import EmailService from "@/lib/emailService";
 
 import { AuthenticatedUser } from "./auth";

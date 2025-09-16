@@ -1,6 +1,6 @@
 // /api/checkout/route.ts (with internal handlers)
 import prisma from "@/lib/prisma";
-import { v4 as uuidv4 } from "uuid";
+import { v7 as uuidv4 } from "uuid";
 import {
   CheckoutStatus,
   PaymentStatus,

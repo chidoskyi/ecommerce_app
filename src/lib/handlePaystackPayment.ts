@@ -1,7 +1,7 @@
 // Add this to your /api/checkout/route.ts file
 import prisma from "@/lib/prisma";
 import { paystackService } from "@/lib/paystack"; // You'll need to create this service
-import { v4 as uuidv4 } from "uuid";
+import { v7 as uuidv4 } from "uuid";
 import { Address, ShippingAddress, User } from "@prisma/client";
 import { AuthenticatedUser } from "./auth";
 

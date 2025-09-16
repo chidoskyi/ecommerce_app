@@ -1,7 +1,7 @@
 // /api/checkout/route.ts (with internal handlers)
 import prisma from "@/lib/prisma";
 import { opayService } from "@/lib/opay";
-import { v4 as uuidv4 } from "uuid";
+import { v7 as uuidv4 } from "uuid";
 // import { User, Address } from "@prisma/client";
 import { AuthenticatedUser } from "./auth";
 import { CalculationResult } from "./bankPaymentHandlers";
