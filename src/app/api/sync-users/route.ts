@@ -233,44 +233,65 @@ export async function GET() {
         const clerk = await clerkClient();
         const clerkUser = await clerk.users.getUser(userId);
         
-        // Prepare user data for creation
-        const newUserData: Partial<UserProfile> = {
-          clerkId: userId,
-          email: clerkUser.emailAddresses[0]?.emailAddress || undefined,
-          firstName: clerkUser.firstName || undefined,
-          lastName: clerkUser.lastName || undefined,
-          phone: clerkUser.phoneNumbers[0]?.phoneNumber || undefined,
-          avatar: clerkUser.imageUrl || undefined,
-          role: "USER",
-          status: "ACTIVE",
-          emailVerified: clerkUser.emailAddresses[0]?.verification?.status === "verified",
-          dateOfBirth: undefined,
-          lastLoginAt: new Date(),
-        };
-    
-        // Create user in database
-        log("🆕 Creating new user in database during GET...");
-        const createResult = await createUser(newUserData);
+        // Validate required fields
+        if (!clerkUser.emailAddresses[0]?.emailAddress) {
+          log("❌ No email address found in Clerk user data");
+          return NextResponse.json(
+            { error: "User email is required" },
+            { status: 400 }
+          );
+        }
         
-        // FIX: createResult is the user object itself, not { user, error }
-        if (!createResult) {
-          log("❌ Failed to create user in database during GET");
+        // Prepare user data for creation - ensure required fields are present
+        const newUserData = {
+          clerkId: userId,
+          email: clerkUser.emailAddresses[0].emailAddress,
+          firstName: clerkUser.firstName || null,
+          lastName: clerkUser.lastName || null,
+          phone: clerkUser.phoneNumbers[0]?.phoneNumber || null,
+          avatar: clerkUser.imageUrl || null,
+          role: "USER" as const,
+          status: "ACTIVE" as const,
+          emailVerified: clerkUser.emailAddresses[0]?.verification?.status === "verified",
+          dateOfBirth: null,
+          lastLoginAt: new Date(),
+          // These will be set automatically by Prisma if you have @default(now())
+          // createdAt: new Date(),
+          // updatedAt: new Date(),
+        };
+
+        // Create user in database
+        log("🆕 Creating new user in database during GET...", newUserData);
+        const createdUser = await createUser(newUserData);
+        
+        if (!createdUser) {
+          log("❌ createUser returned null/undefined");
           return NextResponse.json(
             { error: "Failed to create user account" },
             { status: 500 }
           );
         }
-    
-        // FIX: createResult is the user object
-        user = createResult;
+
+        user = createdUser;
         log("✅ User created successfully during GET:", {
           id: user.id,
           clerkId: user.clerkId,
           email: user.email,
         });
-    
+
       } catch (clerkError) {
         log("❌ Error creating user during GET:", clerkError);
+        
+        // More specific error handling
+        if (clerkError instanceof Error) {
+          if (clerkError.message.includes('User not found')) {
+            return NextResponse.json(
+              { error: "User not found in authentication system" },
+              { status: 404 }
+            );
+          }
+        }
+        
         return NextResponse.json(
           { error: "Failed to sync user account" },
           { status: 500 }
