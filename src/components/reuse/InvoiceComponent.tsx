@@ -24,7 +24,7 @@ import {
   selectLoading,
   selectError,
 } from "@/app/store/slices/orderSlice";
-import { useRouter, useParams, usePathname } from "next/navigation";
+import { useRouter, useParams, usePathname, useSearchParams } from "next/navigation";
 import { getItemPrice } from "@/utils/priceHelpers";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -52,6 +52,7 @@ export function InvoiceComponent({
   const router = useRouter();
   const params = useParams();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { isAuthenticated } = useAuth();
   const invoiceRef = useRef<HTMLDivElement>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -63,14 +64,23 @@ export function InvoiceComponent({
   const userIdentification = useSelector(selectUserIdentification);
   const { user: clerkUser, isSignedIn } = useUser();
 
-  // Extract orderId from URL if not provided as prop
-  const orderId =
-    propOrderId ||
-    (params?.orderId as string) ||
-    (() => {
-      const pathMatch = pathname?.match(/\/invoice\/([^\/]+)/);
-      return pathMatch ? pathMatch[1] : undefined;
-    })();
+  // FIXED: Extract orderId from multiple sources with proper priority
+  const orderId = (() => {
+    // 1. Use prop if provided
+    if (propOrderId) return propOrderId;
+    
+    // 2. Check URL query parameter (for /invoice?orderId=xxx)
+    const queryOrderId = searchParams?.get('orderId');
+    if (queryOrderId) return queryOrderId;
+    
+    // 3. Check URL path parameter (for /invoice/[orderId])
+    const pathOrderId = params?.orderId as string;
+    if (pathOrderId) return pathOrderId;
+    
+    // 4. Fallback: extract from pathname
+    const pathMatch = pathname?.match(/\/invoice\/([^\/]+)/);
+    return pathMatch ? pathMatch[1] : undefined;
+  })();
 
   // Safe Redux state selectors
   const reduxOrder = useAppSelector(selectCurrentOrder);
@@ -80,34 +90,78 @@ export function InvoiceComponent({
   // Use prop order or Redux order
   const order = propOrder || reduxOrder;
 
-  // FIXED: Data fetching logic similar to order detail page
+  // FIXED: Enhanced data fetching logic with better error handling
   useEffect(() => {
-    console.log("🔍 Invoice useEffect - Checking if we should fetch:", {
+    console.log("🔍 Invoice useEffect - Checking data availability:", {
       orderId,
       hasPropOrder: !!propOrder,
       hasReduxOrder: !!reduxOrder,
       reduxOrderId: reduxOrder?.id,
+      orderMatches: reduxOrder?.id === orderId,
       loading,
       isAuthenticated,
+      searchParamOrderId: searchParams?.get('orderId'),
+      pathOrderId: params?.orderId,
     });
 
-    if (orderId && !propOrder && isAuthenticated) {
+    // If we have a prop order and no orderId, we're good to go
+    if (propOrder && !orderId) {
+      console.log("✅ Using provided prop order");
+      setLocalError(null);
+      return;
+    }
+
+    // If we don't have an orderId, we can't fetch anything
+    if (!orderId) {
+      console.log("❌ No orderId available");
+      setLocalError("No order ID provided");
+      return;
+    }
+
+    // If not authenticated, show auth error
+    if (!isAuthenticated) {
+      console.log("❌ Not authenticated");
+      setLocalError("Authentication required to view invoice");
+      return;
+    }
+
+    // If we have a matching Redux order, no need to fetch
+    if (reduxOrder && reduxOrder.id === orderId) {
+      console.log("✅ Using matching Redux order");
+      setLocalError(null);
+      return;
+    }
+
+    // Need to fetch the order
+    if (!propOrder) {
+      console.log("🔄 Fetching order by ID:", orderId);
       setLocalError(null);
 
       dispatch(fetchOrderById(orderId))
         .unwrap()
         .then((fetchedOrder) => {
           if (!fetchedOrder) {
+            console.log("❌ Order not found");
             setLocalError("Order not found");
+          } else {
+            console.log("✅ Order fetched successfully:", fetchedOrder.id);
           }
         })
         .catch((err) => {
+          console.error("❌ Failed to fetch order:", err);
           setLocalError(err.toString() || "Failed to fetch order");
         });
-    } else if (orderId && !isAuthenticated) {
-      setLocalError("Authentication required to view invoice");
     }
-  }, [orderId, propOrder, dispatch, isAuthenticated, reduxOrder, loading]); // ✅ added
+  }, [
+    orderId, 
+    propOrder, 
+    reduxOrder, 
+    dispatch, 
+    isAuthenticated, 
+    loading,
+    searchParams,
+    params
+  ]);
 
   // Add polling for pending orders (same as order detail page)
   useEffect(() => {
@@ -662,7 +716,7 @@ export function InvoiceComponent({
                   <div className="flex justify-between">
                     <span className="text-gray-700">Invoice Date:</span>
                     <span className="text-gray-900">
-                      {formatDate(order.createdAt.toISOString())}
+                    {formatDate(new Date(order.createdAt).toISOString())}
                     </span>
                   </div>
                   <div className="flex justify-between">

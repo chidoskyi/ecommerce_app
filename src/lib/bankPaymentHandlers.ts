@@ -201,24 +201,26 @@ export async function validateAndCalculate(
     const unitData = item.selectedUnit;
     let selectedUnit: string | null = null;
     let unitPrice: number | undefined = undefined;
-    
+
     // Type guard function to check if unitData is a UnitPrice object
     const isUnitPrice = (data: unknown): data is UnitPrice => {
-      return data !== null &&
-             data !== undefined &&
-             typeof data === 'object' && 
-             'unit' in data &&
-             'price' in data &&
-             typeof (data as { unit: unknown; price: unknown }).unit === 'string' && 
-             typeof (data as { unit: unknown; price: unknown }).price === 'number';
+      return (
+        data !== null &&
+        data !== undefined &&
+        typeof data === "object" &&
+        "unit" in data &&
+        "price" in data &&
+        typeof (data as { unit: unknown; price: unknown }).unit === "string" &&
+        typeof (data as { unit: unknown; price: unknown }).price === "number"
+      );
     };
-    
+
     // Check if unitData is a proper UnitPrice object
     if (isUnitPrice(unitData)) {
       selectedUnit = unitData.unit;
       unitPrice = unitData.price;
     }
-    
+
     // Calculate item price
     let itemPrice = 0;
     let pricingInfo: PricingInfo = {
@@ -227,7 +229,7 @@ export async function validateAndCalculate(
       selectedUnit: null,
       totalPrice: 0,
     };
-    
+
     // Case 1: Fixed price item
     if (item.fixedPrice !== null && item.fixedPrice !== undefined) {
       itemPrice = item.fixedPrice;
@@ -246,19 +248,23 @@ export async function validateAndCalculate(
           `Product ${item.product.name} has no unit prices defined`
         );
       }
-    
+
       // Validate the selected unit exists in product's unitPrices (case-insensitive)
-      const availableUnits = item.product.unitPrices.map((u: UnitPrice) => u.unit);
-      const unitExists = availableUnits.some(unit => 
-        unit && unit.toLowerCase() === selectedUnit.toLowerCase()
+      const availableUnits = item.product.unitPrices.map(
+        (u: UnitPrice) => u.unit
       );
-    
+      const unitExists = availableUnits.some(
+        (unit) => unit && unit.toLowerCase() === selectedUnit.toLowerCase()
+      );
+
       if (!unitExists) {
         throw new Error(
-          `Selected unit "${selectedUnit}" is not valid for product ${item.product.name}. Available units: ${availableUnits.join(', ')}`
+          `Selected unit "${selectedUnit}" is not valid for product ${
+            item.product.name
+          }. Available units: ${availableUnits.join(", ")}`
         );
       }
-    
+
       itemPrice = unitPrice;
       pricingInfo = {
         fixedPrice: null,
@@ -493,8 +499,18 @@ export async function handleBankTransferPayment(
         // Get or create checkout for the existing order
         let existingCheckoutForPending = existingCheckout;
         if (!existingCheckoutForPending) {
-          existingCheckoutForPending = await prisma.checkout.create({
-            data: {
+          // FIXED CODE - Use this instead:
+          existingCheckoutForPending = await prisma.checkout.upsert({
+            where: {
+              orderId: existingOrder.id,
+            },
+            update: {
+              status: "COMPLETED",
+              paymentStatus: "UNPAID",
+              sessionId: existingOrder.paymentId || uuidv4(),
+              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
+            create: {
               userId: user.id,
               clerkId: user.clerkId,
               orderId: existingOrder.id,
@@ -517,7 +533,6 @@ export async function handleBankTransferPayment(
                   productId: item.productId,
                   title: item.title,
                   quantity: item.quantity,
-                  // Sync pricing fields properly
                   fixedPrice: item.fixedPrice !== null ? item.fixedPrice : null,
                   unitPrice: item.unitPrice !== null ? item.unitPrice : null,
                   selectedUnit:
@@ -1039,22 +1054,22 @@ export async function handleBankTransferPayment(
     });
 
     // Then add a runtime check
-// After creating the order
-if (!order.user) {
-  throw new Error("Order created without user association");
-}
+    // After creating the order
+    if (!order.user) {
+      throw new Error("Order created without user association");
+    }
 
-try {
-  if (order.user.email) {
-    console.log("Sending order confirmation email to:", order.user.email);
-    await emailService.sendOrderConfirmation(order.user, order);
-    console.log("Order confirmation email sent successfully");
-  } else {
-    console.warn("No email found for order:", order.id);
-  }
-} catch (emailError) {
-  console.error("Failed to send order confirmation email:", emailError);
-}
+    try {
+      if (order.user.email) {
+        console.log("Sending order confirmation email to:", order.user.email);
+        await emailService.sendOrderConfirmation(order.user, order);
+        console.log("Order confirmation email sent successfully");
+      } else {
+        console.warn("No email found for order:", order.id);
+      }
+    } catch (emailError) {
+      console.error("Failed to send order confirmation email:", emailError);
+    }
 
     // Link checkout to order
     await prisma.checkout.update({

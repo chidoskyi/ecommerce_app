@@ -171,79 +171,39 @@ export const CheckoutComponent: React.FC<CheckoutComponentProps> = ({
   }, [defaultShippingAddress, initialLoadComplete]);
 
   // Updated effect to handle different payment methods after checkout creation
-  useEffect(() => {
-    if (!currentOrder || !selectedPaymentMethod || hasRedirected) {
-      console.log('Skipping redirect - conditions not met:', {
-        hasCurrentOrder: !!currentOrder,
-        hasPaymentMethod: !!selectedPaymentMethod,
-        hasRedirected
-      });
-      return;
-    }
-    
-    // Check if we're already on a success/invoice page
-    const currentPath = window.location.pathname;
-    const isOnSuccessPage = currentPath.includes('/invoice') ||
-                            currentPath.includes('/orders') ||
-                            currentPath.includes('/payment-success') ||
-                            window.location.search.includes('payment=success');
-    
-    if (isOnSuccessPage) {
-      console.log('Already on success page, skipping redirect');
-      setHasRedirected(true);
-      return;
-    }
+// In CheckoutComponent.tsx - Update the redirect logic
+useEffect(() => {
+  if (!currentOrder || !selectedPaymentMethod || hasRedirected) {
+    return;
+  }
+
+  // Check if we're already on a success/invoice page
+  const currentUrl = new URL(window.location.href);
+  const isOnInvoicePage = currentUrl.searchParams.has('invoice');
   
-    console.log('🎯 Order created, initiating redirect:', {
-      orderId: currentOrder.id,
-      paymentMethod: selectedPaymentMethod,
-      paymentUrl: paymentUrl ? 'Available' : 'Not available'
-    });
+  if (isOnInvoicePage) {
+    console.log('Already on invoice page, skipping redirect');
+    setHasRedirected(true);
+    return;
+  }
+
+  console.log('🎯 Order created, initiating redirect with query parameter');
+  setHasRedirected(true);
   
-    const handleRedirect = async () => {
-      try {
-        setHasRedirected(true);
-        
-        // Store order ID for reference
-        const orderId = currentOrder.id;
-        
-        // Clear the current order from state to prevent redirect loop
-        // You'll need to import this action from your checkout slice
-        dispatch(setCurrentOrder(null));
-        
-        switch (selectedPaymentMethod) {
-          case "bank_transfer":
-            console.log('Redirecting to invoice page');
-            // Use push to maintain history
-            router.push(`/invoice/${orderId}`);
-            break;
-          case "wallet":
-            console.log('Redirecting to orders page');
-            // Use push to maintain history
-            router.push(`/orders/${orderId}`);
-            break;
-          case "opay":
-          case "paystack":
-          default:
-            if (paymentUrl) {
-              console.log('Redirecting to external payment gateway');
-              // For external URLs, window.location.href is correct
-              window.location.href = paymentUrl;
-            } else {
-              console.error('No payment URL, redirecting to orders');
-              router.push(`/orders/${orderId}`);
-            }
-            break;
-        }
-      } catch (error) {
-        console.error('Redirect error:', error);
-        // Fallback to orders page
-        router.push(`/orders/${currentOrder.id}`);
-      }
-    };
+  // Clear the current order from state to prevent redirect loop
+  dispatch(setCurrentOrder(null));
   
-    handleRedirect();
-  }, [currentOrder, selectedPaymentMethod, paymentUrl, hasRedirected, router, dispatch]);
+  if (selectedPaymentMethod === "bank_transfer") {
+    // Use query parameter instead of path parameter
+    router.push(`/invoice?orderId=${currentOrder.id}`);
+  } else if (selectedPaymentMethod === "wallet") {
+    router.push(`/orders/${currentOrder.id}`);
+  } else if (paymentUrl) {
+    window.location.href = paymentUrl;
+  } else {
+    router.push(`/orders/${currentOrder.id}`);
+  }
+}, [currentOrder, selectedPaymentMethod, paymentUrl, hasRedirected, router, dispatch]);
   
   // Event handlers
   const handleContinueToPayment = () => {
