@@ -1,7 +1,7 @@
 // components/checkout/CheckoutComponent.tsx (Updated with Bank Transfer Redirect)
 "use client";
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation"; // Add this import
 import Container from "@/components/reuse/Container";
 import Link from "next/link";
@@ -17,7 +17,6 @@ import {
   selectCheckoutError,
   selectPaymentMethod,
   selectIsLoading,
-
 } from "@/app/store/slices/checkoutSlice";
 import {
   fetchAddresses,
@@ -36,15 +35,17 @@ import { useAuth } from "@/context/AuthContext";
 import AddressSelectionModal from "@/components/reuse/AddressSelectionModal";
 import { AddNewAddressModal } from "@/components/reuse/AddNewAddressModal";
 import { PriceFormatter } from "@/components/reuse/FormatCurrency";
-import { setCurrentOrder } from "@/app/store/slices/orderSlice";
+import {
+  setCurrentOrder,
+  clearCurrentOrder,
+} from "@/app/store/slices/orderSlice";
 import Image from "next/image";
 import { CartItem } from "@/types/carts";
 import { getItemPrice } from "@/utils/priceHelpers";
 import { OrderItem } from "@/types/orders";
 
-
 export const CheckoutComponent: React.FC<CheckoutComponentProps> = ({
-  deliveryFee = 4500, 
+  deliveryFee = 4500,
 }) => {
   const dispatch = useAppDispatch();
   const router = useRouter(); // Add this
@@ -102,9 +103,13 @@ export const CheckoutComponent: React.FC<CheckoutComponentProps> = ({
       category: item.product.category?.name || null,
       // Include both pricing fields for reference
       fixedPrice: item.fixedPrice ?? item.product.fixedPrice ?? null,
-      unitPrice: typeof item.unitPrice?.price === "number" ? item.unitPrice.price : null, // Ensure price is a number
+      unitPrice:
+        typeof item.unitPrice?.price === "number" ? item.unitPrice.price : null, // Ensure price is a number
       selectedUnit: item.selectedUnit || null,
-      totalPrice: typeof price === "number" && typeof item.quantity === "number" ? price * item.quantity : null,
+      totalPrice:
+        typeof price === "number" && typeof item.quantity === "number"
+          ? price * item.quantity
+          : null,
     };
   });
 
@@ -171,45 +176,61 @@ export const CheckoutComponent: React.FC<CheckoutComponentProps> = ({
   }, [defaultShippingAddress, initialLoadComplete]);
 
   // Updated effect to handle different payment methods after checkout creation
-// In CheckoutComponent.tsx - Update the redirect logic
-useEffect(() => {
-  if (!currentOrder || !selectedPaymentMethod || hasRedirected) {
-    return;
-  }
+  // In CheckoutComponent.tsx - Update the redirect logic
+  useEffect(() => {
+    if (!currentOrder || !selectedPaymentMethod || hasRedirected) {
+      return;
+    }
 
-  // Check if we're already on a success/invoice page
-  const currentUrl = new URL(window.location.href);
-  const isOnInvoicePage = currentUrl.searchParams.has('invoice');
-  
-  if (isOnInvoicePage) {
-    console.log('Already on invoice page, skipping redirect');
+    // Check if we're already on a success/invoice page
+    const currentUrl = new URL(window.location.href);
+    const isOnInvoicePage = currentUrl.searchParams.has("invoice");
+
+    if (isOnInvoicePage) {
+      console.log("Already on invoice page, skipping redirect");
+      setHasRedirected(true);
+      return;
+    }
+
+    console.log("🎯 Order created, initiating redirect with query parameter");
     setHasRedirected(true);
-    return;
-  }
 
-  console.log('🎯 Order created, initiating redirect with query parameter');
-  setHasRedirected(true);
-  
-  // Clear the current order from state to prevent redirect loop
-  dispatch(setCurrentOrder(null));
-  
-  if (selectedPaymentMethod === "bank_transfer") {
-    // Use query parameter instead of path parameter
-    router.push(`/invoice?orderId=${currentOrder.id}`);
-  } else if (selectedPaymentMethod === "wallet") {
-    router.push(`/orders/${currentOrder.id}`);
-  } else if (paymentUrl) {
-    window.location.href = paymentUrl;
-  } else {
-    router.push(`/orders/${currentOrder.id}`);
-  }
-}, [currentOrder, selectedPaymentMethod, paymentUrl, hasRedirected, router, dispatch]);
-  
+    // Clear the current order from state to prevent redirect loop
+    dispatch(setCurrentOrder(null));
+
+    if (selectedPaymentMethod === "bank_transfer") {
+      // Use query parameter instead of path parameter
+      router.push(`/invoice?orderId=${currentOrder.id}`);
+    } else if (selectedPaymentMethod === "wallet") {
+      router.push(`/orders/${currentOrder.id}`);
+    } else if (paymentUrl) {
+      window.location.href = paymentUrl;
+    } else {
+      router.push(`/orders/${currentOrder.id}`);
+    }
+  }, [
+    currentOrder,
+    selectedPaymentMethod,
+    paymentUrl,
+    hasRedirected,
+    router,
+    dispatch,
+  ]);
+
+  // Add this near the top of your CheckoutComponent, after the existing useEffects
+  useEffect(() => {
+    // Clear any existing order when starting a new checkout session
+    console.log("🧹 Clearing existing order state for new checkout");
+    dispatch(clearCurrentOrder());
+    setHasRedirected(false); // Also reset the redirect flag
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - runs once on mount
+
   // Event handlers
   const handleContinueToPayment = () => {
     setCurrentStep(2);
   };
- 
+
   const handleReviewOrder = () => {
     setCurrentStep(3);
   };
@@ -225,14 +246,18 @@ useEffect(() => {
 
   const handlePlaceOrder = async () => {
     try {
+          // Clear any existing order first
+    dispatch(clearCurrentOrder());
+    setHasRedirected(false);
       // Prepare checkout data using cart items
       const checkoutData = {
         items: orderItems,
         shippingAddress: {
           ...(selectedAddress || addressForm),
-          id: (selectedAddress as Address)?.id || 
-              (addressForm as Address)?.id || 
-              `checkout-addr-${Date.now()}`,
+          id:
+            (selectedAddress as Address)?.id ||
+            (addressForm as Address)?.id ||
+            `checkout-addr-${Date.now()}`,
         },
         paymentMethod: selectedPaymentMethod || "paystack", // Default to "opay"
         subtotal,
@@ -262,7 +287,7 @@ useEffect(() => {
       if (key === "street") return true; // street is optional
       return typeof value === "string" ? value.trim() !== "" : value !== null;
     });
-  
+
     if (isValid) {
       try {
         if (!hasExistingAddress) {
@@ -271,7 +296,7 @@ useEffect(() => {
             ...addressForm,
             isDefault: true, // Force this to be true for addresses created during checkout
           };
-          
+
           const newAddress = await dispatch(
             createAddress(addressToCreate)
           ).unwrap();
@@ -341,8 +366,10 @@ useEffect(() => {
         ...newAddressData,
         isDefault: true, // Force this to be true for new addresses created during checkout
       };
-      
-      const newAddress = await dispatch(createAddress(addressToCreate)).unwrap();
+
+      const newAddress = await dispatch(
+        createAddress(addressToCreate)
+      ).unwrap();
       setSelectedAddress(newAddress);
       setAddressForm({
         ...newAddressData,
@@ -358,7 +385,9 @@ useEffect(() => {
     }
   };
 
-  const handlePaymentSelect = (method: "opay" | "bank_transfer" | "paystack" | "wallet") => {
+  const handlePaymentSelect = (
+    method: "opay" | "bank_transfer" | "paystack" | "wallet"
+  ) => {
     dispatch(setPaymentMethod(method));
   };
 
@@ -379,24 +408,36 @@ useEffect(() => {
       case 1:
         // Helper function to check if address form is valid
         const isAddressFormValid = () => {
-          const requiredFields = ['firstName', 'lastName', 'address', 'city', 'state', 'zip', 'country', 'phone'];
-          return requiredFields.every(field => {
+          const requiredFields = [
+            "firstName",
+            "lastName",
+            "address",
+            "city",
+            "state",
+            "zip",
+            "country",
+            "phone",
+          ];
+          return requiredFields.every((field) => {
             const value = addressForm[field as keyof typeof addressForm];
-            return typeof value === 'string' ? value.trim() !== '' : value !== null && value !== undefined;
+            return typeof value === "string"
+              ? value.trim() !== ""
+              : value !== null && value !== undefined;
           });
         };
-  
+
         // Determine button state and text
         const hasValidAddress = hasExistingAddress || selectedAddress;
-        const canProceed = hasValidAddress || (!hasExistingAddress && isAddressFormValid());
-        
+        const canProceed =
+          hasValidAddress || (!hasExistingAddress && isAddressFormValid());
+
         let buttonText = "Please Select Address";
         if (hasValidAddress) {
           buttonText = "Continue to Payment";
         } else if (!hasExistingAddress && isAddressFormValid()) {
           buttonText = "Save Address & Continue";
         }
-  
+
         return (
           <div className="flex justify-end">
             <button
@@ -772,5 +813,3 @@ useEffect(() => {
     </>
   );
 };
-
-

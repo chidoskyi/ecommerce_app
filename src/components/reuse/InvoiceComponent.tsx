@@ -23,6 +23,7 @@ import {
   selectCurrentOrder,
   selectLoading,
   selectError,
+  clearCurrentOrder
 } from "@/app/store/slices/orderSlice";
 import { useRouter, useParams, usePathname, useSearchParams } from "next/navigation";
 import { getItemPrice } from "@/utils/priceHelpers";
@@ -200,14 +201,14 @@ export function InvoiceComponent({
 
   const clearCartAfterPayment = async () => {
     if (cartCleared) return;
-
+    
     const storageUserId = StorageUtil.getUserId();
     const storageGuestId =
-      StorageUtil.getGuestIdForMerge() || StorageUtil.getGuestId();
-
+    StorageUtil.getGuestIdForMerge() || StorageUtil.getGuestId();
+    
     try {
       console.log("🛒 Clearing entire cart after successful payment");
-
+      
       const { userId, guestId } = ensureUserIdentification({
         storageUserId,
         storageGuestId,
@@ -217,7 +218,7 @@ export function InvoiceComponent({
         isSignedIn,
         dispatch,
       });
-
+      
       if (!userId && !guestId) {
         console.error(
           "❌ Could not establish user identification for cart update"
@@ -225,7 +226,8 @@ export function InvoiceComponent({
         toast.error("Unable to update cart. Please refresh the page.");
         return;
       }
-
+      
+      dispatch(clearCurrentOrder());
       // Pass userId and guestId to the thunk
       const result = await dispatch(clearEntireCart({ userId, guestId }));
 
