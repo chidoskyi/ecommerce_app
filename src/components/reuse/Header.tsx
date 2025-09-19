@@ -27,12 +27,14 @@ import {
 } from "@/app/store/slices/cartSlice";
 import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 import { toast } from "react-toastify";
+import { UserRole } from "@/types/users";
 // Update your DisplayUser interface
 export interface DisplayUser {
   id?: string; // Make optional
   name: string;
   email: string;
   initial: string;
+  role?: UserRole;
   avatar?: string | null; // Make optional
 }
 

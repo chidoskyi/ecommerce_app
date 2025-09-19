@@ -30,7 +30,14 @@ import { CartButtonProps } from "@/types/carts";
 import { UserDropdownProps } from "@/types/users";
 import SearchDropdown from "./SearchDropDown";
 import { useProducts } from "@/app/store/slices/productSlice";
-import { selectIsAdmin, selectUser, selectIsLoading, selectError, fetchUser, clearUser } from '@/app/store/slices/userSlice';
+import {
+  selectIsAdmin,
+  selectUser,
+  selectIsLoading,
+  selectError,
+  fetchUser,
+  clearUser,
+} from "@/app/store/slices/userSlice";
 import Image from "next/image";
 import { useAppDispatch, useAppSelector } from "@/app/store/hooks";
 
@@ -41,28 +48,6 @@ interface UserLink {
   isAdmin?: boolean;
 }
 
-const userLinks = [
-  {
-    icon: <User className="w-5 h-5" />,
-    text: "Account Settings",
-    link: "/account/profile",
-  },
-  {
-    icon: <Package className="w-5 h-5" />,
-    text: "My Orders",
-    link: "/account/orders",
-  },
-  {
-    icon: <Wallet className="w-5 h-5" />,
-    text: "Wallet",
-    link: "/account/wallet",
-  },
-  {
-    icon: <Heart className="w-5 h-5" />,
-    text: "Favorites",
-    link: "/account/wishlist",
-  },
-];
 
 // Logo Component
 export const Logo: React.FC = () => (
@@ -70,10 +55,10 @@ export const Logo: React.FC = () => (
     <Link href="/" className="flex items-center gap-2">
       <div className="w-40 h-8 rounded flex items-center justify-center">
         <Image
-        src="/shop-grocery.png"
-        alt="shop grocery"
-        width={300}
-        height={50}
+          src="/shop-grocery.png"
+          alt="shop grocery"
+          width={300}
+          height={50}
         />
       </div>
     </Link>
@@ -106,10 +91,12 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   // Handle Enter key press - navigate to products page with search parameter
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && inputValue.trim()) {
+    if (e.key === "Enter" && inputValue.trim()) {
       // Navigate to products page with search parameter
-      window.location.href = `/products?search=${encodeURIComponent(inputValue.trim())}`;
-      
+      window.location.href = `/products?search=${encodeURIComponent(
+        inputValue.trim()
+      )}`;
+
       // Close the dropdown
       handleCloseDropdown();
     }
@@ -154,11 +141,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
           {/* Search Dropdown */}
           <SearchDropdown
-  isVisible={isDropdownVisible}
-  searchQuery={inputValue}
-  onClose={handleCloseDropdown}
-  searchContainerRef={searchContainerRef as React.RefObject<HTMLDivElement>}
-/>
+            isVisible={isDropdownVisible}
+            searchQuery={inputValue}
+            onClose={handleCloseDropdown}
+            searchContainerRef={
+              searchContainerRef as React.RefObject<HTMLDivElement>
+            }
+          />
         </>
       )}
     </div>
@@ -225,16 +214,17 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
   handleLogout: originalHandleLogout,
   user: propUser,
 }) => {
-  const [mouseLeaveTimeout, setMouseLeaveTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [mouseLeaveTimeout, setMouseLeaveTimeout] =
+    useState<NodeJS.Timeout | null>(null);
   const [lastSignInState, setLastSignInState] = useState<boolean>(false);
-  
+
   // Redux selectors for admin status and user data
   const dispatch = useAppDispatch();
   const isAdmin = useAppSelector(selectIsAdmin);
   const reduxUser = useAppSelector(selectUser);
   const isUserLoading = useAppSelector(selectIsLoading);
   const userError = useAppSelector(selectError);
-  
+
   // Use Redux user data if available, fallback to props
   const user = reduxUser || propUser;
 
@@ -371,7 +361,8 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
   }
 
   const displayName = user?.firstName || "User";
-  const displayInitial = user?.initial || user?.name?.charAt(0)?.toUpperCase() || "U";
+  const displayInitial =
+    user?.initial || user?.name?.charAt(0)?.toUpperCase() || "U";
   const userLinks = getUserLinks();
 
   return (
@@ -386,7 +377,9 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
         whileHover={{ backgroundColor: "#16a34a" }}
       >
         <motion.div
-          className={`w-8 h-8 ${isAdmin ? 'bg-purple-600' : 'bg-purple-600'} rounded-full flex items-center justify-center relative`}
+          className={`w-8 h-8 ${
+            isAdmin ? "bg-purple-600" : "bg-purple-600"
+          } rounded-full flex items-center justify-center relative`}
           whileHover={{ rotate: 10 }}
           whileTap={{ rotate: -10 }}
         >
@@ -469,7 +462,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
                       </motion.div>
                     )}
                   </motion.div>
-                  
+
                   <motion.h3
                     className="text-lg font-semibold text-gray-900"
                     initial={{ y: 5, opacity: 0 }}
@@ -478,7 +471,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
                   >
                     {displayName}
                   </motion.h3>
-                  
+
                   {user?.email && (
                     <motion.p
                       className="text-sm text-gray-500"
@@ -489,9 +482,9 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
                       {user.email}
                     </motion.p>
                   )}
-                  
+
                   {isAdmin && (
-                    <motion.span 
+                    <motion.span
                       className="mt-2 px-3 py-1 bg-orange-100 text-orange-800 text-xs rounded-full font-medium flex items-center gap-1"
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
@@ -517,7 +510,9 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
                     <Link
                       href={item.link}
                       className={`flex items-center gap-3 px-6 py-3 text-gray-700 hover:bg-gray-100 transition-colors ${
-                        item.isAdmin ? 'bg-orange-50 border-l-4 border-orange-500' : ''
+                        item.isAdmin
+                          ? "bg-orange-50 border-l-4 border-orange-500"
+                          : ""
                       }`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -525,7 +520,11 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
                       }}
                     >
                       {item.icon}
-                      <span className={item.isAdmin ? 'font-medium text-orange-700' : ''}>
+                      <span
+                        className={
+                          item.isAdmin ? "font-medium text-orange-700" : ""
+                        }
+                      >
                         {item.text}
                       </span>
                       {item.isAdmin && (
@@ -566,6 +565,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
 };
 
 // Mobile Sidebar Component
+// Updated MobileSidebar Component with Admin Logic
 export const MobileSidebar: React.FC<MobileSidebarProps> = ({
   isOpen,
   onClose,
@@ -574,6 +574,50 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
   handleLogout,
   user,
 }) => {
+  // Redux selector for admin status (same as UserDropdown)
+  const isAdmin = useAppSelector(selectIsAdmin);
+
+  // Define user links with conditional admin link (same pattern as UserDropdown)
+  const getMobileUserLinks = (): UserLink[] => {
+    const baseLinks: UserLink[] = [
+      {
+        icon: <User className="w-5 h-5" />,
+        text: "Account Settings",
+        link: "/account/profile",
+      },
+      {
+        icon: <Package className="w-5 h-5" />,
+        text: "My Orders",
+        link: "/account/orders",
+      },
+      {
+        icon: <Wallet className="w-5 h-5" />,
+        text: "Wallet",
+        link: "/account/wallet",
+      },
+      {
+        icon: <Heart className="w-5 h-5" />,
+        text: "Favorites",
+        link: "/account/wishlist",
+      },
+    ];
+
+    // Add admin link if user is admin (same logic as UserDropdown)
+    if (isAdmin) {
+      return [
+        {
+          icon: <UserCog className="w-5 h-5 text-orange-300" />,
+          text: "Admin Dashboard",
+          link: "/admin",
+          isAdmin: true, // Flag for special styling
+        },
+        ...baseLinks,
+      ];
+    }
+
+    return baseLinks;
+  };
+
   return (
     <>
       {/* Overlay */}
@@ -613,10 +657,9 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
 
             {/* Sidebar Content */}
             <div className="p-4 bg-orange-600 overflow-y-auto h-[calc(100%-80px)]">
-
               {/* User Section */}
               {isSignedIn && user && (
-                <div className=" pt-4 border-gray-300">
+                <div className="pt-4 border-gray-300">
                   <div className="flex items-center gap-3 p-3 mb-4">
                     <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white font-bold text-sm">{user.initial}</span>
@@ -627,16 +670,23 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
                     </div>
                   </div>
                   
-                  {/* User Links */}
-                  {userLinks.map((item) => (
+                  {/* User Links - dynamically generated based on admin status */}
+                  {getMobileUserLinks().map((item) => (
                     <Link
                       key={item.text}
                       href={item.link}
-                      className="flex items-center gap-3 p-3 text-gray-200 hover:bg-orange-700 rounded-lg transition-colors"
+                      className={`flex items-center gap-3 p-3 text-gray-200 hover:bg-orange-700 rounded-lg transition-colors ${
+                        item.isAdmin ? 'bg-orange-800/30 border-l-4 border-orange-400' : ''
+                      }`}
                       onClick={onClose}
                     >
                       {item.icon}
-                      <span>{item.text}</span>
+                      <span className={item.isAdmin ? 'font-medium text-white' : ''}>{item.text}</span>
+                      {item.isAdmin && (
+                        <span className="ml-auto text-xs bg-orange-300 text-white px-2 py-1 rounded">
+                          Admin
+                        </span>
+                      )}
                     </Link>
                   ))}
                 </div>
@@ -658,7 +708,7 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
                 >
                   Help Center
                 </Link>
-                
+
                 {/* Authentication Actions */}
                 {isSignedIn ? (
                   <button
