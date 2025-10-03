@@ -66,9 +66,9 @@ export default function CommunitySection() {
       <section className="">
         <div className="flex flex-col md:flex-row gap-6 justify-between md:items-center px-4 md:px-0">
           <div className="flex flex-col gap-3 max-w-md">
-            <h1 className="text-2xl font-semibold text-gray-900">Join The FeedMe Community</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">Join The ShopGrocery Community</h1>
             <p className="text-sm text-gray-600">
-              Sign up and be the first to learn about updates from FeedMe
+              Sign up and be the first to learn about updates from ShopGrocery
             </p>
           </div>
           

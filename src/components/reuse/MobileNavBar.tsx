@@ -12,7 +12,7 @@ export default function MobileNavBar() {
   
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
-    { href: "/cart", icon: ShoppingCart, label: "Cart" },
+    { href: "/carts", icon: ShoppingCart, label: "Cart" },
     { href: "/account/orders", icon: Package, label: "Orders" },
     { href: "/account/wishlist", icon: Heart, label: "Wishlist" },
     { href: "/account/profile", icon: User, label: "Account" },
