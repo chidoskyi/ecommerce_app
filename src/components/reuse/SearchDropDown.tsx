@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
-import { useProducts } from "@/app/store/slices/productSlice";
 import { useCategories } from "@/app/store/slices/categorySlice";
 import Image from 'next/image';
 import { Product } from '@/types/products';
+import axios from 'axios';
 
 export interface SearchBarProps {
   inputValue: string;
@@ -12,7 +12,6 @@ export interface SearchBarProps {
   placeholder: string;
 }
 
-// Add these interfaces
 interface PageSuggestion {
   id: number;
   name: string;
@@ -43,11 +42,10 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
   const [isLoading, setIsLoading] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
 
-  // Get products and categories from Redux store
-  const { products } = useProducts();
+  // Get categories from Redux store
   const { categories, actions: categoryActions } = useCategories();
 
-  // Sample pages - replace with your actual data
+  // Sample pages
   const samplePages: PageSuggestion[] = [
     { id: 1, name: "Privacy policy", path: "/privacy-policy" },
     { id: 2, name: "Refund policy", path: "/refund-policy" },
@@ -55,7 +53,6 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
     { id: 4, name: "About us", path: "/about-us" },
     { id: 5, name: "Contact us", path: "/contact-us" },
   ];
-
 
   // Load categories when component mounts
   useEffect(() => {
@@ -70,7 +67,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
       const rect = searchContainerRef.current.getBoundingClientRect();
       setDropdownPosition({
         top: rect.bottom + window.scrollY,
-        left: 0, // Full width of viewport
+        left: 0,
       });
     }
   }, [isVisible, searchContainerRef]);
@@ -92,7 +89,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
     };
   }, [isVisible, onClose]);
 
-  // Search logic effect
+  // Search logic effect - FIXED to prevent infinite loop
   useEffect(() => {
     if (searchQuery.length < 1) {
       setProductSuggestions([]);
@@ -104,40 +101,50 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
     setIsLoading(true);
     
     // Use a timeout to debounce the search
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       const searchTerm = searchQuery.toLowerCase();
       
-      // Filter products from Redux store
-      const filteredProducts = products.filter((product: Product) => 
-        product.name?.toLowerCase().includes(searchTerm) ||
-        product.description?.toLowerCase().includes(searchTerm) ||
-        product.sku?.toLowerCase().includes(searchTerm) ||
-        product.category?.name?.toLowerCase().includes(searchTerm)
-      ).slice(0, 6); // Limit to 6 products
+      try {
+        // Fetch products directly from API using axios (not Redux)
+        const response = await axios.get('/api/products', {
+          params: {
+            search: searchQuery,
+            limit: 6,
+            status: 'ACTIVE'
+          }
+        });
+
+        if (response.data.success) {
+          setProductSuggestions(response.data.products || []);
+        } else {
+          setProductSuggestions([]);
+        }
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        setProductSuggestions([]);
+      }
       
       // Filter pages
       const filteredPages = samplePages.filter(page => 
         page.name.toLowerCase().includes(searchTerm)
-      ).slice(0, 4); // Limit to 4 pages
+      ).slice(0, 4);
       
-      // Filter categories from Redux store
+      // Filter categories
       const filteredCategories = categories.filter(category => 
         category.status === "ACTIVE" && (
           category.name.toLowerCase().includes(searchTerm) ||
           category.slug.toLowerCase().includes(searchTerm) ||
           category.description?.toLowerCase().includes(searchTerm)
         )
-      ).slice(0, 6); // Limit to 6 categories
+      ).slice(0, 6);
       
-      setProductSuggestions(filteredProducts);
       setPageSuggestions(filteredPages);
       setCategorySuggestions(filteredCategories as unknown as CategorySuggestion[]);
       setIsLoading(false);
     }, 300);
     
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, products, categories]);
+  }, [searchQuery, categories]); // Removed products and productActions from dependencies
 
   if (!isVisible) return null;
 
@@ -209,22 +216,6 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
                           ${product.hasFixedPrice ? product.fixedPrice?.toFixed(2) : product.displayPrice?.toFixed(2) || '0.00'}
                         </span>
                       </div>
-                      {/* {product.rating && product.rating > 0 && (
-                        <div className="mt-1">
-                          <div className="flex items-center">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <StarRating 
-                                key={star} 
-                                className={`w-3 h-3 ${star <= product.rating ? 'text-yellow-400' : 'text-gray-200'}`} 
-                                rating={product.rating}
-                                showNumber={false}
-                                starSize={16}
-                              />
-                            ))}
-                            <span className="text-xs text-gray-500 ml-1">({product.rating})</span>
-                          </div>
-                        </div>
-                      )} */}
                     </Link>
                   ))}
                 </div>
@@ -333,7 +324,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
                   </svg>
                 </div>
                 <h4 className="text-lg font-medium text-gray-900 mb-2">No results found</h4>
-                <p className="text-gray-500 mb-4">We couldn&quot;t find anything matching &quot;{searchQuery}&quot;</p>
+                <p className="text-gray-500 mb-4">We couldn&apos;t find anything matching &quot;{searchQuery}&quot;</p>
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <Link 
                     href={`/products?search=${encodeURIComponent(searchQuery)}`}
