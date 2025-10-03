@@ -5,6 +5,14 @@ import {
   type AuthenticatedRequest, RouteContext
 } from "@/lib/auth";
 import { Category, Prisma, Product, UnitPrice } from "@prisma/client";
+import { initCloudinary, deleteImage } from "@/lib/cloudinary";
+
+initCloudinary({
+  cloudName: process.env.CLOUDINARY_CLOUD_NAME!,
+  apiKey: process.env.CLOUDINARY_API_KEY!,
+  apiSecret: process.env.CLOUDINARY_API_SECRET!,
+  folder: process.env.CLOUDINARY_PRODUCTS_PRESET || "products",
+});
 
 export interface ProductWithRelations extends Product {
   category: Category;
@@ -18,6 +26,166 @@ export interface ProductWithRelations extends Product {
 // interface RouteContext {
 //   params: Promise<{ id: string }>;
 // }
+
+export const DELETE = requireAdminDynamic<{ id: string }>(
+  async (
+    request: AuthenticatedRequest,
+    ctx: RouteContext<{ id: string }>
+  ) => {
+    try {
+      const user = request.user;
+      const params = await ctx.params;
+      const { id } = params;
+
+      console.log("🗑️ Delete product API called for:", id);
+      console.log("👤 Admin user:", user.email);
+
+      if (!id) {
+        return NextResponse.json(
+          { error: "Product ID is required" },
+          { status: 400 }
+        );
+      }
+
+      // Check if product exists and get its data (including images)
+      const existingProduct = await prisma.product.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          images: true,
+        },
+      });
+
+      if (!existingProduct) {
+        return NextResponse.json(
+          { error: "Product not found" }, 
+          { status: 404 }
+        );
+      }
+
+      // Check for foreign key constraints BEFORE attempting delete
+      try {
+        const orderItemCount = await prisma.orderItem.count({
+          where: { productId: id }
+        });
+
+        if (orderItemCount > 0) {
+          return NextResponse.json(
+            {
+              error: "Cannot delete product",
+              message: `This product has ${orderItemCount} associated order items. Please remove these orders first or use soft delete.`,
+              canDelete: false,
+              orderItemCount,
+              suggestion: "Consider using PATCH with action: 'soft_delete' instead"
+            },
+            { status: 409 }
+          );
+        }
+      } catch (constraintError) {
+        console.error("Error checking constraints:", constraintError);
+        // Continue - we'll catch the actual deletion error below
+      }
+
+      // Collect all image URLs to delete from Cloudinary
+      const imagesToDelete: string[] = [];
+      if (existingProduct.images && Array.isArray(existingProduct.images)) {
+        imagesToDelete.push(
+          ...existingProduct.images.filter((url) => url && url.trim() !== "")
+        );
+      }
+
+      // Extract public ID from Cloudinary URL
+      function extractPublicIdFromUrl(url: string): string | null {
+        try {
+          const regex = /\/v\d+\/(.+?)\.(jpg|jpeg|png|gif|webp)$/i;
+          const match = url.match(regex);
+          return match ? match[1] : null;
+        } catch {
+          return null;
+        }
+      }
+
+      // Delete all images from Cloudinary first (optional - comment out if you want to skip)
+      const cloudinaryDeletions: Promise<void>[] = [];
+      
+      for (const imageUrl of imagesToDelete) {
+        const publicId = extractPublicIdFromUrl(imageUrl);
+        if (publicId) {
+          cloudinaryDeletions.push(
+            deleteImage(publicId)
+              .then(() => {})
+              .catch((error) => {
+                console.error(`⚠️ Failed to delete image ${publicId} from Cloudinary:`, error);
+                // Don't throw - we want to continue with database deletion
+              }) as Promise<void>
+          );
+        }
+      }
+
+      // Wait for all Cloudinary deletions to complete (or fail)
+      if (cloudinaryDeletions.length > 0) {
+        console.log(`🖼️ Attempting to delete ${cloudinaryDeletions.length} images from Cloudinary...`);
+        await Promise.allSettled(cloudinaryDeletions);
+        console.log(`✅ Cloudinary cleanup attempted for ${cloudinaryDeletions.length} images`);
+      }
+
+      // Hard delete the product from database
+      const deletedProduct = await prisma.product.delete({
+        where: { id },
+      });
+
+      console.log(`✅ Product deleted successfully: ${existingProduct.name}`);
+
+      return NextResponse.json({
+        success: true,
+        message: "Product deleted successfully",
+        id: deletedProduct.id,
+        product: {
+          id: deletedProduct.id,
+          name: existingProduct.name,
+          deletedImages: imagesToDelete.length,
+        },
+      });
+
+    } catch (error) {
+      console.error("❌ Products DELETE error:", error);
+
+      // Handle specific Prisma errors
+      if (error instanceof Error) {
+        // Foreign key constraint errors
+        if (error.message.includes("Foreign key constraint") || 
+            error.message.includes("violate the required relation") ||
+            error.message.includes("OrderItemToProduct")) {
+          return NextResponse.json(
+            {
+              error: "Cannot delete product: it is referenced by existing orders",
+              suggestion: "Use soft delete instead or remove associated orders first",
+              code: "FOREIGN_KEY_CONSTRAINT"
+            },
+            { status: 409 }
+          );
+        }
+        
+        // Product not found
+        if (error.message.includes("Record to delete does not exist")) {
+          return NextResponse.json(
+            { error: "Product not found" },
+            { status: 404 }
+          );
+        }
+      }
+
+      return NextResponse.json(
+        { 
+          error: "Failed to delete product",
+          details: process.env.NODE_ENV === 'development' ? (error as Error).message : "Internal server error"
+        },
+        { status: 500 }
+      );
+    }
+  }
+);
 
 export const PUT = requireAdminDynamic(
   async (
@@ -305,85 +473,87 @@ export const PATCH = requireAdminDynamic(
   }
 );
 
-export const DELETE = requireAdminDynamic<{ id: string }>(
-  async (
-    request: AuthenticatedRequest,
-    ctx: RouteContext<{ id: string }>
-  ) => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const user = request.user;
-      const params = await ctx.params; // Await the params promise first
-      const { id } = params; // Then destructure
 
-      if (!id) {
-        return NextResponse.json(
-          { error: "Product ID is required" },
-          { status: 400 }
-        );
-      }
 
-      // Check if product exists and get its data (including images)
-      const existingProduct = await prisma.product.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          name: true,
-          images: true,
-        },
-      });
+// export const DELETE = requireAdminDynamic<{ id: string }>(
+//   async (
+//     request: AuthenticatedRequest,
+//     ctx: RouteContext<{ id: string }>
+//   ) => {
+//     try {
+//       // eslint-disable-next-line @typescript-eslint/no-unused-vars
+//       const user = request.user;
+//       const params = await ctx.params; // Await the params promise first
+//       const { id } = params; // Then destructure
 
-      if (!existingProduct) {
-        return NextResponse.json({ error: "Product not found" }, { status: 404 });
-      }
+//       if (!id) {
+//         return NextResponse.json(
+//           { error: "Product ID is required" },
+//           { status: 400 }
+//         );
+//       }
 
-      // Collect all image URLs to delete
-      const imagesToDelete: string[] = [];
+//       // Check if product exists and get its data (including images)
+//       const existingProduct = await prisma.product.findUnique({
+//         where: { id },
+//         select: {
+//           id: true,
+//           name: true,
+//           images: true,
+//         },
+//       });
 
-      // Add all images from the images array
-      if (existingProduct.images && Array.isArray(existingProduct.images)) {
-        imagesToDelete.push(
-          ...existingProduct.images.filter((url) => url && url.trim() !== "")
-        );
-      }
+//       if (!existingProduct) {
+//         return NextResponse.json({ error: "Product not found" }, { status: 404 });
+//       }
 
-      // ✅ REMOVED: Cloudinary deletion logic here
-      // Images will be deleted through the separate image deletion endpoint
+//       // Collect all image URLs to delete
+//       const imagesToDelete: string[] = [];
 
-      // Hard delete the product from database
-      const deletedProduct = await prisma.product.delete({
-        where: { id },
-      });
+//       // Add all images from the images array
+//       if (existingProduct.images && Array.isArray(existingProduct.images)) {
+//         imagesToDelete.push(
+//           ...existingProduct.images.filter((url) => url && url.trim() !== "")
+//         );
+//       }
 
-      return NextResponse.json({
-        success: true,
-        message: "Product deleted successfully",
-        id: deletedProduct.id,
-        product: {
-          id: deletedProduct.id,
-          name: existingProduct.name,
-          deletedImages: imagesToDelete.length,
-        },
-      });
-    } catch (error) {
-      console.error("Products DELETE error:", error);
+//       // ✅ REMOVED: Cloudinary deletion logic here
+//       // Images will be deleted through the separate image deletion endpoint
 
-      if (error instanceof Error) {
-        if (error.message.includes("Foreign key constraint")) {
-          return NextResponse.json(
-            {
-              error:
-                "Cannot delete product: it may be referenced by orders or other records",
-            },
-            { status: 409 }
-          );
-        }
-      }
+//       // Hard delete the product from database
+//       const deletedProduct = await prisma.product.delete({
+//         where: { id },
+//       });
 
-      return NextResponse.json(
-        { error: "Internal server error" },
-        { status: 500 }
-      );
-    }
-  }
-);
+//       return NextResponse.json({
+//         success: true,
+//         message: "Product deleted successfully",
+//         id: deletedProduct.id,
+//         product: {
+//           id: deletedProduct.id,
+//           name: existingProduct.name,
+//           deletedImages: imagesToDelete.length,
+//         },
+//       });
+//     } catch (error) {
+//       console.error("Products DELETE error:", error);
+
+//       if (error instanceof Error) {
+//         if (error.message.includes("Foreign key constraint")) {
+//           return NextResponse.json(
+//             {
+//               error:
+//                 "Cannot delete product: it may be referenced by orders or other records",
+//             },
+//             { status: 409 }
+//           );
+//         }
+//       }
+
+//       return NextResponse.json(
+//         { error: "Internal server error" },
+//         { status: 500 }
+//       );
+//     }
+//   }
+// );

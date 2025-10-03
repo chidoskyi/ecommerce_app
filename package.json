@@ -94,6 +94,7 @@
     "redux": "^5.0.1",
     "redux-persist": "^6.0.0",
     "reselect": "^5.1.1",
+    "resend": "^6.1.0",
     "svix": "^1.69.0",
     "swiper": "^11.2.10",
     "tailwind-merge": "^3.3.1",

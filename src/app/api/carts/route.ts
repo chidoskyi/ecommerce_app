@@ -12,6 +12,9 @@ function generateGuestId() {
   return `guest_${timestamp}_${randomStr}`;
 }
 
+
+
+
 export type CartItemWithProduct = {
   id: string;
   clerkId: string | null;
