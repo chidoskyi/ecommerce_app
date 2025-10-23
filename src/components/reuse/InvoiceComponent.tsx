@@ -251,8 +251,9 @@ export function InvoiceComponent({
         process.env.NEXT_PUBLIC_BANK_ONE_ACCOUNT_NAME || "Shop Grocery ",
       accountNumber:
         process.env.NEXT_PUBLIC_BANK_ONE_ACCOUNT_NUMBER || "1310790977",
-    },
-    {
+    }
+    // ,
+    // {
     //   name: process.env.NEXT_PUBLIC_BANK_TWO_NAME || "GTBank PLC",
     //   accountName:
     //     process.env.NEXT_PUBLIC_BANK_TWO_ACCOUNT_NAME || "Shop Grocery Limited",
