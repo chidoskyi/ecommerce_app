@@ -1,0 +1,42 @@
+{
+    "name": "Shop Grocery - Online Store",
+    "short_name": "Shop Grocery",
+    "description": "Your one-stop shop for all things delicious",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#000000",
+    "orientation": "portrait-primary",
+    "icons": [
+      {
+        "src": "/shop-grocery.png",
+        "sizes": "192x192",
+        "type": "image/png",
+        "purpose": "any maskable"
+      },
+      {
+        "src": "/shop-grocery.png",
+        "sizes": "512x512",
+        "type": "image/png",
+        "purpose": "any maskable"
+      }
+    ],
+    "categories": ["shopping", "food", "lifestyle"],
+    "shortcuts": [
+      {
+        "name": "Shop Now",
+        "short_name": "Shop",
+        "description": "Browse products",
+        "url": "/shop",
+        "icons": [{ "src": "/shop-grocery.png", "sizes": "192x192" }]
+      },
+      {
+        "name": "My Cart",
+        "short_name": "Cart",
+        "description": "View shopping cart",
+        "url": "/cart",
+        "icons": [{ "src": "/shop-grocery.png", "sizes": "192x192" }]
+      }
+    ]
+  }

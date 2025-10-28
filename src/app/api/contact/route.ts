@@ -91,11 +91,15 @@ export async function POST(req: NextRequest) {
     // Send emails
     console.log('📧 Sending contact form emails...')
     try {
-      const emailResults = await emailService.sendContactFormNotification(cleanData)
-      console.log('✅ Contact form emails sent successfully')
-      console.log('Admin email ID:', emailResults.messageId)
+      const emailResults = await emailService.sendContactFormNotification(cleanData);
+      console.log('✅ Contact form emails sent successfully');
+      if (emailResults && 'id' in emailResults) {
+        console.log('Admin email ID:', emailResults.id);
+      } else {
+        console.log('Admin email ID not available in results:', emailResults);
+      }
     } catch (emailError) {
-      console.error('⚠️ Email sending failed, but contact was saved:', emailError)
+      console.error('⚠️ Email sending failed, but contact was saved:', emailError);
       // Don't fail the entire request if emails fail
       // The contact is still saved in the database
     }

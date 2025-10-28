@@ -155,7 +155,7 @@ const itemQuantityInCart = useAppSelector(selectItemQuantity(id || ""));
 
   const getValidImageUrl = (images: string[] | undefined | null): string => {
     if (!images || images.length === 0) {
-      return "/placeholder.svg?height=200&width=200";
+      return "/placeholder.jpg";
     }
     
     const firstImage = images[0];
@@ -165,7 +165,7 @@ const itemQuantityInCart = useAppSelector(selectItemQuantity(id || ""));
         (!firstImage.startsWith('http://') && 
          !firstImage.startsWith('https://') && 
          !firstImage.startsWith('/'))) {
-      return "/placeholder.svg?height=200&width=200";
+      return "/placeholder.jpg";
     }
     
     return firstImage;

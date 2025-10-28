@@ -144,6 +144,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
     }, 300);
     
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, categories]); // Removed products and productActions from dependencies
 
   if (!isVisible) return null;
@@ -160,7 +161,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
         {isLoading ? (
           <div className="flex justify-center py-8">
             <div className="flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-600 border-t-transparent"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-2 border-orange-600 border-t-transparent"></div>
               <span className="text-gray-600">Searching...</span>
             </div>
           </div>
@@ -180,7 +181,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
                   <h4 className="text-md font-semibold text-gray-800">Products ({productSuggestions.length})</h4>
                   <Link 
                     href={`/products?search=${encodeURIComponent(searchQuery)}`}
-                    className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
+                    className="text-orange-600 hover:text-orange-800 text-sm font-medium flex items-center"
                     onClick={onClose}
                   >
                     View all products
@@ -208,7 +209,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
                           <div className="text-gray-400 text-xs">No Image</div>
                         )}
                       </div>
-                      <h5 className="font-medium text-sm mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                      <h5 className="font-medium text-sm mb-2 line-clamp-2 group-hover:text-orange-600 transition-colors">
                         {product.name}
                       </h5>
                       <div className="flex items-center gap-2 mt-auto">
@@ -231,7 +232,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
                     <h4 className="text-md font-semibold text-gray-800">Categories ({categorySuggestions.length})</h4>
                     <Link 
                       href={`/categories?search=${encodeURIComponent(searchQuery)}`}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
+                      className="text-orange-600 hover:text-orange-800 text-sm font-medium flex items-center"
                       onClick={onClose}
                     >
                       View all
@@ -261,7 +262,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
                             )}
                           </div>
                           <div>
-                            <span className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                            <span className="font-medium text-gray-900 group-hover:text-orange-600 transition-colors">
                               {category.name}
                             </span>
                             {category.description && (
@@ -276,7 +277,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
                             )}
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-orange-600 transition-colors" />
                       </Link>
                     ))}
                   </div>
@@ -296,16 +297,16 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
                         onClick={onClose}
                       >
                         <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                           </div>
-                          <span className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                          <span className="font-medium text-gray-900 group-hover:text-orange-600 transition-colors">
                             {page.name}
                           </span>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-orange-600 transition-colors" />
                       </Link>
                     ))}
                   </div>
@@ -328,7 +329,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <Link 
                     href={`/products?search=${encodeURIComponent(searchQuery)}`}
-                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
                     onClick={onClose}
                   >
                     Search all products
@@ -357,7 +358,7 @@ const SearchDropdown = ({ isVisible, searchQuery, onClose, searchContainerRef }:
           <div className="flex items-center space-x-4">
             <Link 
               href={`/products?search=${encodeURIComponent(searchQuery)}`}
-              className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
+              className="text-orange-600 hover:text-orange-800 text-sm font-medium flex items-center"
               onClick={onClose}
             >
               See all results

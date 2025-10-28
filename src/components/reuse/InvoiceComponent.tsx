@@ -246,19 +246,20 @@ export function InvoiceComponent({
   // Bank account details from environment variables
   const bankAccounts = [
     {
-      name: process.env.NEXT_PUBLIC_BANK_ONE_NAME || "First Bank PLC",
+      name: process.env.NEXT_PUBLIC_BANK_ONE_NAME || "Zenith Bank PLC",
       accountName:
-        process.env.NEXT_PUBLIC_BANK_ONE_ACCOUNT_NAME || "Shop Grocery Limited",
+        process.env.NEXT_PUBLIC_BANK_ONE_ACCOUNT_NAME || "Shop Grocery ",
       accountNumber:
-        process.env.NEXT_PUBLIC_BANK_ONE_ACCOUNT_NUMBER || "1234567890",
-    },
-    {
-      name: process.env.NEXT_PUBLIC_BANK_TWO_NAME || "GTBank PLC",
-      accountName:
-        process.env.NEXT_PUBLIC_BANK_TWO_ACCOUNT_NAME || "Shop Grocery Limited",
-      accountNumber:
-        process.env.NEXT_PUBLIC_BANK_TWO_ACCOUNT_NUMBER || "0987654321",
-    },
+        process.env.NEXT_PUBLIC_BANK_ONE_ACCOUNT_NUMBER || "1310790977",
+    }
+    // ,
+    // {
+    //   name: process.env.NEXT_PUBLIC_BANK_TWO_NAME || "GTBank PLC",
+    //   accountName:
+    //     process.env.NEXT_PUBLIC_BANK_TWO_ACCOUNT_NAME || "Shop Grocery Limited",
+    //   accountNumber:
+    //     process.env.NEXT_PUBLIC_BANK_TWO_ACCOUNT_NUMBER || "0987654321",
+    // },
   ].filter((bank) => bank.name && bank.accountNumber);
   console.log("Bank accounts:", bankAccounts);
 
