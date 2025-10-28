@@ -213,9 +213,9 @@ const nextConfig = {
       },
     ],
   },
-  turbopack: {
-    root: "/Users/NETPHIX_DEV/Desktop/ecommerce_app",
-  },
+  // turbopack: {
+  //   root: "/Users/NETPHIX_DEV/Desktop/ecommerce_app",
+  // },
   env: {
     NEXT_PUBLIC_BANK_ONE_NAME: process.env.NEXT_PUBLIC_BANK_ONE_NAME,
     NEXT_PUBLIC_BANK_ONE_ACCOUNT_NAME: process.env.NEXT_PUBLIC_BANK_ONE_ACCOUNT_NAME,
